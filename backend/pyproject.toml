@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trialsync"
+version = "0.1.0"
+description = "Foundation for the TrialSync academic pre-screening prototype"
+readme = "../README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic==1.16.4",
+  "fastapi==0.139.0",
+  "psycopg[binary]==3.3.4",
+  "pydantic-settings==2.10.1",
+  "sqlalchemy[asyncio]==2.0.51",
+  "starlette==1.3.1",
+  "uvicorn[standard]==0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.28.1",
+  "mypy==1.17.0",
+  "pytest==8.4.1",
+  "pytest-cov==6.2.1",
+  "ruff==0.12.5",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trialsync"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["trialsync"]

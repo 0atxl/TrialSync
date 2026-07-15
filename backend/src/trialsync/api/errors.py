@@ -31,12 +31,14 @@ class ApplicationError(Exception):
         message: str,
         status_code: int,
         field: str | None = None,
+        details: list[dict[str, Any]] | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.status_code = status_code
         self.field = field
+        self.details = details
 
 
 def get_trace_id(request: Request) -> str:
@@ -78,6 +80,7 @@ def install_error_handlers(app: FastAPI) -> None:
             code=exception.code,
             message=exception.message,
             field=exception.field,
+            details=exception.details,
         )
 
     @app.exception_handler(RequestValidationError)

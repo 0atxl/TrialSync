@@ -39,10 +39,11 @@ class TokenResponse(BaseModel):
 
 
 class PatientCreate(BaseModel):
-    external_id: str = Field(min_length=1, max_length=64)
+    external_id: str | None = Field(default=None, min_length=1, max_length=64)
     display_name: str = Field(min_length=1, max_length=120)
     date_of_birth: date | None = None
     sex: str | None = Field(default=None, max_length=32)
+    confirm_duplicate_name: bool = False
 
 
 class PatientUpdate(BaseModel):
@@ -92,7 +93,7 @@ class PatientRead(ORMModel):
 
 
 class TrialCreate(BaseModel):
-    registry_id: str = Field(min_length=1, max_length=64)
+    registry_id: str | None = Field(default=None, min_length=1, max_length=64)
     title: str = Field(min_length=1, max_length=240)
     condition: str = Field(min_length=1, max_length=160)
     phase: str | None = Field(default=None, max_length=40)

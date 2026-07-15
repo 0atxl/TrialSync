@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest, type Patient } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { ConfirmationDialog } from '../components/ConfirmationDialog'
 
 export function PatientDetailPage() {
   const { patientId = '' } = useParams()
   const { token } = useAuth()
+  const navigate = useNavigate()
   const [patient, setPatient] = useState<Patient | null>(null)
   const [error, setError] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [factType, setFactType] = useState('condition')
   const [concept, setConcept] = useState('')
   const [value, setValue] = useState('')
@@ -85,6 +89,19 @@ export function PatientDetailPage() {
     }
   }
 
+  const deletePatient = async () => {
+    setDeleting(true)
+    try {
+      await apiRequest(`/patients/${patientId}`, { method: 'DELETE' }, token)
+      navigate('/patients', { replace: true })
+    } catch {
+      setDeleteOpen(false)
+      setError('Patient record could not be deleted. No changes were made.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (error && !patient) return <div className="form-error" role="alert">{error}</div>
   if (!patient) return <div className="loading-state">Loading patient record…</div>
 
@@ -92,8 +109,8 @@ export function PatientDetailPage() {
     <section className="route-entry workspace-page">
       <Link className="back-link" to="/patients">← Patients</Link>
       <header className="page-heading">
-        <p className="eyebrow">{patient.external_id}</p>
-        <h1>{patient.display_name}</h1>
+        <div><p className="eyebrow">{patient.external_id}</p><h1>{patient.display_name}</h1></div>
+        <button className="danger-button danger-button-subtle" type="button" onClick={() => setDeleteOpen(true)}>Delete patient</button>
       </header>
       <form className="profile-form" onSubmit={saveProfile}>
         <label>Display name<input name="display_name" required defaultValue={patient.display_name} /></label>
@@ -119,6 +136,9 @@ export function PatientDetailPage() {
           </article>
         ))}
       </div>
+      <ConfirmationDialog open={deleteOpen} eyebrow="Permanent action" title="Delete this patient?" confirmLabel="Delete patient" busyLabel="Deleting…" busy={deleting} onCancel={() => setDeleteOpen(false)} onConfirm={() => void deletePatient()}>
+        <p><strong>{patient.display_name}</strong> will be removed from the active patient workspace. Existing immutable screening snapshots and their evidence history will remain available.</p>
+      </ConfirmationDialog>
     </section>
   )
 }

@@ -117,6 +117,7 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly code: string,
+    readonly details?: Array<Record<string, unknown>>,
   ) {
     super(message)
   }
@@ -137,6 +138,7 @@ export async function apiRequest<T>(
       body?.error?.message ?? 'The API request failed.',
       response.status,
       body?.error?.code ?? 'API_ERROR',
+      body?.error?.details,
     )
   }
   if (response.status === 204) return undefined as T

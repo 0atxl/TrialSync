@@ -6,8 +6,10 @@ import { AuthPage } from '../pages/AuthPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { PatientDetailPage } from '../pages/PatientDetailPage'
 import { PatientsPage } from '../pages/PatientsPage'
+import { NewPatientPage } from '../pages/NewPatientPage'
 import { TrialDetailPage } from '../pages/TrialDetailPage'
 import { TrialsPage } from '../pages/TrialsPage'
+import { NewTrialPage } from '../pages/NewTrialPage'
 import { BatchDetailPage } from '../pages/BatchDetailPage'
 import { BatchScreeningPage } from '../pages/BatchScreeningPage'
 import { DashboardPage } from '../pages/DashboardPage'
@@ -30,8 +32,10 @@ export const routes = [
         children: [
           { index: true, element: <DashboardPage /> },
           { path: 'patients', element: <PatientsPage /> },
+          { path: 'patients/new', element: <NewPatientPage /> },
           { path: 'patients/:patientId', element: <PatientDetailPage /> },
           { path: 'trials', element: <TrialsPage /> },
+          { path: 'trials/new', element: <NewTrialPage /> },
           { path: 'trials/:trialId', element: <TrialDetailPage /> },
           { path: 'screenings', element: <ScreeningHistoryPage /> },
           { path: 'screenings/new', element: <NewScreeningPage /> },

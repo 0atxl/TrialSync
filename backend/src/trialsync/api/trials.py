@@ -79,7 +79,13 @@ async def list_trials(session: SessionDep, user: CurrentUser) -> list[Trial]:
 
 @router.post("", response_model=TrialRead, status_code=status.HTTP_201_CREATED)
 async def create_trial(payload: TrialCreate, session: SessionDep, user: CurrentUser) -> Trial:
-    trial = Trial(owner_id=user.id, **payload.model_dump())
+    trial = Trial(
+        owner_id=user.id,
+        registry_id=payload.registry_id or f"SYN-TRIAL-{uuid.uuid4().hex[:10].upper()}",
+        title=payload.title,
+        condition=payload.condition,
+        phase=payload.phase,
+    )
     session.add(trial)
     try:
         await session.commit()

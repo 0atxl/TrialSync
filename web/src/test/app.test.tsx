@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -168,5 +168,69 @@ describe('TrialSync Phase 5 screening workflow', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     renderRoute('/batches/new')
     expect(await screen.findByRole('alert')).toHaveTextContent('Batch screening inputs could not be loaded')
+  })
+
+  it('filters patient records immediately and links to the focused creation flow', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([
+      patient,
+      { ...patient, id: 'p2', external_id: 'SYN-002', display_name: 'Synthetic Grace' },
+    ])))
+    renderRoute('/patients')
+    expect(await screen.findByText('Synthetic Ada')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add patient' })).toHaveAttribute('href', '/patients/new')
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search patients' }), 'Grace')
+    expect(screen.queryByText('Synthetic Ada')).not.toBeInTheDocument()
+    expect(screen.getByText('Synthetic Grace')).toBeInTheDocument()
+  })
+
+  it('requires confirmation before creating a same-name patient and omits a manual ID', async () => {
+    authenticate()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ error: { code: 'PATIENT_NAME_REVIEW_REQUIRED', message: 'Review duplicate' } }, 409))
+      .mockResolvedValueOnce(json(patient, 201))
+      .mockResolvedValueOnce(json(patient))
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/new')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Display name' }), 'Synthetic Ada')
+    await userEvent.click(screen.getByRole('button', { name: 'Create patient' }))
+    expect(await screen.findByRole('dialog', { name: 'Review this patient name' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Create distinct patient' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    const initialBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    const confirmedBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    expect(initialBody).not.toHaveProperty('external_id')
+    expect(confirmedBody.confirm_duplicate_name).toBe(true)
+  })
+
+  it('confirms patient deletion and returns to the patient workspace', async () => {
+    authenticate()
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (options?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
+      if (input.endsWith('/patients')) return Promise.resolve(json([]))
+      return Promise.resolve(json(patient))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/p1')
+    await screen.findByRole('heading', { name: 'Synthetic Ada' })
+    await userEvent.click(screen.getByRole('button', { name: 'Delete patient' }))
+    expect(screen.getByText(/screening snapshots and their evidence history will remain/i)).toBeInTheDocument()
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete patient' }))
+    expect(await screen.findByRole('heading', { name: 'Patients' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(true)
+  })
+
+  it('explains when saved screening history protects a trial from deletion', async () => {
+    authenticate()
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (options?.method === 'DELETE') return Promise.resolve(json({ error: { code: 'TRIAL_HAS_SCREENING_HISTORY', message: 'Protected' } }, 409))
+      return Promise.resolve(json(trial))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/trials/t1')
+    await screen.findByRole('heading', { name: 'Synthetic age study' })
+    await userEvent.click(screen.getByRole('button', { name: 'Delete trial' }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete trial' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('used by saved screening history')
   })
 })

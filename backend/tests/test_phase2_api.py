@@ -121,6 +121,46 @@ async def test_patient_fact_numeric_unit_validation(api: AsyncClient, email_pref
     assert valid.json()["unit"] == "%"
 
 
+async def test_generated_record_ids_and_duplicate_patient_confirmation(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}@example.com")
+    headers = auth(account)
+
+    first = await api.post(
+        "/api/v1/patients",
+        headers=headers,
+        json={"display_name": "Synthetic Duplicate"},
+    )
+    assert first.status_code == 201
+    assert first.json()["external_id"].startswith("SYN-")
+
+    warning = await api.post(
+        "/api/v1/patients",
+        headers=headers,
+        json={"display_name": "synthetic duplicate"},
+    )
+    assert warning.status_code == 409
+    assert warning.json()["error"]["code"] == "PATIENT_NAME_REVIEW_REQUIRED"
+    assert warning.json()["error"]["details"][0]["patient_id"] == first.json()["id"]
+
+    confirmed = await api.post(
+        "/api/v1/patients",
+        headers=headers,
+        json={"display_name": "Synthetic Duplicate", "confirm_duplicate_name": True},
+    )
+    assert confirmed.status_code == 201
+    assert confirmed.json()["external_id"] != first.json()["external_id"]
+
+    trial = await api.post(
+        "/api/v1/trials",
+        headers=headers,
+        json={"title": "Synthetic generated ID study", "condition": "Synthetic condition"},
+    )
+    assert trial.status_code == 201
+    assert trial.json()["registry_id"].startswith("SYN-TRIAL-")
+
+
 async def test_trial_ownership_and_criterion_ordering(api: AsyncClient, email_prefix: str) -> None:
     first = await register(api, f"{email_prefix}-a@example.com")
     second = await register(api, f"{email_prefix}-b@example.com")

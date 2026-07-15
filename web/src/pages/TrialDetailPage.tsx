@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import { apiRequest, type Trial } from '../api/client'
+import { ApiError, apiRequest, type Trial } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { ConfirmationDialog } from '../components/ConfirmationDialog'
 
 export function TrialDetailPage() {
   const { trialId = '' } = useParams()
   const { token } = useAuth()
+  const navigate = useNavigate()
   const [trial, setTrial] = useState<Trial | null>(null)
   const [error, setError] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [versionNumber, setVersionNumber] = useState('1')
   const [kind, setKind] = useState('inclusion')
   const [order, setOrder] = useState('1')
@@ -74,6 +78,21 @@ export function TrialDetailPage() {
     } catch { setError('Criterion could not be removed.') }
   }
 
+  const deleteTrial = async () => {
+    setDeleting(true)
+    try {
+      await apiRequest(`/trials/${trialId}`, { method: 'DELETE' }, token)
+      navigate('/trials', { replace: true })
+    } catch (exception) {
+      setDeleteOpen(false)
+      setError(exception instanceof ApiError && exception.code === 'TRIAL_HAS_SCREENING_HISTORY'
+        ? 'This trial cannot be deleted because it is used by saved screening history.'
+        : 'Trial could not be deleted. No changes were made.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (error && !trial) return <div className="form-error" role="alert">{error}</div>
   if (!trial) return <div className="loading-state">Loading trial…</div>
   const activeVersion = trial.versions.at(-1)
@@ -81,7 +100,7 @@ export function TrialDetailPage() {
   return (
     <section className="route-entry workspace-page">
       <Link className="back-link" to="/trials">← Trials</Link>
-      <header className="page-heading"><p className="eyebrow">{trial.registry_id}</p><h1>{trial.title}</h1></header>
+      <header className="page-heading"><div><p className="eyebrow">{trial.registry_id}</p><h1>{trial.title}</h1></div><button className="danger-button danger-button-subtle" type="button" onClick={() => setDeleteOpen(true)}>Delete trial</button></header>
       <form className="profile-form" onSubmit={saveTrial}>
         <label>Title<input name="title" required defaultValue={trial.title} /></label>
         <label>Condition<input name="condition" required defaultValue={trial.condition} /></label>
@@ -109,6 +128,9 @@ export function TrialDetailPage() {
           </div>
         </section>
       </div>
+      <ConfirmationDialog open={deleteOpen} eyebrow="Permanent action" title="Delete this trial?" confirmLabel="Delete trial" busyLabel="Deleting…" busy={deleting} onCancel={() => setDeleteOpen(false)} onConfirm={() => void deleteTrial()}>
+        <p><strong>{trial.title}</strong> and its protocol versions will be removed. Trials referenced by saved screening history are protected and cannot be deleted.</p>
+      </ConfirmationDialog>
     </section>
   )
 }

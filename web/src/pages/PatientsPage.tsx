@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { apiRequest, type Patient } from '../api/client'
@@ -7,39 +7,24 @@ import { useAuth } from '../auth/AuthContext'
 export function PatientsPage() {
   const { token } = useAuth()
   const [patients, setPatients] = useState<Patient[]>([])
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [externalId, setExternalId] = useState('')
-  const [displayName, setDisplayName] = useState('')
-
   const load = useCallback(async () => {
     setLoading(true)
-    try { setPatients(await apiRequest<Patient[]>('/patients', {}, token)); setError('') }
-    catch { setError('Patients could not be loaded.'); }
+    try { setPatients(await apiRequest('/patients', {}, token)); setError('') }
+    catch { setError('Patients could not be loaded.') }
     finally { setLoading(false) }
   }, [token])
   useEffect(() => { void load() }, [load])
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    return term ? patients.filter((patient) => `${patient.display_name} ${patient.external_id}`.toLowerCase().includes(term)) : patients
+  }, [patients, query])
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    try {
-      await apiRequest('/patients', { method: 'POST', body: JSON.stringify({ external_id: externalId, display_name: displayName }) }, token)
-      setExternalId(''); setDisplayName(''); await load()
-    } catch { setError('The synthetic patient could not be saved.') }
-  }
-
-  return (
-    <section className="route-entry workspace-page">
-      <header className="page-heading"><div><p className="eyebrow">Structured records</p><h1>Patients</h1><p>Fictional records only. Add facts on the patient detail page.</p></div></header>
-      <form className="inline-form" onSubmit={submit}>
-        <label>Synthetic ID<input required value={externalId} onChange={(event) => setExternalId(event.target.value)} placeholder="SYN-001" /></label>
-        <label>Display name<input required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Synthetic case A" /></label>
-        <button className="primary-button" type="submit">Add patient</button>
-      </form>
-      {error && <div className="form-error" role="alert">{error}</div>}
-      {loading ? <div className="loading-state">Loading patient records…</div> : patients.length === 0 ? <div className="empty-state"><h2>No patients yet</h2><p>Add a fictional patient above to begin structured entry.</p></div> : (
-        <div className="data-table" role="table"><div className="data-row data-header" role="row"><span>Synthetic ID</span><span>Name</span><span>Facts</span><span /></div>{patients.map((patient) => <div className="data-row" role="row" key={patient.id}><strong>{patient.external_id}</strong><span>{patient.display_name}</span><span>{patient.facts.length}</span><Link to={`/patients/${patient.id}`}>Review</Link></div>)}</div>
-      )}
-    </section>
-  )
+  return <section className="route-entry workspace-page">
+    <header className="page-heading"><div><p className="eyebrow">Structured records</p><h1>Patients</h1><p>Fictional records with explicit facts, units, dates, and provenance.</p></div><Link className="primary-button" to="/patients/new">Add patient</Link></header>
+    <div className="list-toolbar"><label className="search-field"><span>Search patients</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type a name or synthetic ID" /></label><span>{filtered.length} of {patients.length} records</span></div>
+    {error ? <div className="form-error" role="alert">{error}</div> : loading ? <div className="loading-state">Loading patient records…</div> : filtered.length === 0 ? <div className="empty-state"><h2>{patients.length ? 'No matching patients' : 'No patients yet'}</h2><p>{patients.length ? 'Try a different name or synthetic ID.' : 'Add a fictional patient to begin structured entry.'}</p></div> : <div className="record-table"><div className="record-table-head" aria-hidden="true"><span>Patient</span><span>Profile</span><span>Facts</span><span /></div>{filtered.map((patient) => <article className="record-table-row" key={patient.id}><div><strong>{patient.display_name}</strong><small>{patient.external_id}</small></div><span>{patient.sex || 'Not specified'}{patient.date_of_birth ? ` · born ${patient.date_of_birth}` : ''}</span><span className="tabular">{patient.facts.length}</span><Link to={`/patients/${patient.id}`}>Review record</Link></article>)}</div>}
+  </section>
 }

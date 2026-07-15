@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -42,7 +42,30 @@ async def list_patients(session: SessionDep, user: CurrentUser) -> list[Patient]
 
 @router.post("", response_model=PatientRead, status_code=status.HTTP_201_CREATED)
 async def create_patient(payload: PatientCreate, session: SessionDep, user: CurrentUser) -> Patient:
-    patient = Patient(owner_id=user.id, **payload.model_dump())
+    duplicate = await session.scalar(
+        select(Patient).where(
+            Patient.owner_id == user.id,
+            func.lower(Patient.display_name) == payload.display_name.strip().lower(),
+        )
+    )
+    if duplicate is not None and not payload.confirm_duplicate_name:
+        raise ApplicationError(
+            code="PATIENT_NAME_REVIEW_REQUIRED",
+            message=(
+                "A patient with this name already exists. Review it or continue creating "
+                "a distinct synthetic record."
+            ),
+            status_code=409,
+            field="display_name",
+            details=[{"patient_id": str(duplicate.id), "display_name": duplicate.display_name}],
+        )
+    patient = Patient(
+        owner_id=user.id,
+        external_id=payload.external_id or f"SYN-{uuid.uuid4().hex[:10].upper()}",
+        display_name=payload.display_name,
+        date_of_birth=payload.date_of_birth,
+        sex=payload.sex,
+    )
     session.add(patient)
     try:
         await session.commit()

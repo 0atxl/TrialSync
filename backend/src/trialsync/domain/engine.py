@@ -573,12 +573,11 @@ def _criterion_result(kind: CriterionKind, truth: TruthValue) -> CriterionResult
 
 
 def _explanation(criterion: Criterion, result: CriterionResult, outcome: _Outcome) -> str:
-    evidence_ids = ", ".join(item.fact_id for item in outcome.evidence)
     if result is CriterionResult.unknown:
         needed = "; ".join(item.detail for item in outcome.missing)
-        return f"Criterion {criterion.id} is unknown: {needed or outcome.reason.value}."
-    basis = f" using evidence {evidence_ids}" if evidence_ids else ""
-    return f"Criterion {criterion.id} {result.value}ed{basis} ({outcome.reason.value})."
+        return f'“{criterion.source_text}” is unknown. {needed or "Manual review is required."}'
+    basis = " using the recorded evidence" if outcome.evidence else ""
+    return f'“{criterion.source_text}” {result.value}ed{basis}.'
 
 
 def _evaluate_criterion(

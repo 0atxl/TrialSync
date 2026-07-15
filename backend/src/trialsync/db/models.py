@@ -168,7 +168,6 @@ class Criterion(TimestampMixin, Base):
     normalized_rule: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     required: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_version: Mapped[TrialVersion] = relationship(back_populates="criteria")
-    evaluations: Mapped[list[CriterionEvaluation]] = relationship(back_populates="criterion")
 
 
 class PatientSnapshot(TimestampMixin, Base):
@@ -221,6 +220,9 @@ class Screening(TimestampMixin, Base):
     trial_version_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("trial_versions.id", ondelete="RESTRICT"), index=True
     )
+    trial_registry_id: Mapped[str] = mapped_column(String(64))
+    trial_title: Mapped[str] = mapped_column(String(240))
+    trial_version_number: Mapped[int] = mapped_column(Integer)
     overall_state: Mapped[OverallState] = mapped_column(
         Enum(OverallState, name="overall_state")
     )
@@ -230,7 +232,6 @@ class Screening(TimestampMixin, Base):
     terminology_version: Mapped[str] = mapped_column(String(40))
     unit_version: Mapped[str] = mapped_column(String(40))
     patient_snapshot: Mapped[PatientSnapshot] = relationship(back_populates="screenings")
-    trial_version: Mapped[TrialVersion] = relationship()
     batch: Mapped[ScreeningBatch | None] = relationship(back_populates="screenings")
     evaluations: Mapped[list[CriterionEvaluation]] = relationship(
         back_populates="screening",
@@ -254,6 +255,7 @@ class CriterionEvaluation(TimestampMixin, Base):
     criterion_kind: Mapped[CriterionKind] = mapped_column(
         Enum(CriterionKind, name="criterion_kind")
     )
+    criterion_source_text: Mapped[str] = mapped_column(Text)
     result: Mapped[EvaluationResult] = mapped_column(
         Enum(
             EvaluationResult,
@@ -268,4 +270,3 @@ class CriterionEvaluation(TimestampMixin, Base):
     rejected_evidence_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     missing_information_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     screening: Mapped[Screening] = relationship(back_populates="evaluations")
-    criterion: Mapped[Criterion] = relationship(back_populates="evaluations")

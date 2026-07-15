@@ -206,6 +206,15 @@ async def test_screening_persists_evidence_and_is_immutable_after_edits(
     assert historical.json()["patient_snapshot_id"] == saved["patient_snapshot_id"]
     assert historical.json()["patient_snapshot"]["display_name"] == "Synthetic 1"
 
+    renamed_trial = await api.patch(
+        f"/api/v1/trials/{trial_id}", headers=headers, json={"title": "Renamed current trial"}
+    )
+    assert renamed_trial.status_code == 200
+    historical_after_trial_edit = await api.get(
+        f"/api/v1/screenings/{saved['id']}", headers=headers
+    )
+    assert historical_after_trial_edit.json()["trial_version"]["title"] == "Synthetic age study"
+
     deleted_patient = await api.delete(f"/api/v1/patients/{patient_id}", headers=headers)
     assert deleted_patient.status_code == 204
     assert (await api.get(f"/api/v1/patients/{patient_id}", headers=headers)).status_code == 404

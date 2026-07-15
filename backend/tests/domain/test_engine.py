@@ -484,7 +484,7 @@ def test_result_is_deterministic_and_contains_reproducible_metadata() -> None:
     assert first.engine_version == "test-engine"
     assert first.dsl_version == "1.0"
     assert first.patient_snapshot_id == "snapshot-1"
-    assert "date_of_birth" in first.evaluations[0].explanation
+    assert "Synthetic rule criterion-1" in first.evaluations[0].explanation
 
 
 def test_domain_package_has_no_forbidden_framework_or_clock_imports() -> None:

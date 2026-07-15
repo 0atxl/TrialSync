@@ -207,6 +207,9 @@ async def run_and_store(
         batch=batch,
         patient_snapshot_id=snapshot.id,
         trial_version_id=version.id,
+        trial_registry_id=version.trial.registry_id,
+        trial_title=version.trial.title,
+        trial_version_number=version.version,
         overall_state=StoredOverallState(result.overall_state.value),
         screening_date=result.screening_date,
         engine_version=result.engine_version,
@@ -216,6 +219,7 @@ async def run_and_store(
     )
     session.add(screening)
     await session.flush()
+    source_text_by_id = {str(criterion.id): criterion.source_text for criterion in version.criteria}
     for evaluation in result.evaluations:
         session.add(
             StoredCriterionEvaluation(
@@ -223,6 +227,7 @@ async def run_and_store(
                 criterion_id=uuid.UUID(evaluation.criterion_id),
                 criterion_order=evaluation.criterion_order,
                 criterion_kind=evaluation.criterion_kind.value,
+                criterion_source_text=source_text_by_id[evaluation.criterion_id],
                 result=EvaluationResult(evaluation.result.value),
                 truth=evaluation.truth.value,
                 reason_code=evaluation.reason_code.value,

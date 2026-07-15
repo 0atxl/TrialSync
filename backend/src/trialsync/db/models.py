@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -58,6 +59,22 @@ class EvaluationResult(str, enum.Enum):
     pass_ = "pass"
     fail = "fail"
     unknown = "unknown"
+
+
+class DocumentKind(str, enum.Enum):
+    patient = "patient"
+    trial = "trial"
+
+
+class DocumentSourceType(str, enum.Enum):
+    text = "text"
+    pdf = "pdf"
+
+
+class DocumentStatus(str, enum.Enum):
+    needs_review = "needs_review"
+    approved = "approved"
+    rejected = "rejected"
 
 
 class TimestampMixin:
@@ -168,6 +185,51 @@ class Criterion(TimestampMixin, Base):
     normalized_rule: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     required: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_version: Mapped[TrialVersion] = relationship(back_populates="criteria")
+
+
+class Document(TimestampMixin, Base):
+    __tablename__ = "documents"
+    __table_args__ = (Index("ix_documents_owner_status", "owner_id", "status"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[DocumentKind] = mapped_column(Enum(DocumentKind, name="document_kind"))
+    source_type: Mapped[DocumentSourceType] = mapped_column(
+        Enum(DocumentSourceType, name="document_source_type")
+    )
+    status: Mapped[DocumentStatus] = mapped_column(
+        Enum(DocumentStatus, name="document_status"), default=DocumentStatus.needs_review
+    )
+    filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mime_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    checksum: Mapped[str] = mapped_column(String(64), index=True)
+    original_content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    source_text: Mapped[str] = mapped_column(Text)
+    pages_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    candidates_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    warnings_json: Mapped[list[str]] = mapped_column(JSON)
+    quality_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    approved_resource_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    spans: Mapped[list[DocumentSpan]] = relationship(
+        back_populates="document", cascade="all, delete-orphan", order_by="DocumentSpan.page"
+    )
+
+
+class DocumentSpan(Base):
+    __tablename__ = "document_spans"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    page: Mapped[int] = mapped_column(Integer)
+    start_offset: Mapped[int] = mapped_column(Integer)
+    end_offset: Mapped[int] = mapped_column(Integer)
+    exact_text: Mapped[str] = mapped_column(Text)
+    document: Mapped[Document] = relationship(back_populates="spans")
 
 
 class PatientSnapshot(TimestampMixin, Base):

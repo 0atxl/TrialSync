@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +20,17 @@ const screening = {
   trial_version_id: 'v1', trial_version: { registry_id: 'SYN-T1', title: 'Synthetic age study', version: 1 },
   overall_state: 'needs_review' as const, screening_date: '2026-07-15', engine_version: '0.1.0', dsl_version: '1.0', terminology_version: '1', unit_version: '1', created_at: '2026-07-15T00:00:00Z',
   counts: { pass_count: 0, fail_count: 0, unknown_count: 1 }, evaluations: [evaluation],
+}
+const importReview = {
+  id: 'import-1', kind: 'patient' as const, source_type: 'text' as const, status: 'needs_review' as const,
+  filename: null, mime_type: 'text/plain', size_bytes: 80, checksum: 'abc',
+  source_text: 'Patient name: Synthetic Import Ada\nHbA1c: 8.2 %',
+  pages: [{ page: 1, start_offset: 0, end_offset: 52, text: 'Patient name: Synthetic Import Ada\nHbA1c: 8.2 %' }],
+  candidates: {
+    profile: { display_name: 'Synthetic Import Ada', date_of_birth: null, sex: null },
+    facts: [{ candidate_id: 'candidate-1', selected: true, fact_type: 'observation' as const, concept: 'HbA1c', value_numeric: '8.2', value_text: null, unit: '%', assertion: 'present' as const, effective_date: null, source: { span_id: 'span-1', page: 1, start: 35, end: 48, text: 'HbA1c: 8.2 %' }, warnings: [] }],
+  },
+  warnings: [], quality: { page_count: 1, character_count: 52 }, approved_resource_id: null, created_at: '2026-07-15T00:00:00Z',
 }
 
 function renderRoute(initialPath = '/') {
@@ -237,5 +248,88 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Delete trial' }))
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete trial' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('used by saved screening history')
+  })
+
+  it('analyzes pasted synthetic text and opens the review workspace', async () => {
+    authenticate()
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/imports') && options?.method === 'POST') return Promise.resolve(json(importReview, 201))
+      return Promise.resolve(json(importReview))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/imports/new?kind=patient')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Synthetic source text' }), 'Patient name: Synthetic Import Ada')
+    await userEvent.click(screen.getByRole('button', { name: 'Analyze for review' }))
+    expect(await screen.findByRole('heading', { name: 'Review extracted patient candidates' })).toBeInTheDocument()
+    const analyzeCall = fetchMock.mock.calls.find(([input, options]) => input.endsWith('/imports') && options?.method === 'POST')
+    expect(JSON.parse(String(analyzeCall?.[1]?.body))).toMatchObject({ kind: 'patient', source_type: 'text' })
+  })
+
+  it('persists candidate edits before approving an imported patient', async () => {
+    authenticate()
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/imports/import-1') && options?.method === 'PUT') {
+        const body = JSON.parse(String(options.body))
+        return Promise.resolve(json({ ...importReview, candidates: body.candidates }))
+      }
+      if (input.endsWith('/imports/import-1/approve')) return Promise.resolve(json({ kind: 'patient', resource_id: 'p1', review_id: 'import-1' }))
+      if (input.endsWith('/patients/p1')) return Promise.resolve(json(patient))
+      return Promise.resolve(json(importReview))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/imports/import-1')
+    const name = await screen.findByRole('textbox', { name: 'Display name' })
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Synthetic Edited Import')
+    await userEvent.click(screen.getByRole('button', { name: 'Approve and create patient' }))
+    expect(await screen.findByRole('heading', { name: 'Synthetic Ada' })).toBeInTheDocument()
+    const updateCall = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT')
+    expect(JSON.parse(String(updateCall?.[1]?.body)).candidates.profile.display_name).toBe('Synthetic Edited Import')
+    expect(fetchMock.mock.calls.some(([input]) => input.endsWith('/imports/import-1/approve'))).toBe(true)
+  })
+
+  it('rejects oversized PDFs before attempting an upload', async () => {
+    authenticate()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/imports/new?kind=trial')
+    await userEvent.click(screen.getByRole('radio', { name: 'Upload PDF' }))
+    const file = new File([new Uint8Array(5_000_001)], 'oversized.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByLabelText(/Text-based PDF/i), { target: { files: [file] } })
+    await userEvent.click(screen.getByRole('button', { name: 'Analyze for review' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('5 MB PDF limit')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('explains when a selected PDF requires unavailable OCR', async () => {
+    authenticate()
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      error: { code: 'PDF_OCR_NOT_ENABLED', message: 'No machine-readable text was found.' },
+    }, 422))
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/imports/new?kind=patient')
+    await userEvent.click(screen.getByRole('radio', { name: 'Upload PDF' }))
+    const file = new File(['%PDF-1.4 synthetic scan fixture'], 'scan-like.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByLabelText(/Text-based PDF/i), { target: { files: [file] } })
+    fireEvent.submit(screen.getByRole('button', { name: 'Analyze for review' }).closest('form') as HTMLFormElement)
+    expect(await screen.findByRole('alert')).toHaveTextContent('OCR is not enabled')
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('provides an explicit approval action for imported draft trial versions', async () => {
+    authenticate()
+    const draft = { ...trial, versions: [{ ...trial.versions[0], status: 'draft' as const }] }
+    const approved = { ...trial, versions: [{ ...trial.versions[0], status: 'approved' as const }] }
+    let updated = false
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (options?.method === 'PUT') { updated = true; return Promise.resolve(json(approved)) }
+      return Promise.resolve(json(updated ? approved : draft))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/trials/t1')
+    await screen.findByRole('button', { name: 'Approve version' })
+    await userEvent.click(screen.getByRole('button', { name: 'Approve version' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Approve version' })).not.toBeInTheDocument())
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(true)
   })
 })

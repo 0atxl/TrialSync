@@ -12,6 +12,7 @@ dependencies = [
   "alembic==1.16.4",
   "email-validator==2.2.0",
   "fastapi==0.139.0",
+  "pypdf==6.14.2",
   "psycopg[binary]==3.3.4",
   "pydantic-settings==2.10.1",
   "sqlalchemy[asyncio]==2.0.51",

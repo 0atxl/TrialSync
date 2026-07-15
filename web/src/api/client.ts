@@ -112,6 +112,59 @@ export type ScreeningBatch = {
   screenings: BatchPair[]
 }
 
+export type ImportSource = {
+  span_id: string | null
+  page: number
+  start: number
+  end: number
+  text: string
+}
+export type PatientImportFact = {
+  candidate_id: string
+  selected: boolean
+  fact_type: Fact['fact_type']
+  concept: string
+  value_numeric: string | null
+  value_text: string | null
+  unit: string | null
+  assertion: Fact['assertion']
+  effective_date: string | null
+  source: ImportSource
+  warnings: string[]
+}
+export type TrialImportCriterion = {
+  candidate_id: string
+  selected: boolean
+  kind: Criterion['kind']
+  order: number
+  source_text: string
+  normalized_rule: Record<string, unknown> | null
+  parse_state: 'parsed' | 'needs_manual_rule'
+  source: ImportSource
+  warnings: string[]
+}
+export type ImportDocument = {
+  id: string
+  kind: 'patient' | 'trial'
+  source_type: 'text' | 'pdf'
+  status: 'needs_review' | 'approved' | 'rejected'
+  filename: string | null
+  mime_type: string
+  size_bytes: number
+  checksum: string
+  source_text: string
+  pages: Array<{ page: number; start_offset: number; end_offset: number; text: string }>
+  candidates: {
+    profile: Record<string, string | null>
+    facts?: PatientImportFact[]
+    criteria?: TrialImportCriterion[]
+  }
+  warnings: string[]
+  quality: Record<string, string | number>
+  approved_resource_id: string | null
+  created_at: string
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,

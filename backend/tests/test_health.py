@@ -1,9 +1,13 @@
+from pathlib import Path
+
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 
 from trialsync.api.errors import ApplicationError
-from trialsync.api.health import get_readiness_probe
+from trialsync.api.health import EXPECTED_SCHEMA_REVISION, get_readiness_probe
 
 pytestmark = pytest.mark.anyio
 
@@ -43,6 +47,11 @@ async def test_liveness_does_not_require_database(app: FastAPI) -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
     assert response.headers["X-Trace-ID"]
+
+
+def test_readiness_revision_matches_migration_head() -> None:
+    config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    assert ScriptDirectory.from_config(config).get_current_head() == EXPECTED_SCHEMA_REVISION
 
 
 async def test_readiness_passes_when_dependencies_are_ready(app: FastAPI) -> None:

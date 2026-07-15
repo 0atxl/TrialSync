@@ -68,6 +68,18 @@ export function TrialDetailPage() {
     } catch { setError('Criterion could not be saved. Each order number must be unique.') }
   }
 
+  const approveVersion = async (versionId: string, versionNumber: number, sourceText: string | null) => {
+    try {
+      await apiRequest(`/trials/${trialId}/versions/${versionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ version: versionNumber, status: 'approved', source_text: sourceText }),
+      }, token)
+      await load()
+    } catch {
+      setError('The trial version could not be approved. Review its criteria and rules first.')
+    }
+  }
+
   const deleteCriterion = async (versionId: string, criterionId: string) => {
     try {
       await apiRequest(
@@ -111,7 +123,7 @@ export function TrialDetailPage() {
         <section>
           <h2>Protocol versions</h2>
           <form className="compact-form" onSubmit={addVersion}><label>Version<input min="1" required type="number" value={versionNumber} onChange={(event) => setVersionNumber(event.target.value)} /></label><button className="secondary-button" type="submit">Create draft</button></form>
-          <div>{trial.versions.map((version) => <div className="version-row" key={version.id}><strong>Version {version.version}</strong><span>{version.status}</span></div>)}</div>
+          <div>{trial.versions.map((version) => <div className="version-row" key={version.id}><strong>Version {version.version}</strong><span>{version.status}</span>{version.status === 'draft' && <button className="text-button" type="button" onClick={() => void approveVersion(version.id, version.version, version.source_text)}>Approve version</button>}</div>)}</div>
         </section>
         <section>
           <h2>Ordered criteria</h2>

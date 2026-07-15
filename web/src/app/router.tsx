@@ -10,6 +10,8 @@ import { NewPatientPage } from '../pages/NewPatientPage'
 import { TrialDetailPage } from '../pages/TrialDetailPage'
 import { TrialsPage } from '../pages/TrialsPage'
 import { NewTrialPage } from '../pages/NewTrialPage'
+import { ImportReviewPage } from '../pages/ImportReviewPage'
+import { NewImportPage } from '../pages/NewImportPage'
 import { BatchDetailPage } from '../pages/BatchDetailPage'
 import { BatchScreeningPage } from '../pages/BatchScreeningPage'
 import { DashboardPage } from '../pages/DashboardPage'
@@ -37,6 +39,8 @@ export const routes = [
           { path: 'trials', element: <TrialsPage /> },
           { path: 'trials/new', element: <NewTrialPage /> },
           { path: 'trials/:trialId', element: <TrialDetailPage /> },
+          { path: 'imports/new', element: <NewImportPage /> },
+          { path: 'imports/:importId', element: <ImportReviewPage /> },
           { path: 'screenings', element: <ScreeningHistoryPage /> },
           { path: 'screenings/new', element: <NewScreeningPage /> },
           { path: 'screenings/:screeningId', element: <ScreeningDetailPage /> },

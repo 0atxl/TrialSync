@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from trialsync.api.auth import router as auth_router
 from trialsync.api.errors import install_error_handlers
 from trialsync.api.health import router as health_router
+from trialsync.api.imports import router as imports_router
 from trialsync.api.middleware import TraceIdMiddleware
 from trialsync.api.patients import router as patients_router
 from trialsync.api.screenings import router as screenings_router
@@ -29,7 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             CORSMiddleware,
             allow_origins=resolved_settings.cors_origins,
             allow_credentials=False,
-            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type", "X-Trace-ID"],
         )
 
@@ -40,4 +41,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(patients_router)
     app.include_router(trials_router)
     app.include_router(screenings_router)
+    app.include_router(imports_router)
     return app

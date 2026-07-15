@@ -123,6 +123,10 @@ GET                /api/v1/screenings/{screening_id}
 POST               /api/v1/screening-batches
 GET                /api/v1/screening-batches
 GET                /api/v1/screening-batches/{batch_id}
+
+POST               /api/v1/imports
+GET|PUT|DELETE     /api/v1/imports/{import_id}
+POST               /api/v1/imports/{import_id}/approve
 ```
 
 ## Phase 4 screening history
@@ -155,11 +159,28 @@ patient snapshot, approved trial version, every criterion's stored source text,
 canonical explanation, supporting evidence, and missing information. Unknown
 criteria are shown first.
 
-`/screenings` provides searchable, filterable history. `/batches/new` selects
-previously created immutable snapshots and approved versions, previews the bounded
-Cartesian pair count, and creates a synchronous batch. Each batch matrix cell links
-back to the ordinary evidence-rich screening detail page. The UI is educational and
-uses synthetic data only; it does not provide medical advice or enrollment guidance.
+`/screenings` provides searchable, filterable history. `/batches/new` lists all
+current patients and all trials, clearly disabling trials that have no approved
+version. It previews the bounded Cartesian pair count and creates a synchronous
+batch. Each batch matrix cell links back to the ordinary evidence-rich screening
+detail page. The UI is educational and uses synthetic data only; it does not provide
+medical advice or enrollment guidance.
+
+## Phase 6 reviewed imports
+
+Patient and trial list pages link to a review-first import flow for pasted text and
+text-based PDFs. Pasted text is limited to 1 MB and PDFs to 5 MB. Encrypted,
+malformed, empty, wrong-type, and image-only PDFs are rejected with explicit error
+codes; OCR is intentionally not enabled.
+
+Deterministic parsing proposes profile fields, patient facts, trial criteria, and a
+small supported subset of rule structures. Every candidate remains editable and
+unapproved, with page and character-span provenance, until the authenticated owner
+explicitly approves the review. Patient approval creates current structured facts.
+Trial approval creates a draft version so its criteria can receive the existing
+separate approval step. Unsupported criterion prose stays visible for manual review
+and is never silently converted into an eligibility rule. No hosted NLP provider is
+used in this phase.
 
 ## Verification
 
@@ -191,5 +212,6 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 3. Deterministic screening engine | Complete | Pure typed engine with 43 domain golden tests and conservative unknown propagation |
 | 4. Screening API and history | Complete | Immutable snapshots, stored criterion evidence, transactional single/batch history, ownership, limits, rollback, and equivalence tests |
 | 5. Single and batch frontend | Complete | Dashboard, single and batch workflows, evidence detail, history filters, and linked result matrix |
+| 6. Reviewed text and PDF ingestion | Complete | Deterministic candidate extraction, immutable provenance, editable review, explicit approval, bounded PDF handling, API/UI error states, and ownership tests |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

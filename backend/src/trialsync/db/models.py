@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum,
@@ -300,6 +301,11 @@ class Screening(TimestampMixin, Base):
         cascade="all, delete-orphan",
         order_by="CriterionEvaluation.criterion_order",
     )
+    chat_messages: Mapped[list[ScreeningChatMessage]] = relationship(
+        back_populates="screening",
+        cascade="all, delete-orphan",
+        order_by="ScreeningChatMessage.created_at",
+    )
 
 
 class CriterionEvaluation(TimestampMixin, Base):
@@ -332,3 +338,37 @@ class CriterionEvaluation(TimestampMixin, Base):
     rejected_evidence_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     missing_information_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     screening: Mapped[Screening] = relationship(back_populates="evaluations")
+
+
+class ScreeningChatMessage(Base):
+    __tablename__ = "screening_chat_messages"
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'assistant')", name="ck_chat_message_role"),
+        CheckConstraint(
+            "answer_state IS NULL OR answer_state IN "
+            "('supported', 'insufficient_evidence', 'refused')",
+            name="ck_chat_message_answer_state",
+        ),
+        CheckConstraint(
+            "(role = 'user' AND answer_state IS NULL) OR "
+            "(role = 'assistant' AND answer_state IS NOT NULL)",
+            name="ck_chat_message_role_state",
+        ),
+        Index("ix_screening_chat_messages_screening_created", "screening_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    screening_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("screenings.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    answer_state: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    citations_json: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+    provider: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=False
+    )
+    screening: Mapped[Screening] = relationship(back_populates="chat_messages")

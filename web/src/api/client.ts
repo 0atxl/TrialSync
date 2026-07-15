@@ -160,9 +160,40 @@ export type ImportDocument = {
     criteria?: TrialImportCriterion[]
   }
   warnings: string[]
-  quality: Record<string, string | number>
+  quality: { page_count: number; character_count: number; [key: string]: unknown }
   approved_resource_id: string | null
   created_at: string
+}
+
+export type ScreeningChatCitation = {
+  criterion_id: string
+  evaluation_id: string
+  evidence_ids: string[]
+  label: string
+}
+export type ScreeningChatProvider = {
+  enabled: boolean
+  provider: string
+  model: string | null
+  prompt_version: string
+}
+export type ScreeningChatMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  answer_state: 'supported' | 'insufficient_evidence' | 'refused' | null
+  citations: ScreeningChatCitation[]
+  provider: ScreeningChatProvider | null
+  created_at: string
+  suggested_questions: string[]
+}
+export type ScreeningConversation = {
+  screening_id: string
+  messages: ScreeningChatMessage[]
+  provider: ScreeningChatProvider
+  suggested_questions: string[]
+  max_messages: number
+  max_message_chars: number
 }
 
 export class ApiError extends Error {

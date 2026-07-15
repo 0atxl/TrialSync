@@ -12,6 +12,8 @@ from trialsync.api.patients import router as patients_router
 from trialsync.api.screenings import router as screenings_router
 from trialsync.api.trials import router as trials_router
 from trialsync.config import Settings, get_settings
+from trialsync.nlp.chat import build_chat_provider
+from trialsync.nlp.extraction import build_extractor
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -24,6 +26,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Academic TrialSync foundation API using synthetic data only.",
     )
     app.state.settings = resolved_settings
+    app.state.extractor = build_extractor(resolved_settings)
+    app.state.chat_provider = build_chat_provider(resolved_settings)
 
     if resolved_settings.cors_origins:
         app.add_middleware(

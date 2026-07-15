@@ -127,6 +127,10 @@ GET                /api/v1/screening-batches/{batch_id}
 POST               /api/v1/imports
 GET|PUT|DELETE     /api/v1/imports/{import_id}
 POST               /api/v1/imports/{import_id}/approve
+
+GET                /api/v1/screenings/{screening_id}/conversation
+POST               /api/v1/screenings/{screening_id}/conversation/messages
+DELETE             /api/v1/screenings/{screening_id}/conversation
 ```
 
 ## Phase 4 screening history
@@ -182,6 +186,34 @@ separate approval step. Unsupported criterion prose stays visible for manual rev
 and is never silently converted into an eligibility rule. No hosted NLP provider is
 used in this phase.
 
+## Phase 7 bounded NLP and explanation conversation
+
+Reviewed import now uses a provider-neutral extractor. With no `GROQ_API_KEY`, `auto`
+mode keeps the deterministic parser. With a key, Groq may propose schema-validated
+patient facts or trial criteria from synthetic text; every proposal must retain an
+exact verified source quotation and remains unapproved until human review. Timeout,
+rate-limit, invalid-schema, or provider failures fall back visibly to deterministic
+candidates and record the provider transition in review metadata.
+
+Saved screening details include a short explanation conversation scoped to that one
+authenticated result. The server reloads authoritative evaluations every turn,
+validates criterion/evaluation/evidence citations, persists at most the latest 10
+messages, and supports chat-only clearing. Previous messages are continuity context,
+never patient facts or screening evidence. Advice, diagnosis, enrollment guidance,
+cross-record requests, unsupported questions, and prompt injection fail safely.
+Canonical explanations and deterministic screening remain available during every
+provider failure and cannot be modified through the assistant.
+
+The default hosted model is configurable through `TRIALSYNC_GROQ_MODEL`. As verified
+in the official [Groq supported-model list](https://console.groq.com/docs/models) and
+[structured-output guide](https://console.groq.com/docs/structured-outputs) on
+2026-07-16, `openai/gpt-oss-20b` is a production model supporting strict JSON-schema
+output. Set `TRIALSYNC_EXTRACTION_PROVIDER` to `auto`, `rule_based`, `groq`, or
+`disabled`; set `TRIALSYNC_SCREENING_CHAT_PROVIDER` to `auto`, `canonical`, `groq`,
+or `disabled`. Never send real patient data. The held-out synthetic evaluation and
+its live-provider limitations are documented in
+`backend/evaluation/PHASE7_EVALUATION.md`.
+
 ## Verification
 
 With `.env` present, run every Phase 1 check from the repository root:
@@ -213,5 +245,6 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 4. Screening API and history | Complete | Immutable snapshots, stored criterion evidence, transactional single/batch history, ownership, limits, rollback, and equivalence tests |
 | 5. Single and batch frontend | Complete | Dashboard, single and batch workflows, evidence detail, history filters, and linked result matrix |
 | 6. Reviewed text and PDF ingestion | Complete | Deterministic candidate extraction, immutable provenance, editable review, explicit approval, bounded PDF handling, API/UI error states, and ownership tests |
+| 7. Groq extraction and explanation chat | Complete | Provider-neutral reviewed extraction, exact provenance validation, bounded screening conversation, citation validation, safe refusals/fallbacks, persistence, and UI states |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

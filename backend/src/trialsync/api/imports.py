@@ -6,7 +6,7 @@ import hashlib
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Request, Response, status
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
@@ -28,10 +28,8 @@ from trialsync.db.models import (
 )
 from trialsync.imports.parser import (
     ImportParseError,
-    extract_patient_candidates,
     extract_pdf_input,
     extract_text_input,
-    extract_trial_candidates,
 )
 from trialsync.imports.schemas import (
     ImportAnalyzeRequest,
@@ -42,6 +40,8 @@ from trialsync.imports.schemas import (
     PatientImportCandidates,
     TrialImportCandidates,
 )
+from trialsync.nlp.extraction import GroqExtractor, RuleBasedExtractor
+from trialsync.nlp.groq import ProviderCallError
 
 router = APIRouter(prefix="/api/v1/imports", tags=["imports"])
 
@@ -160,7 +160,7 @@ def _preserve_sources(document: Document, candidates: dict[str, object]) -> None
 
 @router.post("", response_model=ImportRead, status_code=status.HTTP_201_CREATED)
 async def analyze_import(
-    payload: ImportAnalyzeRequest, session: SessionDep, user: CurrentUser
+    payload: ImportAnalyzeRequest, request: Request, session: SessionDep, user: CurrentUser
 ) -> ImportRead:
     original: bytes | None = None
     try:
@@ -175,15 +175,37 @@ async def analyze_import(
             mime_type = "text/plain"
             checksum_content = extracted.text.encode("utf-8")
             size_bytes = len(checksum_content)
-        candidates, warnings = (
-            extract_patient_candidates(extracted)
-            if payload.kind is DocumentKind.patient
-            else extract_trial_candidates(extracted)
-        )
     except ImportParseError as exception:
         raise ApplicationError(
             code=exception.code, message=exception.message, status_code=422
         ) from exception
+
+    extractor = request.app.state.extractor
+    try:
+        if (
+            isinstance(extractor, GroqExtractor)
+            and len(extracted.text) > request.app.state.settings.provider_max_input_chars
+        ):
+            raise ProviderCallError(
+                "PROVIDER_INPUT_TOO_LARGE", "The source exceeds the external provider limit."
+            )
+        extraction = await extractor.extract(payload.kind, extracted)
+    except ProviderCallError as exception:
+        extraction = await RuleBasedExtractor().extract(payload.kind, extracted)
+        extraction = type(extraction)(
+            candidates=extraction.candidates,
+            warnings=[
+                "External extraction was unavailable; deterministic candidates are shown.",
+                *extraction.warnings,
+            ],
+            metadata={
+                **extraction.metadata,
+                "requested_provider": "groq",
+                "provider_error": exception.code,
+                "validation_outcome": "fallback",
+            },
+        )
+    candidates, warnings = extraction.candidates, extraction.warnings
 
     document = Document(
         owner_id=user.id,
@@ -199,7 +221,7 @@ async def analyze_import(
         pages_json=extracted.pages,
         candidates_json=candidates,
         warnings_json=warnings,
-        quality_json=extracted.quality,
+        quality_json={**extracted.quality, "nlp": extraction.metadata},
     )
     _attach_spans(document, candidates)
     document.candidates_json = candidates

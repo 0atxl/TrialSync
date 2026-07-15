@@ -32,6 +32,21 @@ const importReview = {
   },
   warnings: [], quality: { page_count: 1, character_count: 52 }, approved_resource_id: null, created_at: '2026-07-15T00:00:00Z',
 }
+const conversation = {
+  screening_id: 'screen-1',
+  provider: { enabled: true, provider: 'canonical', model: 'deterministic-canonical-1', prompt_version: 'screening-chat-v1' },
+  suggested_questions: ['Why does this result have its current state?', 'What information is missing?'],
+  max_messages: 10,
+  max_message_chars: 1000,
+  messages: [{
+    id: 'message-1', role: 'assistant' as const,
+    content: 'The age criterion is unknown because date of birth is missing.',
+    answer_state: 'supported' as const,
+    citations: [{ criterion_id: 'c1', evaluation_id: 'e1', evidence_ids: [], label: 'Age is unresolved' }],
+    provider: { enabled: true, provider: 'canonical', model: 'deterministic-canonical-1', prompt_version: 'screening-chat-v1' },
+    created_at: '2026-07-15T10:00:00Z', suggested_questions: [],
+  }],
+}
 
 function renderRoute(initialPath = '/') {
   return render(<AuthProvider><RouterProvider router={createMemoryRouter(routes, { initialEntries: [initialPath] })} /></AuthProvider>)
@@ -111,6 +126,98 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByText('Required information is not recorded.')).toBeInTheDocument()
     expect(screen.getByText('Date of birth is required to calculate age.')).toBeInTheDocument()
     expect(screen.getAllByText('Synthetic Ada').length).toBeGreaterThan(0)
+  })
+
+  it('restores persisted explanation messages and focuses cited criterion evidence', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn((input: string) => Promise.resolve(
+      json(input.endsWith('/conversation') ? conversation : screening),
+    )))
+    renderRoute('/screenings/screen-1')
+    expect(await screen.findByText('Result explanation')).toBeInTheDocument()
+    const citation = screen.getByRole('link', { name: /Criterion evidence · Age is unresolved/i })
+    await userEvent.click(citation)
+    expect(screen.getByRole('article')).toHaveFocus()
+  })
+
+  it('posts only the current question and appends the grounded response', async () => {
+    authenticate()
+    const emptyConversation = { ...conversation, messages: [] }
+    const assistant = {
+      ...conversation.messages[0], id: 'message-2',
+      content: 'Only the stored age criterion is unresolved.',
+      suggested_questions: ['Which criteria passed?'],
+    }
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/conversation')) return Promise.resolve(json(emptyConversation))
+      if (input.endsWith('/conversation/messages') && options?.method === 'POST') return Promise.resolve(json(assistant, 201))
+      return Promise.resolve(json(screening))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/screenings/screen-1')
+    const composer = await screen.findByRole('textbox', { name: 'Question about this stored result' })
+    await userEvent.type(composer, 'Why is age unresolved?')
+    await userEvent.click(screen.getByRole('button', { name: 'Ask about result' }))
+    expect(await screen.findByText('Only the stored age criterion is unresolved.')).toBeInTheDocument()
+    const request = fetchMock.mock.calls.find(([input]) => input.endsWith('/conversation/messages'))
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({ message: 'Why is age unresolved?' })
+  })
+
+  it('distinguishes insufficient evidence, refusal, and a disabled assistant', async () => {
+    authenticate()
+    const safeStates = {
+      ...conversation,
+      provider: { ...conversation.provider, enabled: false, provider: 'disabled', model: null },
+      messages: [
+        { ...conversation.messages[0], id: 'insufficient', answer_state: 'insufficient_evidence' as const, content: 'The record does not contain that information.', citations: [] },
+        { ...conversation.messages[0], id: 'refused', answer_state: 'refused' as const, content: 'I cannot give enrollment advice.', citations: [] },
+      ],
+    }
+    vi.stubGlobal('fetch', vi.fn((input: string) => Promise.resolve(
+      json(input.endsWith('/conversation') ? safeStates : screening),
+    )))
+    renderRoute('/screenings/screen-1')
+    expect(await screen.findByText('Not enough evidence')).toBeInTheDocument()
+    expect(screen.getByText('Request declined')).toBeInTheDocument()
+    expect(screen.getByText('Conversational assistant disabled')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Question about this stored result' })).toBeDisabled()
+  })
+
+  it.each([
+    ['ASSISTANT_TIMEOUT', 'timed out'],
+    ['ASSISTANT_RATE_LIMITED', 'rate-limited'],
+    ['ASSISTANT_PROVIDER_ERROR', 'provider is unavailable'],
+    ['ASSISTANT_RESPONSE_INVALID', 'could not be safely grounded'],
+  ])('renders %s as a system error rather than an empty answer', async (code, copy) => {
+    authenticate()
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/conversation')) return Promise.resolve(json({ ...conversation, messages: [] }))
+      if (input.endsWith('/conversation/messages') && options?.method === 'POST') {
+        return Promise.resolve(json({ error: { code, message: 'Provider failure' } }, 502))
+      }
+      return Promise.resolve(json(screening))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/screenings/screen-1')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Question about this stored result' }), 'Explain this result')
+    await userEvent.click(screen.getByRole('button', { name: 'Ask about result' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(copy)
+    expect(screen.queryByText('Result explanation')).not.toBeInTheDocument()
+  })
+
+  it('confirms clear conversation and leaves the criterion table visible', async () => {
+    authenticate()
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (options?.method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(json(input.endsWith('/conversation') ? conversation : screening))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/screenings/screen-1')
+    await userEvent.click(await screen.findByRole('button', { name: 'Clear conversation' }))
+    expect(screen.getByRole('dialog', { name: 'Clear this conversation?' })).toBeInTheDocument()
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Clear conversation' }))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(true))
+    expect(screen.getByRole('heading', { name: 'Age 18 to 75 years' })).toBeInTheDocument()
   })
 
   it('shows a recoverable error when a stale backend omits presentation details', async () => {

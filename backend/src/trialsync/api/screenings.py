@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, Request, status
-from sqlalchemy import select
+from fastapi import APIRouter, Request, Response, status
+from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
-from trialsync.db.models import Screening, ScreeningBatch
+from trialsync.db.models import Screening, ScreeningBatch, ScreeningChatMessage
+from trialsync.nlp.chat import (
+    CHAT_PROMPT_VERSION,
+    ScreeningChatContext,
+    ScreeningChatProvider,
+    validate_answer,
+)
+from trialsync.nlp.groq import ProviderCallError
 from trialsync.schemas import (
     BatchCreate,
     BatchPairRead,
@@ -17,6 +24,11 @@ from trialsync.schemas import (
     CriterionEvaluationRead,
     PatientSnapshotSummary,
     ScreeningBatchRead,
+    ScreeningChatCitationRead,
+    ScreeningChatMessageCreate,
+    ScreeningChatMessageRead,
+    ScreeningChatProviderRead,
+    ScreeningConversationRead,
     ScreeningCounts,
     ScreeningCreate,
     ScreeningRead,
@@ -212,6 +224,230 @@ async def get_screening(
     screening_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> ScreeningRead:
     return _screening_read(await _owned_screening(session, user.id, screening_id))
+
+
+def _chat_context(screening: Screening) -> ScreeningChatContext:
+    evaluations: list[dict[str, object]] = []
+    for item in screening.evaluations:
+        evaluations.append(
+            {
+                "criterion_id": str(item.criterion_id),
+                "evaluation_id": str(item.id),
+                "criterion_order": item.criterion_order,
+                "criterion_kind": item.criterion_kind.value,
+                "source_text": item.criterion_source_text,
+                "result": item.result.value,
+                "reason_code": item.reason_code,
+                "canonical_explanation": item.canonical_explanation,
+                "evidence_ids": [
+                    str(value["fact_id"])
+                    for value in item.evidence_json
+                    if isinstance(value, dict) and value.get("fact_id") is not None
+                ],
+                "evidence": item.evidence_json,
+                "missing_information": item.missing_information_json,
+            }
+        )
+    counts = _counts(screening)
+    return ScreeningChatContext(
+        screening_id=str(screening.id),
+        overall_state=screening.overall_state.value,
+        counts={
+            "pass": counts.pass_count,
+            "fail": counts.fail_count,
+            "unknown": counts.unknown_count,
+        },
+        evaluations=tuple(evaluations),
+        versions={
+            "engine": screening.engine_version,
+            "dsl": screening.dsl_version,
+            "patient_snapshot": str(screening.patient_snapshot_id),
+            "trial_version": str(screening.trial_version_id),
+        },
+    )
+
+
+def _provider_read(provider: ScreeningChatProvider) -> ScreeningChatProviderRead:
+    return ScreeningChatProviderRead(
+        enabled=provider.enabled,
+        provider=provider.provider_name,
+        model=provider.model_id,
+        prompt_version=CHAT_PROMPT_VERSION,
+    )
+
+
+async def _recent_chat(
+    session: SessionDep, screening_id: uuid.UUID, limit: int
+) -> list[ScreeningChatMessage]:
+    rows = list(
+        await session.scalars(
+            select(ScreeningChatMessage)
+            .where(ScreeningChatMessage.screening_id == screening_id)
+            .order_by(ScreeningChatMessage.created_at.desc(), ScreeningChatMessage.id.desc())
+            .limit(limit)
+        )
+    )
+    rows.reverse()
+    return rows
+
+
+def _message_read(
+    message: ScreeningChatMessage, suggested_questions: list[str] | None = None
+) -> ScreeningChatMessageRead:
+    provider = None
+    if message.role == "assistant":
+        provider = ScreeningChatProviderRead(
+            enabled=True,
+            provider=message.provider or "unknown",
+            model=message.model_id,
+            prompt_version=message.prompt_version or CHAT_PROMPT_VERSION,
+        )
+    return ScreeningChatMessageRead(
+        id=message.id,
+        role=message.role,  # type: ignore[arg-type]
+        content=message.content,
+        answer_state=message.answer_state,  # type: ignore[arg-type]
+        citations=[
+            ScreeningChatCitationRead.model_validate(item) for item in message.citations_json
+        ],
+        provider=provider,
+        created_at=message.created_at,
+        suggested_questions=suggested_questions or [],
+    )
+
+
+def _contextual_suggestions(context: ScreeningChatContext) -> list[str]:
+    prompts = ["Why does this result have its current state?", "Which criteria passed?"]
+    if context.counts["unknown"]:
+        prompts.insert(1, "What information is missing?")
+    return prompts[:3]
+
+
+@router.get(
+    "/api/v1/screenings/{screening_id}/conversation",
+    response_model=ScreeningConversationRead,
+)
+async def get_screening_conversation(
+    screening_id: uuid.UUID, request: Request, session: SessionDep, user: CurrentUser
+) -> ScreeningConversationRead:
+    screening = await _owned_screening(session, user.id, screening_id)
+    limit = request.app.state.settings.screening_chat_max_messages
+    messages = await _recent_chat(session, screening.id, limit)
+    context = _chat_context(screening)
+    return ScreeningConversationRead(
+        screening_id=screening.id,
+        messages=[_message_read(message) for message in messages],
+        provider=_provider_read(request.app.state.chat_provider),
+        suggested_questions=_contextual_suggestions(context),
+        max_messages=limit,
+        max_message_chars=request.app.state.settings.screening_chat_message_max_chars,
+    )
+
+
+@router.post(
+    "/api/v1/screenings/{screening_id}/conversation/messages",
+    response_model=ScreeningChatMessageRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_screening_chat_message(
+    screening_id: uuid.UUID,
+    payload: ScreeningChatMessageCreate,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> ScreeningChatMessageRead:
+    screening = await _owned_screening(session, user.id, screening_id)
+    settings = request.app.state.settings
+    message = payload.message.strip()
+    if not message or len(message) > settings.screening_chat_message_max_chars:
+        raise ApplicationError(
+            code="ASSISTANT_MESSAGE_TOO_LONG",
+            message=(
+                "Messages must contain at most "
+                f"{settings.screening_chat_message_max_chars} characters."
+            ),
+            status_code=422,
+            field="message",
+        )
+    history_rows = await _recent_chat(session, screening.id, settings.screening_chat_max_messages)
+    history = [{"role": item.role, "content": item.content} for item in history_rows]
+    context = _chat_context(screening)
+    provider = request.app.state.chat_provider
+    try:
+        answer = validate_answer(
+            await provider.answer(context=context, history=history, message=message), context
+        )
+    except ProviderCallError as exception:
+        code_map = {
+            "PROVIDER_TIMEOUT": ("ASSISTANT_TIMEOUT", 504),
+            "PROVIDER_RATE_LIMITED": ("ASSISTANT_RATE_LIMITED", 429),
+            "PROVIDER_RESPONSE_INVALID": ("ASSISTANT_RESPONSE_INVALID", 502),
+            "PROVIDER_ERROR": ("ASSISTANT_PROVIDER_ERROR", 502),
+            "ASSISTANT_DISABLED": ("ASSISTANT_DISABLED", 503),
+        }
+        code, status_code = code_map.get(exception.code, ("ASSISTANT_PROVIDER_ERROR", 502))
+        raise ApplicationError(
+            code=code, message=exception.message, status_code=status_code
+        ) from exception
+    now = datetime.now(UTC)
+    user_message = ScreeningChatMessage(
+        screening_id=screening.id,
+        role="user",
+        content=message,
+        answer_state=None,
+        citations_json=[],
+        created_at=now,
+    )
+    assistant_message = ScreeningChatMessage(
+        screening_id=screening.id,
+        role="assistant",
+        content=answer.answer[: settings.screening_chat_max_answer_chars],
+        answer_state=answer.answer_state,
+        citations_json=[item.model_dump(mode="json") for item in answer.citations],
+        provider=provider.provider_name,
+        model_id=provider.model_id,
+        prompt_version=CHAT_PROMPT_VERSION,
+        created_at=now + timedelta(microseconds=1),
+    )
+    try:
+        session.add_all([user_message, assistant_message])
+        await session.flush()
+        keep_ids = list(
+            await session.scalars(
+                select(ScreeningChatMessage.id)
+                .where(ScreeningChatMessage.screening_id == screening.id)
+                .order_by(
+                    ScreeningChatMessage.created_at.desc(), ScreeningChatMessage.id.desc()
+                )
+                .limit(settings.screening_chat_max_messages)
+            )
+        )
+        await session.execute(
+            delete(ScreeningChatMessage).where(
+                ScreeningChatMessage.screening_id == screening.id,
+                ScreeningChatMessage.id.not_in(keep_ids),
+            )
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return _message_read(assistant_message, answer.suggested_questions)
+
+
+@router.delete(
+    "/api/v1/screenings/{screening_id}/conversation",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def clear_screening_conversation(
+    screening_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> Response:
+    screening = await _owned_screening(session, user.id, screening_id)
+    await session.execute(
+        delete(ScreeningChatMessage).where(ScreeningChatMessage.screening_id == screening.id)
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

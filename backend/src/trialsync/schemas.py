@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -247,3 +247,41 @@ class ScreeningBatchRead(BaseModel):
     state_counts: BatchStateCounts
     unknown_criterion_count: int = Field(ge=0)
     screenings: list[BatchPairRead] = Field(default_factory=list)
+
+
+class ScreeningChatMessageCreate(BaseModel):
+    message: str = Field(min_length=1, max_length=4_000)
+
+
+class ScreeningChatCitationRead(BaseModel):
+    criterion_id: uuid.UUID
+    evaluation_id: uuid.UUID
+    evidence_ids: list[str] = Field(default_factory=list)
+    label: str
+
+
+class ScreeningChatProviderRead(BaseModel):
+    enabled: bool
+    provider: str
+    model: str | None
+    prompt_version: str
+
+
+class ScreeningChatMessageRead(BaseModel):
+    id: uuid.UUID
+    role: Literal["user", "assistant"]
+    content: str
+    answer_state: Literal["supported", "insufficient_evidence", "refused"] | None
+    citations: list[ScreeningChatCitationRead] = Field(default_factory=list)
+    provider: ScreeningChatProviderRead | None
+    created_at: datetime
+    suggested_questions: list[str] = Field(default_factory=list)
+
+
+class ScreeningConversationRead(BaseModel):
+    screening_id: uuid.UUID
+    messages: list[ScreeningChatMessageRead] = Field(default_factory=list)
+    provider: ScreeningChatProviderRead
+    suggested_questions: list[str] = Field(default_factory=list)
+    max_messages: int
+    max_message_chars: int

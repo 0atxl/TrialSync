@@ -146,3 +146,76 @@ class TrialRead(ORMModel):
     created_at: datetime
     updated_at: datetime
     versions: list[VersionRead] = Field(default_factory=list)
+
+
+class ScreeningCreate(BaseModel):
+    patient_id: uuid.UUID
+    trial_version_id: uuid.UUID
+    screening_date: date | None = None
+
+
+class ScreeningCounts(BaseModel):
+    pass_count: int = Field(ge=0)
+    fail_count: int = Field(ge=0)
+    unknown_count: int = Field(ge=0)
+
+
+class CriterionEvaluationRead(BaseModel):
+    id: uuid.UUID
+    criterion_id: uuid.UUID
+    criterion_order: int
+    criterion_kind: CriterionKind
+    result: str
+    truth: str
+    reason_code: str
+    canonical_explanation: str
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    rejected_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    missing_information: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ScreeningRead(BaseModel):
+    id: uuid.UUID
+    batch_id: uuid.UUID | None
+    patient_snapshot_id: uuid.UUID
+    trial_version_id: uuid.UUID
+    overall_state: str
+    screening_date: date
+    engine_version: str
+    dsl_version: str
+    terminology_version: str
+    unit_version: str
+    created_at: datetime
+    counts: ScreeningCounts
+    evaluations: list[CriterionEvaluationRead] = Field(default_factory=list)
+
+
+class BatchCreate(BaseModel):
+    patient_snapshot_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+    trial_version_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    label: str | None = Field(default=None, min_length=1, max_length=120)
+    screening_date: date | None = None
+
+
+class BatchPairRead(BaseModel):
+    patient_snapshot_id: uuid.UUID
+    trial_version_id: uuid.UUID
+    screening_id: uuid.UUID
+    overall_state: str
+    counts: ScreeningCounts
+
+
+class BatchStateCounts(BaseModel):
+    potentially_eligible: int = Field(ge=0)
+    likely_ineligible: int = Field(ge=0)
+    needs_review: int = Field(ge=0)
+
+
+class ScreeningBatchRead(BaseModel):
+    id: uuid.UUID
+    label: str | None
+    pair_count: int
+    created_at: datetime
+    state_counts: BatchStateCounts
+    unknown_criterion_count: int = Field(ge=0)
+    screenings: list[BatchPairRead] = Field(default_factory=list)

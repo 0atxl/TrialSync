@@ -1,6 +1,6 @@
 # TrialSync
 
-TrialSync is an academic full-stack prototype for explainable clinical-trial pre-screening using synthetic data only. Phase 2 provides demo-user authentication and structured records. Phase 3 adds a pure deterministic rule engine with evidence-backed `pass`, `fail`, and `unknown` results. Saved screening APIs and UI remain intentionally deferred to later phases.
+TrialSync is an academic full-stack prototype for explainable clinical-trial pre-screening using synthetic data only. Phase 4 connects the deterministic `pass`, `fail`, and `unknown` engine to immutable patient snapshots, approved trial versions, and transactional single/batch screening history. The screening UI remains intentionally deferred to Phase 5.
 
 ## Prerequisites
 
@@ -56,7 +56,7 @@ Frontend:
 npm --prefix web run dev
 ```
 
-Open `http://localhost:5173`. The API documentation is at `http://localhost:8000/docs`. Health endpoints are:
+Open `http://localhost:5173` (or `http://127.0.0.1:5173`). The API documentation is at `http://localhost:8000/docs`. Health endpoints are:
 
 - `GET http://localhost:8000/health/live` — process liveness only.
 - `GET http://localhost:8000/health/ready` — database connectivity and migration status.
@@ -109,7 +109,35 @@ POST               /api/v1/trials/{trial_id}/versions
 PUT|DELETE         /api/v1/trials/{trial_id}/versions/{version_id}
 POST               /api/v1/trials/{trial_id}/versions/{version_id}/criteria
 PUT|DELETE         /api/v1/trials/{trial_id}/versions/{version_id}/criteria/{criterion_id}
+
+POST               /api/v1/screenings
+GET                /api/v1/screenings
+GET                /api/v1/screenings/{screening_id}
+POST               /api/v1/screening-batches
+GET                /api/v1/screening-batches
+GET                /api/v1/screening-batches/{batch_id}
 ```
+
+## Phase 4 screening history
+
+`POST /api/v1/screenings` accepts a user-owned `patient_id`, an approved
+`trial_version_id`, and an optional ISO screening date. It creates or reuses an
+immutable patient snapshot, runs the same pure Phase 3 engine, and stores every
+criterion result, evidence reference, rejected evidence item, missing-information
+requirement, and version field in one transaction.
+
+Deleting a patient after screening detaches the identity record but keeps its
+immutable snapshot and screening history. A trial referenced by a saved screening
+cannot be deleted. Editing current patient or trial labels never rewrites a stored
+criterion outcome.
+
+`POST /api/v1/screening-batches` accepts unique or repeated
+`patient_snapshot_ids` and approved `trial_version_ids`. IDs are deduplicated before
+the configured limits are checked (50 snapshots, 10 trial versions, and 500 pairs).
+The bounded Cartesian product runs synchronously with one screening date and one
+engine version, and the whole batch rolls back on unexpected persistence failure.
+The response includes state totals, the total unknown-criterion count, and a normal
+evidence-backed screening ID for every matrix cell.
 
 ## Verification
 
@@ -139,6 +167,7 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 1. Foundation | Complete | Migration, health/config tests, routed frontend tests, type check, lint, and build |
 | 2. Authentication and structured data | Complete | Owner-scoped auth, patient/fact and trial/version/criterion API and UI tests |
 | 3. Deterministic screening engine | Complete | Pure typed engine with 43 domain golden tests and conservative unknown propagation |
-| 4. Screening API and history | Not started | Deliberately outside this milestone |
+| 4. Screening API and history | Complete | Immutable snapshots, stored criterion evidence, transactional single/batch history, ownership, limits, rollback, and equivalence tests |
+| 5. Single and batch frontend | Not started | Deliberately outside this milestone |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     auth_secret: SecretStr = Field(default=SecretStr(""))
     access_token_minutes: int = Field(default=480, ge=5, le=1440)
     cors_origins: list[str] = Field(default_factory=list)
+    screening_batch_max_patients: int = Field(default=50, ge=1, le=100)
+    screening_batch_max_trials: int = Field(default=10, ge=1, le=50)
+    screening_batch_max_pairs: int = Field(default=500, ge=1, le=1000)
 
     @field_validator("database_url")
     @classmethod

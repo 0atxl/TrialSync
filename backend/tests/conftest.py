@@ -12,6 +12,7 @@ def settings() -> Settings:
         DATABASE_URL="postgresql+psycopg://test:test@localhost:5432/test",
         environment="test",
         auth_secret="test-secret-that-is-at-least-32-characters-long",
+        cors_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     )
 
 

@@ -48,6 +48,18 @@ class CriterionKind(str, enum.Enum):
     exclusion = "exclusion"
 
 
+class OverallState(str, enum.Enum):
+    potentially_eligible = "potentially_eligible"
+    likely_ineligible = "likely_ineligible"
+    needs_review = "needs_review"
+
+
+class EvaluationResult(str, enum.Enum):
+    pass_ = "pass"
+    fail = "fail"
+    unknown = "unknown"
+
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -57,9 +69,10 @@ class TimestampMixin:
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (Index("ix_users_email", "email"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True)
     display_name: Mapped[str] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(255))
 
@@ -78,6 +91,9 @@ class Patient(TimestampMixin, Base):
     sex: Mapped[str | None] = mapped_column(String(32), nullable=True)
     facts: Mapped[list[PatientFact]] = relationship(
         back_populates="patient", cascade="all, delete-orphan", order_by="PatientFact.created_at"
+    )
+    snapshots: Mapped[list[PatientSnapshot]] = relationship(
+        back_populates="patient", passive_deletes=True
     )
 
 
@@ -152,3 +168,101 @@ class Criterion(TimestampMixin, Base):
     normalized_rule: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     required: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_version: Mapped[TrialVersion] = relationship(back_populates="criteria")
+
+
+class PatientSnapshot(TimestampMixin, Base):
+    """An immutable, canonical copy of a patient's screening inputs."""
+
+    __tablename__ = "patient_snapshots"
+    __table_args__ = (UniqueConstraint("patient_id", "content_hash"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    patient_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("patients.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    content_hash: Mapped[str] = mapped_column(String(64))
+    snapshot_version: Mapped[str] = mapped_column(String(64))
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    facts_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    source_summary: Mapped[dict[str, object]] = mapped_column(JSON)
+    patient: Mapped[Patient | None] = relationship(back_populates="snapshots")
+    screenings: Mapped[list[Screening]] = relationship(back_populates="patient_snapshot")
+
+
+class ScreeningBatch(TimestampMixin, Base):
+    __tablename__ = "screening_batches"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    pair_count: Mapped[int] = mapped_column(Integer)
+    screenings: Mapped[list[Screening]] = relationship(back_populates="batch")
+
+
+class Screening(TimestampMixin, Base):
+    __tablename__ = "screenings"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("screening_batches.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    patient_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("patient_snapshots.id", ondelete="CASCADE"), index=True
+    )
+    trial_version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trial_versions.id", ondelete="RESTRICT"), index=True
+    )
+    overall_state: Mapped[OverallState] = mapped_column(
+        Enum(OverallState, name="overall_state")
+    )
+    screening_date: Mapped[date] = mapped_column(Date)
+    engine_version: Mapped[str] = mapped_column(String(40))
+    dsl_version: Mapped[str] = mapped_column(String(20))
+    terminology_version: Mapped[str] = mapped_column(String(40))
+    unit_version: Mapped[str] = mapped_column(String(40))
+    patient_snapshot: Mapped[PatientSnapshot] = relationship(back_populates="screenings")
+    batch: Mapped[ScreeningBatch | None] = relationship(back_populates="screenings")
+    evaluations: Mapped[list[CriterionEvaluation]] = relationship(
+        back_populates="screening",
+        cascade="all, delete-orphan",
+        order_by="CriterionEvaluation.criterion_order",
+    )
+
+
+class CriterionEvaluation(TimestampMixin, Base):
+    __tablename__ = "criterion_evaluations"
+    __table_args__ = (UniqueConstraint("screening_id", "criterion_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    screening_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("screenings.id", ondelete="CASCADE"), index=True
+    )
+    criterion_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("criteria.id", ondelete="RESTRICT"), index=True
+    )
+    criterion_order: Mapped[int] = mapped_column(Integer)
+    criterion_kind: Mapped[CriterionKind] = mapped_column(
+        Enum(CriterionKind, name="criterion_kind")
+    )
+    result: Mapped[EvaluationResult] = mapped_column(
+        Enum(
+            EvaluationResult,
+            name="evaluation_result",
+            values_callable=lambda members: [member.value for member in members],
+        )
+    )
+    truth: Mapped[str] = mapped_column(String(16))
+    reason_code: Mapped[str] = mapped_column(String(64))
+    canonical_explanation: Mapped[str] = mapped_column(Text)
+    evidence_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    rejected_evidence_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    missing_information_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    screening: Mapped[Screening] = relationship(back_populates="evaluations")

@@ -123,7 +123,15 @@ async def update_trial(
 async def delete_trial(trial_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> Response:
     trial = await owned_trial(session, user, trial_id)
     await session.delete(trial)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exception:
+        await session.rollback()
+        raise ApplicationError(
+            code="TRIAL_HAS_SCREENING_HISTORY",
+            message="Trials used by saved screenings cannot be deleted.",
+            status_code=409,
+        ) from exception
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

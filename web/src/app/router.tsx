@@ -3,13 +3,17 @@ import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../auth/ProtectedRoute'
 import { AppLayout } from '../components/AppLayout'
 import { AuthPage } from '../pages/AuthPage'
-import { FoundationPage } from '../pages/FoundationPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { PatientDetailPage } from '../pages/PatientDetailPage'
 import { PatientsPage } from '../pages/PatientsPage'
-import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { TrialDetailPage } from '../pages/TrialDetailPage'
 import { TrialsPage } from '../pages/TrialsPage'
+import { BatchDetailPage } from '../pages/BatchDetailPage'
+import { BatchScreeningPage } from '../pages/BatchScreeningPage'
+import { DashboardPage } from '../pages/DashboardPage'
+import { NewScreeningPage } from '../pages/NewScreeningPage'
+import { ScreeningDetailPage } from '../pages/ScreeningDetailPage'
+import { ScreeningHistoryPage } from '../pages/ScreeningHistoryPage'
 
 export const routes = [
   { path: '/login', element: <AuthPage mode="login" /> },
@@ -21,21 +25,16 @@ export const routes = [
         path: '/',
         element: <AppLayout />,
         children: [
-          { index: true, element: <FoundationPage /> },
+          { index: true, element: <DashboardPage /> },
           { path: 'patients', element: <PatientsPage /> },
           { path: 'patients/:patientId', element: <PatientDetailPage /> },
           { path: 'trials', element: <TrialsPage /> },
           { path: 'trials/:trialId', element: <TrialDetailPage /> },
-          {
-            path: 'screenings',
-            element: (
-              <PlaceholderPage
-                eyebrow="Evidence review"
-                title="Screenings"
-                description="Deterministic screening begins in Phase 3."
-              />
-            ),
-          },
+          { path: 'screenings', element: <ScreeningHistoryPage /> },
+          { path: 'screenings/new', element: <NewScreeningPage /> },
+          { path: 'screenings/:screeningId', element: <ScreeningDetailPage /> },
+          { path: 'batches/new', element: <BatchScreeningPage /> },
+          { path: 'batches/:batchId', element: <BatchDetailPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

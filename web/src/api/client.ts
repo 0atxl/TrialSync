@@ -43,6 +43,74 @@ export type Trial = {
   phase: string | null
   versions: TrialVersion[]
 }
+export type ScreeningState = 'potentially_eligible' | 'likely_ineligible' | 'needs_review'
+export type ScreeningCounts = { pass_count: number; fail_count: number; unknown_count: number }
+export type Evidence = {
+  fact_id: string
+  source_label?: string
+  value?: string | number | null
+  unit?: string | null
+  effective_date?: string | null
+}
+export type MissingInformation = { fact: string; reason: string; detail: string }
+export type SnapshotSummary = {
+  id: string
+  external_id: string
+  display_name: string
+  date_of_birth: string | null
+  sex: string | null
+  facts: Fact[]
+}
+export type TrialSummary = { registry_id: string; title: string; version: number }
+export type CriterionEvaluation = {
+  id: string
+  criterion_id: string
+  criterion_order: number
+  criterion_kind: 'inclusion' | 'exclusion'
+  result: 'pass' | 'fail' | 'unknown'
+  truth: string
+  reason_code: string
+  criterion_source_text: string
+  canonical_explanation: string
+  evidence: Evidence[]
+  rejected_evidence: Evidence[]
+  missing_information: MissingInformation[]
+}
+export type Screening = {
+  id: string
+  batch_id: string | null
+  patient_snapshot_id: string
+  patient_snapshot: SnapshotSummary
+  trial_version_id: string
+  trial_version: TrialSummary
+  overall_state: ScreeningState
+  screening_date: string
+  engine_version: string
+  dsl_version: string
+  terminology_version: string
+  unit_version: string
+  created_at: string
+  counts: ScreeningCounts
+  evaluations: CriterionEvaluation[]
+}
+export type BatchPair = {
+  patient_snapshot_id: string
+  patient_snapshot: SnapshotSummary
+  trial_version_id: string
+  trial_version: TrialSummary
+  screening_id: string
+  overall_state: ScreeningState
+  counts: ScreeningCounts
+}
+export type ScreeningBatch = {
+  id: string
+  label: string | null
+  pair_count: number
+  created_at: string
+  state_counts: Record<ScreeningState, number>
+  unknown_criterion_count: number
+  screenings: BatchPair[]
+}
 
 export class ApiError extends Error {
   constructor(

@@ -1,6 +1,6 @@
 # TrialSync
 
-TrialSync is an academic full-stack prototype for explainable clinical-trial pre-screening using synthetic data only. Phase 4 connects the deterministic `pass`, `fail`, and `unknown` engine to immutable patient snapshots, approved trial versions, and transactional single/batch screening history. The screening UI remains intentionally deferred to Phase 5.
+TrialSync is an academic full-stack prototype for explainable clinical-trial pre-screening using synthetic data only. It connects the deterministic `pass`, `fail`, and `unknown` engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
 
 ## Prerequisites
 
@@ -139,6 +139,20 @@ engine version, and the whole batch rolls back on unexpected persistence failure
 The response includes state totals, the total unknown-criterion count, and a normal
 evidence-backed screening ID for every matrix cell.
 
+## Phase 5 screening workspace
+
+After creating structured synthetic patients and approving a trial version, use the
+workspace dashboard to run a single screening. The result page shows the immutable
+patient snapshot, approved trial version, every criterion's stored source text,
+canonical explanation, supporting evidence, and missing information. Unknown
+criteria are shown first.
+
+`/screenings` provides searchable, filterable history. `/batches/new` selects
+previously created immutable snapshots and approved versions, previews the bounded
+Cartesian pair count, and creates a synchronous batch. Each batch matrix cell links
+back to the ordinary evidence-rich screening detail page. The UI is educational and
+uses synthetic data only; it does not provide medical advice or enrollment guidance.
+
 ## Verification
 
 With `.env` present, run every Phase 1 check from the repository root:
@@ -168,6 +182,6 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 2. Authentication and structured data | Complete | Owner-scoped auth, patient/fact and trial/version/criterion API and UI tests |
 | 3. Deterministic screening engine | Complete | Pure typed engine with 43 domain golden tests and conservative unknown propagation |
 | 4. Screening API and history | Complete | Immutable snapshots, stored criterion evidence, transactional single/batch history, ownership, limits, rollback, and equivalence tests |
-| 5. Single and batch frontend | Not started | Deliberately outside this milestone |
+| 5. Single and batch frontend | Complete | Dashboard, single and batch workflows, evidence detail, history filters, and linked result matrix |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

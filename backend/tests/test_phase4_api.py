@@ -181,6 +181,20 @@ async def test_screening_persists_evidence_and_is_immutable_after_edits(
     assert saved["screening_date"] == "2026-07-15"
     assert saved["counts"] == {"pass_count": 1, "fail_count": 0, "unknown_count": 0}
     assert saved["evaluations"][0]["evidence"][0]["fact_id"] == "date_of_birth"
+    assert saved["patient_snapshot"] == {
+        "id": saved["patient_snapshot_id"],
+        "external_id": "SYN-1",
+        "display_name": "Synthetic 1",
+        "date_of_birth": "1990-07-15",
+        "sex": None,
+        "facts": [],
+    }
+    assert saved["trial_version"] == {
+        "registry_id": "SYN-TRIAL-1",
+        "title": "Synthetic age study",
+        "version": 1,
+    }
+    assert saved["evaluations"][0]["criterion_source_text"] == "Age 18 to 75 years at screening"
 
     changed = await api.patch(
         f"/api/v1/patients/{patient_id}", headers=headers, json={"date_of_birth": "2015-07-15"}
@@ -190,6 +204,7 @@ async def test_screening_persists_evidence_and_is_immutable_after_edits(
     assert historical.status_code == 200
     assert historical.json()["overall_state"] == "potentially_eligible"
     assert historical.json()["patient_snapshot_id"] == saved["patient_snapshot_id"]
+    assert historical.json()["patient_snapshot"]["display_name"] == "Synthetic 1"
 
     deleted_patient = await api.delete(f"/api/v1/patients/{patient_id}", headers=headers)
     assert deleted_patient.status_code == 204

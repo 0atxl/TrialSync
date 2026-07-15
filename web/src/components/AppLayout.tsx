@@ -6,6 +6,7 @@ const navItems = [
   { to: '/patients', label: 'Patients' },
   { to: '/trials', label: 'Trials' },
   { to: '/screenings', label: 'Screenings' },
+  { to: '/batches/new', label: 'Batch screening' },
 ]
 
 export function AppLayout() {

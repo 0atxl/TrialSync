@@ -168,6 +168,7 @@ class Criterion(TimestampMixin, Base):
     normalized_rule: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     required: Mapped[bool] = mapped_column(Boolean, default=True)
     trial_version: Mapped[TrialVersion] = relationship(back_populates="criteria")
+    evaluations: Mapped[list[CriterionEvaluation]] = relationship(back_populates="criterion")
 
 
 class PatientSnapshot(TimestampMixin, Base):
@@ -229,6 +230,7 @@ class Screening(TimestampMixin, Base):
     terminology_version: Mapped[str] = mapped_column(String(40))
     unit_version: Mapped[str] = mapped_column(String(40))
     patient_snapshot: Mapped[PatientSnapshot] = relationship(back_populates="screenings")
+    trial_version: Mapped[TrialVersion] = relationship()
     batch: Mapped[ScreeningBatch | None] = relationship(back_populates="screenings")
     evaluations: Mapped[list[CriterionEvaluation]] = relationship(
         back_populates="screening",
@@ -266,3 +268,4 @@ class CriterionEvaluation(TimestampMixin, Base):
     rejected_evidence_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     missing_information_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     screening: Mapped[Screening] = relationship(back_populates="evaluations")
+    criterion: Mapped[Criterion] = relationship(back_populates="evaluations")

@@ -160,6 +160,21 @@ class ScreeningCounts(BaseModel):
     unknown_count: int = Field(ge=0)
 
 
+class PatientSnapshotSummary(BaseModel):
+    id: uuid.UUID
+    external_id: str
+    display_name: str
+    date_of_birth: date | None
+    sex: str | None
+    facts: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TrialVersionSummary(BaseModel):
+    registry_id: str
+    title: str
+    version: int
+
+
 class CriterionEvaluationRead(BaseModel):
     id: uuid.UUID
     criterion_id: uuid.UUID
@@ -168,6 +183,7 @@ class CriterionEvaluationRead(BaseModel):
     result: str
     truth: str
     reason_code: str
+    criterion_source_text: str
     canonical_explanation: str
     evidence: list[dict[str, Any]] = Field(default_factory=list)
     rejected_evidence: list[dict[str, Any]] = Field(default_factory=list)
@@ -179,6 +195,8 @@ class ScreeningRead(BaseModel):
     batch_id: uuid.UUID | None
     patient_snapshot_id: uuid.UUID
     trial_version_id: uuid.UUID
+    patient_snapshot: PatientSnapshotSummary
+    trial_version: TrialVersionSummary
     overall_state: str
     screening_date: date
     engine_version: str
@@ -200,6 +218,8 @@ class BatchCreate(BaseModel):
 class BatchPairRead(BaseModel):
     patient_snapshot_id: uuid.UUID
     trial_version_id: uuid.UUID
+    patient_snapshot: PatientSnapshotSummary
+    trial_version: TrialVersionSummary
     screening_id: uuid.UUID
     overall_state: str
     counts: ScreeningCounts

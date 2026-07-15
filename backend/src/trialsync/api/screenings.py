@@ -9,16 +9,18 @@ from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
-from trialsync.db.models import Screening, ScreeningBatch
+from trialsync.db.models import CriterionEvaluation, Screening, ScreeningBatch, TrialVersion
 from trialsync.schemas import (
     BatchCreate,
     BatchPairRead,
     BatchStateCounts,
     CriterionEvaluationRead,
+    PatientSnapshotSummary,
     ScreeningBatchRead,
     ScreeningCounts,
     ScreeningCreate,
     ScreeningRead,
+    TrialVersionSummary,
 )
 from trialsync.screening.service import (
     owned_approved_version,
@@ -40,12 +42,36 @@ def _counts(screening: Screening) -> ScreeningCounts:
     )
 
 
+def _snapshot_summary(screening: Screening) -> PatientSnapshotSummary:
+    snapshot = screening.patient_snapshot
+    source = snapshot.source_summary
+    return PatientSnapshotSummary(
+        id=snapshot.id,
+        external_id=str(source.get("external_id", "Synthetic patient")),
+        display_name=str(source.get("display_name", "Synthetic patient")),
+        date_of_birth=snapshot.date_of_birth,
+        sex=str(source["sex"]) if source.get("sex") is not None else None,
+        facts=snapshot.facts_json,
+    )
+
+
+def _trial_summary(screening: Screening) -> TrialVersionSummary:
+    version = screening.trial_version
+    return TrialVersionSummary(
+        registry_id=version.trial.registry_id,
+        title=version.trial.title,
+        version=version.version,
+    )
+
+
 def _screening_read(screening: Screening) -> ScreeningRead:
     return ScreeningRead(
         id=screening.id,
         batch_id=screening.batch_id,
         patient_snapshot_id=screening.patient_snapshot_id,
         trial_version_id=screening.trial_version_id,
+        patient_snapshot=_snapshot_summary(screening),
+        trial_version=_trial_summary(screening),
         overall_state=screening.overall_state.value,
         screening_date=screening.screening_date,
         engine_version=screening.engine_version,
@@ -63,6 +89,7 @@ def _screening_read(screening: Screening) -> ScreeningRead:
                 result=item.result.value,
                 truth=item.truth,
                 reason_code=item.reason_code,
+                criterion_source_text=item.criterion.source_text,
                 canonical_explanation=item.canonical_explanation,
                 evidence=item.evidence_json,
                 rejected_evidence=item.rejected_evidence_json,
@@ -91,6 +118,8 @@ def _batch_read(batch: ScreeningBatch) -> ScreeningBatchRead:
             BatchPairRead(
                 patient_snapshot_id=item.patient_snapshot_id,
                 trial_version_id=item.trial_version_id,
+                patient_snapshot=_snapshot_summary(item),
+                trial_version=_trial_summary(item),
                 screening_id=item.id,
                 overall_state=item.overall_state.value,
                 counts=_counts(item),
@@ -105,7 +134,11 @@ async def _owned_screening(
 ) -> Screening:
     screening = await session.scalar(
         select(Screening)
-        .options(selectinload(Screening.evaluations))
+        .options(
+            selectinload(Screening.patient_snapshot),
+            selectinload(Screening.trial_version).selectinload(TrialVersion.trial),
+            selectinload(Screening.evaluations).selectinload(CriterionEvaluation.criterion),
+        )
         .where(Screening.id == screening_id, Screening.owner_id == owner_id)
     )
     if screening is None:
@@ -122,6 +155,13 @@ async def _owned_batch(
         select(ScreeningBatch)
         .options(
             selectinload(ScreeningBatch.screenings).selectinload(Screening.evaluations),
+            selectinload(ScreeningBatch.screenings).selectinload(Screening.patient_snapshot),
+            selectinload(ScreeningBatch.screenings)
+            .selectinload(Screening.trial_version)
+            .selectinload(TrialVersion.trial),
+            selectinload(ScreeningBatch.screenings)
+            .selectinload(Screening.evaluations)
+            .selectinload(CriterionEvaluation.criterion),
         )
         .where(ScreeningBatch.id == batch_id, ScreeningBatch.owner_id == owner_id)
     )
@@ -164,7 +204,11 @@ async def create_screening(
 async def list_screenings(session: SessionDep, user: CurrentUser) -> list[ScreeningRead]:
     results = await session.scalars(
         select(Screening)
-        .options(selectinload(Screening.evaluations))
+        .options(
+            selectinload(Screening.patient_snapshot),
+            selectinload(Screening.trial_version).selectinload(TrialVersion.trial),
+            selectinload(Screening.evaluations).selectinload(CriterionEvaluation.criterion),
+        )
         .where(Screening.owner_id == user.id)
         .order_by(Screening.created_at.desc())
         .limit(100)
@@ -235,6 +279,13 @@ async def list_batches(session: SessionDep, user: CurrentUser) -> list[Screening
         select(ScreeningBatch)
         .options(
             selectinload(ScreeningBatch.screenings).selectinload(Screening.evaluations),
+            selectinload(ScreeningBatch.screenings).selectinload(Screening.patient_snapshot),
+            selectinload(ScreeningBatch.screenings)
+            .selectinload(Screening.trial_version)
+            .selectinload(TrialVersion.trial),
+            selectinload(ScreeningBatch.screenings)
+            .selectinload(Screening.evaluations)
+            .selectinload(CriterionEvaluation.criterion),
         )
         .where(ScreeningBatch.owner_id == user.id)
         .order_by(ScreeningBatch.created_at.desc())

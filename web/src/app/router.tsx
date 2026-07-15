@@ -14,16 +14,19 @@ import { DashboardPage } from '../pages/DashboardPage'
 import { NewScreeningPage } from '../pages/NewScreeningPage'
 import { ScreeningDetailPage } from '../pages/ScreeningDetailPage'
 import { ScreeningHistoryPage } from '../pages/ScreeningHistoryPage'
+import { RouteErrorPage } from '../pages/RouteErrorPage'
 
 export const routes = [
-  { path: '/login', element: <AuthPage mode="login" /> },
-  { path: '/register', element: <AuthPage mode="register" /> },
+  { path: '/login', element: <AuthPage mode="login" />, errorElement: <RouteErrorPage /> },
+  { path: '/register', element: <AuthPage mode="register" />, errorElement: <RouteErrorPage /> },
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorPage />,
     children: [
       {
         path: '/',
         element: <AppLayout />,
+        errorElement: <RouteErrorPage />,
         children: [
           { index: true, element: <DashboardPage /> },
           { path: 'patients', element: <PatientsPage /> },

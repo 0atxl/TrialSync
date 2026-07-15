@@ -79,6 +79,17 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getAllByText('Synthetic Ada').length).toBeGreaterThan(0)
   })
 
+  it('shows a recoverable error when a stale backend omits presentation details', async () => {
+    authenticate()
+    const staleResponse = { ...screening, patient_snapshot: undefined, trial_version: undefined }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(staleResponse)))
+    renderRoute('/screenings/screen-1')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Restart the TrialSync backend so it loads the latest API and migration',
+    )
+    expect(screen.queryByText(/Unexpected Application Error/i)).not.toBeInTheDocument()
+  })
+
   it('shows expired sessions as an error rather than an empty history', async () => {
     authenticate()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ error: { message: 'Expired' } }, 401)))

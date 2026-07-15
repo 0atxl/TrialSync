@@ -21,6 +21,23 @@ export function ScreeningDetailPage() {
 
   if (error) return <div className="form-error" role="alert">{error}</div>
   if (!screening) return <div className="loading-state">Loading result evidence…</div>
+  if (!screening.patient_snapshot || !screening.trial_version) {
+    return <section className="route-entry workspace-page narrow-page">
+      <Link className="back-link" to="/screenings">← Screening history</Link>
+      <div className="form-error" role="alert">
+        This screening response is missing its presentation details. Restart the TrialSync backend
+        so it loads the latest API and migration, then try again.
+      </div>
+    </section>
+  }
+  if (!Array.isArray(screening.evaluations) || !screening.counts) {
+    return <section className="route-entry workspace-page narrow-page">
+      <Link className="back-link" to="/screenings">← Screening history</Link>
+      <div className="form-error" role="alert">
+        This saved result is incomplete and cannot be displayed safely.
+      </div>
+    </section>
+  }
   const ordered = [...screening.evaluations].sort((a, b) => Number(a.result !== 'unknown') - Number(b.result !== 'unknown') || a.criterion_order - b.criterion_order)
 
   return <section className="route-entry workspace-page">

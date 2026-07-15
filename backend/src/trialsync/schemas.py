@@ -210,10 +210,17 @@ class ScreeningRead(BaseModel):
 
 
 class BatchCreate(BaseModel):
-    patient_snapshot_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+    patient_ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    patient_snapshot_ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)
     trial_version_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
     label: str | None = Field(default=None, min_length=1, max_length=120)
     screening_date: date | None = None
+
+    @model_validator(mode="after")
+    def require_one_patient_source(self) -> BatchCreate:
+        if bool(self.patient_ids) == bool(self.patient_snapshot_ids):
+            raise ValueError("Provide exactly one of patient_ids or patient_snapshot_ids.")
+        return self
 
 
 class BatchPairRead(BaseModel):

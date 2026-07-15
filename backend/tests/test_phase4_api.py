@@ -347,6 +347,34 @@ async def test_batch_deduplicates_pairs_and_matches_single_result(
     assert len(detail.json()["screenings"]) == 6
 
 
+async def test_batch_accepts_unscreened_patients_and_creates_snapshots(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}@example.com")
+    headers = auth(account)
+    version_id = await approved_trial(api, headers)
+    patient_ids = [await patient(api, headers, number) for number in (1, 2)]
+
+    assert (await api.get("/api/v1/screenings", headers=headers)).json() == []
+    batch = await api.post(
+        "/api/v1/screening-batches",
+        headers=headers,
+        json={
+            "patient_ids": [*patient_ids, patient_ids[0]],
+            "trial_version_ids": [version_id],
+            "screening_date": "2026-07-15",
+        },
+    )
+
+    assert batch.status_code == 201, batch.text
+    assert batch.json()["pair_count"] == 2
+    assert len(batch.json()["screenings"]) == 2
+    assert {item["patient_snapshot"]["display_name"] for item in batch.json()["screenings"]} == {
+        "Synthetic 1",
+        "Synthetic 2",
+    }
+
+
 async def test_single_unexpected_failure_rolls_back_snapshot_and_screening(
     api: AsyncClient, email_prefix: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

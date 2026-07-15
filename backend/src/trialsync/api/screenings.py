@@ -222,18 +222,20 @@ async def get_screening(
 async def create_batch(
     payload: BatchCreate, request: Request, session: SessionDep, user: CurrentUser
 ) -> ScreeningBatchRead:
+    patient_ids = list(dict.fromkeys(payload.patient_ids))
     snapshot_ids = list(dict.fromkeys(payload.patient_snapshot_ids))
+    patient_count = len(patient_ids) or len(snapshot_ids)
     version_ids = list(dict.fromkeys(payload.trial_version_ids))
     max_patients = request.app.state.settings.screening_batch_max_patients
     max_trials = request.app.state.settings.screening_batch_max_trials
     max_pairs = request.app.state.settings.screening_batch_max_pairs
-    if len(snapshot_ids) > max_patients or len(version_ids) > max_trials:
+    if patient_count > max_patients or len(version_ids) > max_trials:
         raise ApplicationError(
             code="BATCH_LIMIT_EXCEEDED",
             message="Batch selection exceeds configured limits.",
             status_code=422,
         )
-    pair_count = len(snapshot_ids) * len(version_ids)
+    pair_count = patient_count * len(version_ids)
     if pair_count > max_pairs:
         raise ApplicationError(
             code="BATCH_LIMIT_EXCEEDED",
@@ -241,7 +243,11 @@ async def create_batch(
             status_code=422,
         )
     try:
-        snapshots = [await owned_snapshot(session, user.id, item) for item in snapshot_ids]
+        if patient_ids:
+            patients = [await owned_patient(session, user.id, item) for item in patient_ids]
+            snapshots = [await snapshot_for_patient(session, patient) for patient in patients]
+        else:
+            snapshots = [await owned_snapshot(session, user.id, item) for item in snapshot_ids]
         versions = [await owned_approved_version(session, user.id, item) for item in version_ids]
         batch = ScreeningBatch(owner_id=user.id, label=payload.label, pair_count=pair_count)
         session.add(batch)

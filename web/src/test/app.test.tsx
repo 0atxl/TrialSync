@@ -122,21 +122,26 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
   it('calculates batch pairs from multi-select inputs and submits the selected IDs', async () => {
     authenticate()
-    const prior = { ...screening, id: 'prior-screen' }
+    const unscreened = { ...patient, id: 'p2', external_id: 'SYN-002', display_name: 'Synthetic Unscreened' }
+    const draftTrial = { ...trial, id: 't2', registry_id: 'SYN-DRAFT', title: 'Draft-only study', versions: [{ ...trial.versions[0], id: 'v2', status: 'draft' }] }
     const fetchMock = vi.fn((input: string, options?: RequestInit) => {
-      if (input.endsWith('/screenings')) return Promise.resolve(json([prior]))
-      if (input.endsWith('/trials')) return Promise.resolve(json([trial]))
+      if (input.endsWith('/patients')) return Promise.resolve(json([patient, unscreened]))
+      if (input.endsWith('/trials')) return Promise.resolve(json([trial, draftTrial]))
       if (input.endsWith('/screening-batches') && options?.method === 'POST') return Promise.resolve(json({ id: 'batch-1' }, 201))
       return Promise.resolve(json({ ...batch, id: 'batch-1' }))
     })
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/batches/new')
-    await screen.findByText('Patient snapshots')
-    await userEvent.click(screen.getByRole('checkbox', { name: /Synthetic Ada/i }))
+    await screen.findByRole('group', { name: 'Patients' })
+    expect(screen.getByRole('checkbox', { name: /Synthetic Unscreened/i })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Draft-only study/i })).toBeDisabled()
+    await userEvent.click(screen.getByRole('checkbox', { name: /Synthetic Unscreened/i }))
     await userEvent.click(screen.getByRole('checkbox', { name: /Synthetic age study/i }))
     expect(screen.getByText('1 screening pair')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Run batch screening' }))
     await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(true))
+    const request = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({ patient_ids: ['p2'], trial_version_ids: ['v1'] })
   })
 
   const batch = {

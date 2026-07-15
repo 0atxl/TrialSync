@@ -138,8 +138,9 @@ immutable snapshot and screening history. A trial referenced by a saved screenin
 cannot be deleted. Editing current patient or trial labels never rewrites a stored
 criterion outcome.
 
-`POST /api/v1/screening-batches` accepts unique or repeated
-`patient_snapshot_ids` and approved `trial_version_ids`. IDs are deduplicated before
+`POST /api/v1/screening-batches` accepts unique or repeated current `patient_ids`
+or existing `patient_snapshot_ids`, plus approved `trial_version_ids`. Current
+patients are snapshotted transactionally before screening. IDs are deduplicated before
 the configured limits are checked (50 snapshots, 10 trial versions, and 500 pairs).
 The bounded Cartesian product runs synchronously with one screening date and one
 engine version, and the whole batch rolls back on unexpected persistence failure.

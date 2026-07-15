@@ -4,6 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -60,7 +61,10 @@ def error_response(
             details=details,
         )
     )
-    return JSONResponse(status_code=status_code, content=payload.model_dump(exclude_none=True))
+    return JSONResponse(
+        status_code=status_code,
+        content=jsonable_encoder(payload.model_dump(exclude_none=True)),
+    )
 
 
 def install_error_handlers(app: FastAPI) -> None:

@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     debug: bool = False
     database_url: SecretStr = Field(validation_alias="DATABASE_URL")
+    auth_secret: SecretStr = Field(default=SecretStr(""))
+    access_token_minutes: int = Field(default=480, ge=5, le=1440)
     cors_origins: list[str] = Field(default_factory=list)
 
     @field_validator("database_url")
@@ -31,8 +33,13 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must use PostgreSQL with the psycopg driver")
         return value
 
+    def require_auth_secret(self) -> str:
+        secret = self.auth_secret.get_secret_value()
+        if len(secret) < 32:
+            raise ValueError("TRIALSYNC_AUTH_SECRET must contain at least 32 characters")
+        return secret
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
-

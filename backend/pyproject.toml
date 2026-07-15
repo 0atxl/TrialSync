@@ -10,6 +10,7 @@ readme = "../README.md"
 requires-python = ">=3.12"
 dependencies = [
   "alembic==1.16.4",
+  "email-validator==2.2.0",
   "fastapi==0.139.0",
   "psycopg[binary]==3.3.4",
   "pydantic-settings==2.10.1",
@@ -46,3 +47,4 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 python_version = "3.12"
 strict = true
 packages = ["trialsync"]
+plugins = ["pydantic.mypy"]

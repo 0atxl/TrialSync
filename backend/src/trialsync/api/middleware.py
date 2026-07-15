@@ -27,4 +27,3 @@ class TraceIdMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_trace_id)
-

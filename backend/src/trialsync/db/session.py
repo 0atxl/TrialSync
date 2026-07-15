@@ -26,4 +26,8 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with get_session_factory()() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise

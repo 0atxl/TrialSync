@@ -1,50 +1,46 @@
 import { createBrowserRouter } from 'react-router-dom'
 
+import { ProtectedRoute } from '../auth/ProtectedRoute'
 import { AppLayout } from '../components/AppLayout'
+import { AuthPage } from '../pages/AuthPage'
 import { FoundationPage } from '../pages/FoundationPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { PatientDetailPage } from '../pages/PatientDetailPage'
+import { PatientsPage } from '../pages/PatientsPage'
 import { PlaceholderPage } from '../pages/PlaceholderPage'
+import { TrialDetailPage } from '../pages/TrialDetailPage'
+import { TrialsPage } from '../pages/TrialsPage'
 
 export const routes = [
+  { path: '/login', element: <AuthPage mode="login" /> },
+  { path: '/register', element: <AuthPage mode="register" /> },
   {
-    path: '/',
-    element: <AppLayout />,
+    element: <ProtectedRoute />,
     children: [
-      { index: true, element: <FoundationPage /> },
       {
-        path: 'patients',
-        element: (
-          <PlaceholderPage
-            eyebrow="Structured records"
-            title="Patients"
-            description="Synthetic patient entry and review will arrive in Phase 2."
-          />
-        ),
+        path: '/',
+        element: <AppLayout />,
+        children: [
+          { index: true, element: <FoundationPage /> },
+          { path: 'patients', element: <PatientsPage /> },
+          { path: 'patients/:patientId', element: <PatientDetailPage /> },
+          { path: 'trials', element: <TrialsPage /> },
+          { path: 'trials/:trialId', element: <TrialDetailPage /> },
+          {
+            path: 'screenings',
+            element: (
+              <PlaceholderPage
+                eyebrow="Evidence review"
+                title="Screenings"
+                description="Deterministic screening begins in Phase 3."
+              />
+            ),
+          },
+          { path: '*', element: <NotFoundPage /> },
+        ],
       },
-      {
-        path: 'trials',
-        element: (
-          <PlaceholderPage
-            eyebrow="Protocol workspace"
-            title="Trials"
-            description="Trial versions and ordered criteria will arrive in Phase 2."
-          />
-        ),
-      },
-      {
-        path: 'screenings',
-        element: (
-          <PlaceholderPage
-            eyebrow="Evidence review"
-            title="Screenings"
-            description="Deterministic screening begins after structured records and rules are complete."
-          />
-        ),
-      },
-      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]
 
 export const router = createBrowserRouter(routes)
-

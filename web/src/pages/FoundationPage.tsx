@@ -1,9 +1,9 @@
 import { getApiBaseUrl } from '../api/config'
 
 const foundationChecks = [
-  ['API service', 'FastAPI application factory'],
-  ['Data layer', 'PostgreSQL + Alembic baseline'],
-  ['Web client', 'React, TypeScript, Vite'],
+  ['Identity boundary', 'Email/password demo accounts'],
+  ['Patient records', 'Structured facts with units and provenance'],
+  ['Protocol records', 'Versioned, ordered trial criteria'],
 ]
 
 export function FoundationPage() {
@@ -26,17 +26,17 @@ export function FoundationPage() {
     <div className="route-entry">
       <section className="intro-panel">
         <div>
-          <p className="eyebrow">Project foundation</p>
-          <h1>A dependable base for evidence-first screening.</h1>
+          <p className="eyebrow">Structured workspace</p>
+          <h1>Review the facts before any rule is evaluated.</h1>
           <p className="lede">
-            The service boundary, migration workflow, environment validation, and routed interface
-            are ready. Clinical record workflows remain intentionally out of scope for this phase.
+            Create fictional patient records and trial protocols with explicit values, units,
+            assertions, and ordered criteria. Screening remains intentionally unavailable.
           </p>
         </div>
         <div className="system-stamp" aria-label="Foundation status">
-          <span>01</span>
-          <strong>Foundation ready</strong>
-          <small>Domain features not started</small>
+          <span>02</span>
+          <strong>Records ready</strong>
+          <small>Screening begins in Phase 3</small>
         </div>
       </section>
 
@@ -44,7 +44,7 @@ export function FoundationPage() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">System map</p>
-            <h2 id="foundation-heading">Verified building blocks</h2>
+            <h2 id="foundation-heading">Available workflows</h2>
           </div>
           <span className="environment-label">API · {apiBaseUrl}</span>
         </div>
@@ -65,4 +65,3 @@ export function FoundationPage() {
     </div>
   )
 }
-

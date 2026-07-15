@@ -22,4 +22,3 @@ def test_secret_database_url_is_not_exposed_in_repr() -> None:
     )
 
     assert password not in repr(settings)
-

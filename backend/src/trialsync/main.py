@@ -3,14 +3,18 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from trialsync.api.auth import router as auth_router
 from trialsync.api.errors import install_error_handlers
 from trialsync.api.health import router as health_router
 from trialsync.api.middleware import TraceIdMiddleware
+from trialsync.api.patients import router as patients_router
+from trialsync.api.trials import router as trials_router
 from trialsync.config import Settings, get_settings
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
+    resolved_settings.require_auth_secret()
     app = FastAPI(
         title=resolved_settings.app_name,
         debug=resolved_settings.debug,
@@ -31,4 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(TraceIdMiddleware)
     install_error_handlers(app)
     app.include_router(health_router)
+    app.include_router(auth_router)
+    app.include_router(patients_router)
+    app.include_router(trials_router)
     return app

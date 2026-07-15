@@ -10,7 +10,8 @@ def settings() -> Settings:
     return Settings(
         _env_file=None,
         DATABASE_URL="postgresql+psycopg://test:test@localhost:5432/test",
-        TRIALSYNC_ENVIRONMENT="test",
+        environment="test",
+        auth_secret="test-secret-that-is-at-least-32-characters-long",
     )
 
 

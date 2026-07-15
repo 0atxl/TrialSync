@@ -19,4 +19,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove no domain tables during the foundation phase."""
-

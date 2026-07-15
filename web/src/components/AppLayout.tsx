@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 
 const navItems = [
   { to: '/', label: 'Workspace', end: true },
@@ -8,6 +9,7 @@ const navItems = [
 ]
 
 export function AppLayout() {
+  const { user, logout } = useAuth()
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -20,7 +22,7 @@ export function AppLayout() {
             <small>Research workspace</small>
           </span>
         </NavLink>
-        <span className="phase-label">Foundation · Phase 1</span>
+        <div className="account-area"><span className="phase-label">{user?.display_name}</span><button className="text-button" onClick={logout}>Sign out</button></div>
       </header>
 
       <div className="shell-grid">
@@ -51,4 +53,3 @@ export function AppLayout() {
     </div>
   )
 }
-

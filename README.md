@@ -1,6 +1,6 @@
 # TrialSync
 
-TrialSync is an academic full-stack prototype for explainable clinical-trial pre-screening using synthetic data only. Phase 2 provides demo-user authentication, user-owned structured patient facts, and versioned trial criteria. It does not run screenings yet.
+TrialSync is an academic full-stack prototype for explainable clinical-trial pre-screening using synthetic data only. Phase 2 provides demo-user authentication and structured records. Phase 3 adds a pure deterministic rule engine with evidence-backed `pass`, `fail`, and `unknown` results. Saved screening APIs and UI remain intentionally deferred to later phases.
 
 ## Prerequisites
 
@@ -71,6 +71,26 @@ The browser API base URL comes from `VITE_API_BASE_URL` in the root `.env`; back
 
 All patient and trial queries are scoped to the authenticated owner. List endpoints are intentionally limited to 100 records for the semester demo. Only synthetic data may be entered.
 
+## Phase 3 deterministic engine
+
+The pure package at `backend/src/trialsync/domain` evaluates immutable typed inputs without importing FastAPI, SQLAlchemy, PostgreSQL drivers, hosted providers, ML packages, or the system clock. Callers supply the screening date explicitly:
+
+```python
+from trialsync.domain import screen
+
+result = screen(patient_snapshot, approved_trial_version, screening_context)
+```
+
+The versioned `1.0` rule DSL supports:
+
+- `and`, `or`, and `not` with three-valued logic.
+- `present`, `absent`, `concept_is`, and `concept_in`.
+- `eq`, `lt`, `lte`, `gt`, `gte`, and inclusive `between` comparisons.
+- `current` and `within_before` temporal wrappers.
+- `latest` and `any` numeric selection.
+
+Missing, stale, conflicting, unsupported, or unit-incompatible evidence returns `unknown`; it never silently passes. Inclusion and exclusion criteria share the same raw truth evaluation but convert truth to results according to criterion kind. Any required failure produces `likely_ineligible`, all required passes produce `potentially_eligible`, and every other required-result combination produces `needs_review`.
+
 The API uses JSON bearer-token authentication:
 
 ```text
@@ -118,6 +138,7 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 0. Clean repository | Complete | Planning documents and agent instructions are committed |
 | 1. Foundation | Complete | Migration, health/config tests, routed frontend tests, type check, lint, and build |
 | 2. Authentication and structured data | Complete | Owner-scoped auth, patient/fact and trial/version/criterion API and UI tests |
-| 3. Deterministic screening engine | Not started | Deliberately outside this milestone |
+| 3. Deterministic screening engine | Complete | Pure typed engine with 43 domain golden tests and conservative unknown propagation |
+| 4. Screening API and history | Not started | Deliberately outside this milestone |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

@@ -32,12 +32,35 @@ function authenticate() {
 }
 
 describe('TrialSync Phase 5 screening workflow', () => {
-  beforeEach(() => { vi.stubEnv('VITE_API_BASE_URL', '/api/v1'); sessionStorage.clear() })
-  afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
+  beforeEach(() => {
+    const preferences = new Map<string, string>()
+    vi.stubEnv('VITE_API_BASE_URL', '/api/v1')
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => preferences.get(key) ?? null,
+      setItem: (key: string, value: string) => preferences.set(key, value),
+      removeItem: (key: string) => preferences.delete(key),
+      clear: () => preferences.clear(),
+    })
+    sessionStorage.clear()
+  })
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
   it('redirects an unauthenticated workspace request to sign in', () => {
     renderRoute('/screenings')
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  it('collapses the navigation, persists the preference, and keeps sign out in the sidebar', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
+    const { container } = renderRoute('/')
+    await screen.findByText('No saved screenings')
+    const sidebar = screen.getByRole('complementary', { name: 'Primary navigation' })
+    expect(sidebar).toContainElement(screen.getByRole('button', { name: 'Sign out' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
+    expect(container.querySelector('.app-shell')).toHaveClass('sidebar-collapsed')
+    expect(localStorage.getItem('trialsync_sidebar_collapsed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Expand navigation' })).toBeInTheDocument()
   })
 
   it('loads approved inputs and submits a patient/trial pair', async () => {

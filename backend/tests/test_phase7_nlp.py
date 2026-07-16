@@ -57,6 +57,38 @@ async def test_canonical_explainer_supports_grounded_questions_and_fails_safe() 
     assert supported.answer_state == "supported"
     assert supported.citations[0].evaluation_id == "evaluation-1"
 
+    capability = await provider.answer(
+        context=context(), history=[], message="What does this assistant do?"
+    )
+    assert capability.answer_state == "supported"
+    assert "why criteria passed" in capability.answer
+    assert capability.citations[0].evaluation_id == "evaluation-1"
+
+    base_evaluation = context().evaluations[0]
+    failing_context = ScreeningChatContext(
+        screening_id="screen-failing",
+        overall_state="likely_ineligible",
+        counts={"pass": 0, "fail": 9, "unknown": 0},
+        evaluations=tuple(
+            {
+                **base_evaluation,
+                "criterion_id": f"criterion-{index}",
+                "evaluation_id": f"evaluation-{index}",
+                "source_text": f"Failed criterion {index}",
+                "result": "fail",
+                "canonical_explanation": f"Failed criterion {index} is not satisfied.",
+            }
+            for index in range(1, 10)
+        ),
+        versions={"engine": "0.1.0", "patient_snapshot": "snapshot-failing"},
+    )
+    failing = await provider.answer(
+        context=failing_context, history=[], message="What criteria are failing?"
+    )
+    assert failing.answer_state == "supported"
+    assert len(failing.citations) == 9
+    assert "Failed criterion 9" in failing.answer
+
     insufficient = await provider.answer(
         context=context(), history=[], message="What is the participant's favorite food?"
     )

@@ -62,6 +62,22 @@ Open `http://localhost:5173` (or `http://127.0.0.1:5173`). The API documentation
 - `GET http://localhost:8000/health/live` — process liveness only.
 - `GET http://localhost:8000/health/ready` — database connectivity and migration status.
 
+## Product tour
+
+The current workspace is organized around an evidence-first dashboard, saved
+screening details, synchronous batch matrices, and review-first imports. These
+screenshots use only the seeded synthetic workspace:
+
+![TrialSync dashboard](docs/assets/screenshots/dashboard-desktop.png)
+
+![Screening evidence and grounded assistant](docs/assets/screenshots/screening-detail-chat-desktop.png)
+
+![Grounded assistant at a narrow width](docs/assets/screenshots/screening-detail-chat-narrow.png)
+
+![Batch screening matrix](docs/assets/screenshots/batch-matrix-desktop.png)
+
+![Reviewed import](docs/assets/screenshots/import-review-desktop.png)
+
 The browser API base URL comes from `VITE_API_BASE_URL` in the root `.env`; backend settings come from `DATABASE_URL` and `TRIALSYNC_*` variables. No credentials belong in Git.
 
 ## Phase 2 workflow
@@ -209,6 +225,18 @@ cross-record requests, unsupported questions, and prompt injection fail safely.
 Canonical explanations and deterministic screening remain available during every
 provider failure and cannot be modified through the assistant.
 
+The conversation UI keeps a stable internally scrolling transcript, shows the submitted
+question and an accessible typing indicator immediately, and supports Enter to send or
+Shift+Enter for a new line. Suggestions are evenly arranged, locally deduplicated, and
+topic-bounded. Focus returns to the composer after a response or recoverable error;
+citation links focus the referenced criterion and provide a visible route back to the
+assistant. Confirmed provider failures preserve the question and expose an explicit retry;
+ambiguous connection failures require reloading history first to avoid duplicate
+persistence. Server logs
+record privacy-safe chat latency, provider/model/prompt version, validation outcome, answer
+state, and citation count without recording question text, document text, raw provider
+payloads, or secrets.
+
 The default hosted model is configurable through `TRIALSYNC_GROQ_MODEL`. As verified
 in the official [Groq supported-model list](https://console.groq.com/docs/models) and
 [structured-output guide](https://console.groq.com/docs/structured-outputs) on
@@ -235,19 +263,34 @@ two approved trials, 12 linked screenings with a balanced 4/4/4 state distributi
 and supported/refused/insufficient conversation history. It refuses to run in the
 production environment.
 
+The six seeded patients are Synthetic Ada Mercer, Synthetic Ben Carter, Synthetic
+Cora Bennett, Synthetic Dev Malik, Synthetic Emi Tanaka, and Synthetic Finn Osei.
+
 Reset only this fixed account with:
 
 ```bash
 make reset-demo
 ```
 
-The `/evaluation` route summarizes the offline held-out fixture, deterministic demo
-coverage, and interpretation limits. Reproduce the machine-readable measurements
-with `make evaluate`; the detailed results and live-provider limitations are in
+For a larger controlled workspace, keep the demo account, remove every other
+local user, and create the admin workspace with 20 fully populated patient
+records, 15 approved trials (five inclusion and five exclusion criteria per
+trial), and 300 saved screening results: 40% potentially eligible, 40% likely
+ineligible, and 20% needs review.
+
+```bash
+backend/.venv/bin/python -m trialsync.demo seed-admin
+```
+
+Sign in as `admin@trialsync.example` with `AdminWorkspace2026!`.
+
+The `/help` route summarizes the supported workflow, data boundary, and keyboard
+shortcuts. Reproduce the machine-readable measurements with `make evaluate`; the
+detailed results and live-provider limitations are in
 `backend/evaluation/PHASE8_EVALUATION.md`. Extraction measurements describe
 reviewable candidate structures, never eligibility confidence.
 
-The critical browser journeys use installed system Chromium and local ports 8002
+The six critical browser journeys use installed system Chromium and local ports 8002
 and 5175:
 
 ```bash
@@ -286,7 +329,7 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 5. Single and batch frontend | Complete | Dashboard, single and batch workflows, evidence detail, history filters, and linked result matrix |
 | 6. Reviewed text and PDF ingestion | Complete | Deterministic candidate extraction, immutable provenance, editable review, explicit approval, bounded PDF handling, API/UI error states, and ownership tests |
 | 7. Groq extraction and explanation chat | Complete | Provider-neutral reviewed extraction, exact provenance validation, bounded screening conversation, citation validation, safe refusals/fallbacks, persistence, and UI states |
-| 8. Evaluation and polish | Complete | Repeatable 6-patient/2-trial seed, offline held-out evaluation, five critical browser workflows, responsive evaluation UI, dependency audit, and full-suite task runner |
-| 9. Final semester delivery | Complete | Runbook, architecture/evaluation/limitations documentation, API documentation link, and offline OCR/manual fallback guidance |
+| 8. Evaluation and polish | Complete | Repeatable 6-patient/2-trial seed, offline held-out evaluation, six critical browser workflows, responsive chatbot UI, dependency audit, and full-suite task runner |
+| 9. Final semester delivery | In progress | Documentation and screenshot package is being finalized; clean-release verification and commit/tag remain |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

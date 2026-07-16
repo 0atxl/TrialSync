@@ -81,7 +81,7 @@ export function BatchScreeningPage() {
                 <input type="checkbox" checked={patientIds.includes(patient.id)} onChange={() => toggle(patient.id, patientIds, setPatientIds)} />
                 <span><strong>{patient.display_name}</strong><small>{patient.external_id} · {patient.facts.length} structured fact{patient.facts.length === 1 ? '' : 's'}</small></span>
               </label>
-            )) : <div className="empty-state"><p>Add a synthetic patient before running a batch.</p></div>}
+            )) : <div className="empty-state"><p>Add a patient before running a batch.</p></div>}
           </fieldset>
           <fieldset>
             <legend>Trial versions</legend>
@@ -99,7 +99,7 @@ export function BatchScreeningPage() {
                   <span><strong>{trial.title}</strong><small>{trial.registry_id} · approved version {version.version}</small></span>
                 </label>
               ))
-            }) : <div className="empty-state"><p>Add a synthetic trial and approve a version before running a batch.</p></div>}
+            }) : <div className="empty-state"><p>Add a trial and approve a version before running a batch.</p></div>}
           </fieldset>
         </div>
         <p className="batch-guidance">All current patients are shown. Trials without an approved version remain visible but unavailable because deterministic screening requires an immutable approved protocol.</p>

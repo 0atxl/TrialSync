@@ -78,7 +78,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
   it('fills development-only seeded demo credentials on request', async () => {
     renderRoute('/login')
-    await userEvent.click(screen.getByRole('button', { name: /Use seeded synthetic demo/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Use demo account/ }))
     expect(screen.getByRole('textbox', { name: 'Email' })).toHaveValue('demo@trialsync.example')
     expect(screen.getByLabelText('Password')).toHaveValue('SyntheticDemo123!')
   })
@@ -96,14 +96,26 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByRole('button', { name: 'Expand navigation' })).toBeInTheDocument()
   })
 
-  it('shows reproducible Phase 8 metrics and their evaluation limits', () => {
+  it('uses the single light theme and removes the legacy preference', async () => {
     authenticate()
-    renderRoute('/evaluation')
-    expect(screen.getByRole('heading', { name: 'Evaluation, with the boundary visible.' })).toBeInTheDocument()
-    expect(screen.getByText('6 / 6')).toBeInTheDocument()
-    expect(screen.getByText('Extraction confidence is not eligibility confidence.')).toBeInTheDocument()
-    expect(screen.getByText(/trialsync\.evaluation --iterations 20/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Evaluation' })).toHaveAttribute('aria-current', 'page')
+    localStorage.setItem('trialsync_theme', 'dark')
+    document.documentElement.dataset.theme = 'dark'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
+    renderRoute('/')
+    await screen.findByText('No saved screenings')
+    await waitFor(() => expect(document.documentElement).not.toHaveAttribute('data-theme'))
+    expect(localStorage.getItem('trialsync_theme')).toBeNull()
+    expect(screen.queryByRole('button', { name: /mode/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the Help documentation and active navigation', () => {
+    authenticate()
+    renderRoute('/help')
+    expect(screen.getByRole('heading', { name: 'TrialSync documentation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Result assistant' })).toBeInTheDocument()
+    expect(screen.getByText(/Enter sends a question/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Open API docs' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('loads approved inputs and submits a patient/trial pair', async () => {
@@ -142,7 +154,8 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(await screen.findByRole('heading', { name: 'Age 18 to 75 years' })).toBeInTheDocument()
     expect(screen.getByText('Required information is not recorded.')).toBeInTheDocument()
     expect(screen.getByText('Date of birth is required to calculate age.')).toBeInTheDocument()
-    expect(screen.getAllByText('Synthetic Ada').length).toBeGreaterThan(0)
+    expect(screen.getByText('Synthetic Ada')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Patient facts at screening' })).toBeInTheDocument()
   })
 
   it('restores persisted explanation messages and focuses cited criterion evidence', async () => {
@@ -155,6 +168,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     const citation = screen.getByRole('link', { name: /Criterion evidence · Age is unresolved/i })
     await userEvent.click(citation)
     expect(screen.getByRole('article')).toHaveFocus()
+    expect(screen.getByRole('link', { name: 'Back to the result assistant' })).toHaveAttribute('href', '#screening-chat-panel')
   })
 
   it('posts only the current question and appends the grounded response', async () => {
@@ -174,10 +188,89 @@ describe('TrialSync Phase 5 screening workflow', () => {
     renderRoute('/screenings/screen-1')
     const composer = await screen.findByRole('textbox', { name: 'Question about this stored result' })
     await userEvent.type(composer, 'Why is age unresolved?')
-    await userEvent.click(screen.getByRole('button', { name: 'Ask about result' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send question' }))
     expect(await screen.findByText('Only the stored age criterion is unresolved.')).toBeInTheDocument()
+    await waitFor(() => expect(composer).toHaveFocus())
+    expect(screen.getByRole('status')).toHaveTextContent('A new result explanation is ready.')
     const request = fetchMock.mock.calls.find(([input]) => input.endsWith('/conversation/messages'))
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({ message: 'Why is age unresolved?' })
+  })
+
+  it('sends with Enter, preserves Shift+Enter, and reports the character limit', async () => {
+    authenticate()
+    const emptyConversation = { ...conversation, messages: [] }
+    const assistant = { ...conversation.messages[0], id: 'keyboard-response', content: 'Keyboard response ready.' }
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/conversation')) return Promise.resolve(json(emptyConversation))
+      if (input.endsWith('/conversation/messages') && options?.method === 'POST') return Promise.resolve(json(assistant, 201))
+      return Promise.resolve(json(screening))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/screenings/screen-1')
+    const composer = await screen.findByRole('textbox', { name: 'Question about this stored result' })
+    await userEvent.type(composer, 'Line one')
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}Line two')
+    expect(composer).toHaveValue('Line one\nLine two')
+    expect(screen.getByText(/17 \/ 1000 · Enter sends/)).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([input]) => input.endsWith('/conversation/messages'))).toHaveLength(0)
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByText('Keyboard response ready.')).toBeInTheDocument()
+    const posts = fetchMock.mock.calls.filter(([input]) => input.endsWith('/conversation/messages'))
+    expect(posts).toHaveLength(1)
+    expect(JSON.parse(String(posts[0][1]?.body))).toEqual({ message: 'Line one\nLine two' })
+  })
+
+  it('preserves and explicitly retries a question after a confirmed no-save failure', async () => {
+    authenticate()
+    const emptyConversation = { ...conversation, messages: [] }
+    const assistant = { ...conversation.messages[0], id: 'retry-response', content: 'The retry succeeded.' }
+    let attempts = 0
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/conversation')) return Promise.resolve(json(emptyConversation))
+      if (input.endsWith('/conversation/messages') && options?.method === 'POST') {
+        attempts += 1
+        return Promise.resolve(attempts === 1
+          ? json({ error: { code: 'ASSISTANT_TIMEOUT', message: 'Timed out' } }, 504)
+          : json(assistant, 201))
+      }
+      return Promise.resolve(json(screening))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/screenings/screen-1')
+    const composer = await screen.findByRole('textbox', { name: 'Question about this stored result' })
+    await userEvent.type(composer, 'Explain the unknown criterion')
+    await userEvent.click(screen.getByRole('button', { name: 'Send question' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('timed out')
+    expect(composer).toHaveValue('Explain the unknown criterion')
+    await waitFor(() => expect(composer).toHaveFocus())
+    await userEvent.click(screen.getByRole('button', { name: 'Retry question' }))
+    expect(await screen.findByText('The retry succeeded.')).toBeInTheDocument()
+    expect(attempts).toBe(2)
+  })
+
+  it('shows the submitted question and an accessible typing state while waiting', async () => {
+    authenticate()
+    const emptyConversation = { ...conversation, messages: [] }
+    const assistant = {
+      ...conversation.messages[0], id: 'message-typing-response',
+      content: 'The stored criterion is still unresolved.',
+    }
+    let resolveAssistant: (response: Response) => void = () => undefined
+    const pendingResponse = new Promise<Response>((resolve) => { resolveAssistant = resolve })
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/conversation')) return Promise.resolve(json(emptyConversation))
+      if (input.endsWith('/conversation/messages') && options?.method === 'POST') return pendingResponse
+      return Promise.resolve(json(screening))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/screenings/screen-1')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Question about this stored result' }), 'Why is this unresolved?')
+    await userEvent.click(screen.getByRole('button', { name: 'Send question' }))
+    expect(screen.getByText('Why is this unresolved?')).toBeInTheDocument()
+    expect(screen.getByText('The result assistant is preparing a response.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Responding…' })).toBeDisabled()
+    resolveAssistant(json(assistant, 201))
+    expect(await screen.findByText('The stored criterion is still unresolved.')).toBeInTheDocument()
   })
 
   it('distinguishes insufficient evidence, refusal, and a disabled assistant', async () => {
@@ -217,8 +310,12 @@ describe('TrialSync Phase 5 screening workflow', () => {
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/screenings/screen-1')
     await userEvent.type(await screen.findByRole('textbox', { name: 'Question about this stored result' }), 'Explain this result')
-    await userEvent.click(screen.getByRole('button', { name: 'Ask about result' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(copy)
+    await userEvent.click(screen.getByRole('button', { name: 'Send question' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(copy)
+    expect(alert).toHaveClass('chat-error-toast')
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss chat error' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByText('Result explanation')).not.toBeInTheDocument()
   })
 
@@ -382,7 +479,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/imports/new?kind=patient')
-    await userEvent.type(screen.getByRole('textbox', { name: 'Synthetic source text' }), 'Patient name: Synthetic Import Ada')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Source text' }), 'Patient name: Synthetic Import Ada')
     await userEvent.click(screen.getByRole('button', { name: 'Analyze for review' }))
     expect(await screen.findByRole('heading', { name: 'Review extracted patient candidates' })).toBeInTheDocument()
     const analyzeCall = fetchMock.mock.calls.find(([input, options]) => input.endsWith('/imports') && options?.method === 'POST')
@@ -471,7 +568,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/trials/t1')
-    await userEvent.type(await screen.findByRole('textbox', { name: 'Protocol criterion' }), 'Age 18 to 75 years')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Criterion wording' }), 'Age 18 to 75 years')
     await userEvent.click(screen.getByRole('button', { name: 'Add criterion' }))
     await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(true))
     const request = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')
@@ -488,7 +585,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     const fetchMock = vi.fn().mockResolvedValue(json(draft))
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/trials/t1')
-    await userEvent.type(await screen.findByRole('textbox', { name: 'Protocol criterion' }), 'Invalid age range')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Criterion wording' }), 'Invalid age range')
     const minimum = screen.getByRole('textbox', { name: 'Minimum' })
     await userEvent.clear(minimum)
     await userEvent.type(minimum, 'not-a-number')

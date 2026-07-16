@@ -36,10 +36,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     <main className="auth-page">
       <section className="auth-panel route-entry">
         <div className="auth-intro">
-          <span className="brand-mark">TS</span>
-          <p className="eyebrow">Synthetic research workspace</p>
+          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
+          <p className="eyebrow">Trial workspace</p>
           <h1>Evidence starts with structured records.</h1>
-          <p>Create and review fictional patient facts and trial criteria before screening.</p>
+          <p>Create and review patient facts and trial criteria before screening.</p>
         </div>
         <form className="auth-form" onSubmit={submit}>
           <div>
@@ -61,7 +61,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                 setPassword('SyntheticDemo123!')
               }}
             >
-              Use seeded synthetic demo
+              Use demo account
               <small>Fills local development credentials</small>
             </button>
           )}

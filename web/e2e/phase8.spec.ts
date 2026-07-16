@@ -42,7 +42,7 @@ test('registration through manual screening history', async ({ page }) => {
   await page.getByRole('button', { name: 'Create trial' }).click()
   await page.getByRole('button', { name: 'Create draft' }).click()
   await expect(page.getByText('Version 1')).toBeVisible()
-  await page.getByRole('textbox', { name: 'Protocol criterion' }).fill('Age 18 to 75 years')
+  await page.getByRole('textbox', { name: 'Criterion wording' }).fill('Age 18 to 75 years')
   await page.getByRole('button', { name: 'Add criterion' }).click()
   await expect(page.getByText('Deterministic rule reviewed')).toBeVisible()
   await page.getByRole('button', { name: 'Approve version' }).click()
@@ -65,9 +65,9 @@ test('seeded mixed batch renders six linked evidence cells', async ({ page }) =>
   await signIn(page)
   await page.goto('/batches/new')
   for (const name of [
-    'Synthetic Ada Eligible',
-    'Synthetic Ben Inclusion Fail',
-    'Synthetic Dev Needs Review',
+    'Synthetic Ada Mercer',
+    'Synthetic Ben Carter',
+    'Synthetic Dev Malik',
   ]) {
     await page.getByRole('checkbox', { name: new RegExp(name) }).check()
   }
@@ -78,13 +78,13 @@ test('seeded mixed batch renders six linked evidence cells', async ({ page }) =>
   await expect(page.getByRole('table')).toBeVisible()
   await expect(page.locator('.matrix-cell')).toHaveCount(6)
   await page.locator('.matrix-cell').first().click()
-  await expect(page.getByText('Criterion evidence')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Criteria' })).toBeVisible()
 })
 
 test('trial text import is corrected, approved, screened, and explained', async ({ page }) => {
   await signIn(page)
   await page.goto('/imports/new?kind=trial')
-  await page.getByRole('textbox', { name: 'Synthetic source text' }).fill(
+  await page.getByRole('textbox', { name: 'Source text' }).fill(
     'Title: Synthetic Imported Age Trial\n' +
     'Condition: Synthetic imported condition\n' +
     'Phase: Phase 2\n' +
@@ -98,7 +98,7 @@ test('trial text import is corrected, approved, screened, and explained', async 
   await page.getByRole('button', { name: 'Approve version' }).click()
 
   await page.goto('/screenings/new')
-  await selectMatching(page, 'Patient', 'Synthetic Ada Eligible')
+  await selectMatching(page, 'Patient', 'Synthetic Ada Mercer')
   await selectMatching(page, 'Approved trial version', 'Synthetic Corrected Import Trial')
   await page.getByRole('button', { name: 'Run screening' }).click()
   await expect(page.getByRole('heading', { name: 'potentially eligible' })).toBeVisible()
@@ -109,7 +109,7 @@ test('generated text PDF remains reviewable before patient approval', async ({ p
   await signIn(page)
   await page.goto('/imports/new?kind=patient')
   await page.getByRole('radio', { name: 'Upload PDF' }).check()
-  await page.getByLabel('Text-based PDF').setInputFiles('/tmp/trialsync-phase8.pdf')
+  await page.getByLabel('PDF document').setInputFiles('/tmp/trialsync-phase8.pdf')
   await page.getByRole('button', { name: 'Analyze for review' }).click()
   await expect(page.getByRole('heading', { name: 'Review extracted patient candidates' })).toBeVisible()
   await expect(page.getByText('Synthetic PDF Rowan', { exact: false }).first()).toBeVisible()
@@ -118,7 +118,7 @@ test('generated text PDF remains reviewable before patient approval', async ({ p
   await expect(page.getByText('Imported document p.1').first()).toBeVisible()
 })
 
-test('needs-review conversation restores, cites evidence, refuses, and clears', async ({ page }) => {
+test('needs-review conversation supports keyboard, retry, citations, refusal, and clear', async ({ page }) => {
   await signIn(page)
   const seededScreeningId = await page.evaluate(async (batchId) => {
     const token = window.sessionStorage.getItem('trialsync_access_token')
@@ -134,7 +134,7 @@ test('needs-review conversation restores, cites evidence, refuses, and clears', 
     }>
     return screenings.find((screening) => (
       screening.batch_id === batchId
-      && screening.patient_snapshot.display_name === 'Synthetic Dev Needs Review'
+      && screening.patient_snapshot.display_name === 'Synthetic Dev Malik'
       && screening.trial_version.title === 'Synthetic metabolic eligibility study'
     ))?.id
   }, seededBatchId)
@@ -142,19 +142,59 @@ test('needs-review conversation restores, cites evidence, refuses, and clears', 
   await page.goto(`/screenings/${seededScreeningId}`)
   await expect(page.getByRole('heading', { name: 'needs review', exact: true })).toBeVisible()
   await expect(page.getByText('Result explanation').first()).toBeVisible()
-  await expect(page.getByRole('link', { name: /Criterion evidence · Age is unresolved/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Criterion evidence · Age 18 to 75 years/ }).first()).toBeVisible()
   await page.reload()
   await expect(page.getByText('A date of birth is required to calculate age')).toBeVisible()
 
-  await page.getByRole('textbox', { name: 'Question about this stored result' }).fill(
-    'Should this participant enroll?',
-  )
-  await page.getByRole('button', { name: 'Ask about result' }).click()
+  const suggestions = page.getByLabel('Suggested questions').getByRole('button')
+  await expect(suggestions).toHaveCount(3)
+  const suggestionWidths = await suggestions.evaluateAll((buttons) => (
+    buttons.map((button) => button.getBoundingClientRect().width)
+  ))
+  expect(Math.max(...suggestionWidths) - Math.min(...suggestionWidths)).toBeLessThan(2)
+
+  let failedOnce = false
+  await page.route('**/conversation/messages', async (route) => {
+    if (route.request().method() !== 'POST' || failedOnce) return route.fallback()
+    failedOnce = true
+    await route.fulfill({
+      status: 504,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'ASSISTANT_TIMEOUT', message: 'Synthetic timeout' } }),
+    })
+  })
+  const composer = page.getByRole('textbox', { name: 'Question about this stored result' })
+  await composer.fill('What information')
+  await composer.press('Shift+Enter')
+  await composer.pressSequentially('is missing?')
+  await expect(composer).toHaveValue('What information\nis missing?')
+  await composer.press('Enter')
+  await expect(page.getByRole('alert')).toContainText('timed out')
+  await expect(composer).toBeFocused()
+  await page.getByRole('button', { name: 'Retry question' }).click()
+  await expect(page.getByText('A new result explanation is ready.')).toBeAttached()
+  await expect.poll(() => page.locator('.chat-transcript').evaluate((transcript) => (
+    transcript.scrollTop + transcript.clientHeight >= transcript.scrollHeight - 1
+  ))).toBe(true)
+  await expect(composer).toBeFocused()
+  await page.unroute('**/conversation/messages')
+
+  const citation = page.getByRole('link', { name: /Criterion evidence · Age 18 to 75 years/ }).last()
+  await citation.click()
+  const criterion = page.locator('article:target')
+  await expect(criterion).toBeFocused()
+  const returnLink = criterion.getByRole('link', { name: 'Back to the result assistant' })
+  await expect(returnLink).toBeVisible()
+  await returnLink.click()
+  await expect(page.locator('#screening-chat-panel')).toBeFocused()
+
+  await composer.fill('Should this participant enroll?')
+  await composer.press('Enter')
   await expect(page.getByText('Request declined').last()).toBeVisible()
   await page.getByRole('button', { name: 'Clear conversation' }).click()
   const dialog = page.getByRole('dialog', { name: 'Clear this conversation?' })
   await dialog.getByRole('button', { name: 'Clear conversation' }).click()
-  await expect(page.getByText('Ask about the evidence already stored here')).toBeVisible()
+  await expect(page.getByText('What would you like to understand?')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Age 18 to 75 years at screening' })).toBeVisible()
 })
 
@@ -185,11 +225,11 @@ test('loading, empty, error, evaluation, focus, and unknown states remain respon
   await page.screenshot({ path: 'test-results/dashboard-error.png', fullPage: true })
   await page.unroute('**/api/v1/screenings')
 
-  await page.goto('/evaluation')
-  const evaluationLink = page.getByRole('link', { name: 'Evaluation' })
-  await evaluationLink.focus()
-  await expect(evaluationLink).toBeFocused()
-  await page.screenshot({ path: 'test-results/evaluation-desktop.png', fullPage: true })
+  await page.goto('/help')
+  const helpLink = page.getByRole('link', { name: 'Help' })
+  await helpLink.focus()
+  await expect(helpLink).toBeFocused()
+  await page.screenshot({ path: 'test-results/help-desktop.png', fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -201,7 +241,7 @@ test('loading, empty, error, evaluation, focus, and unknown states remain respon
     : Number.parseFloat(routeAnimation) * 1_000
   expect(routeAnimationMs).toBeLessThanOrEqual(0.01)
   await page.setViewportSize({ width: 720, height: 1000 })
-  await page.screenshot({ path: 'test-results/evaluation-narrow.png', fullPage: true })
+  await page.screenshot({ path: 'test-results/help-narrow.png', fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
   const seededScreeningId = await page.evaluate(async (batchId) => {
@@ -216,7 +256,7 @@ test('loading, empty, error, evaluation, focus, and unknown states remain respon
     }>
     return screenings.find((screening) => (
       screening.batch_id === batchId
-      && screening.patient_snapshot.display_name === 'Synthetic Dev Needs Review'
+      && screening.patient_snapshot.display_name === 'Synthetic Dev Malik'
     ))?.id
   }, seededBatchId)
   expect(seededScreeningId).toBeTruthy()

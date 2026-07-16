@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -12,8 +14,12 @@ from trialsync.api.errors import ApplicationError
 from trialsync.db.models import Screening, ScreeningBatch, ScreeningChatMessage
 from trialsync.nlp.chat import (
     CHAT_PROMPT_VERSION,
+    CanonicalExplainer,
     ScreeningChatContext,
     ScreeningChatProvider,
+    contextual_suggestions,
+    is_criterion_state_question,
+    is_screening_assistant_capability_question,
     validate_answer,
 )
 from trialsync.nlp.groq import ProviderCallError
@@ -43,6 +49,7 @@ from trialsync.screening.service import (
 )
 
 router = APIRouter(tags=["screenings"])
+chat_metrics = logging.getLogger("trialsync.chat.metrics")
 
 
 def _counts(screening: Screening) -> ScreeningCounts:
@@ -292,7 +299,9 @@ async def _recent_chat(
 
 
 def _message_read(
-    message: ScreeningChatMessage, suggested_questions: list[str] | None = None
+    message: ScreeningChatMessage,
+    suggested_questions: list[str] | None = None,
+    citation_labels: dict[str, str] | None = None,
 ) -> ScreeningChatMessageRead:
     provider = None
     if message.role == "assistant":
@@ -308,19 +317,20 @@ def _message_read(
         content=message.content,
         answer_state=message.answer_state,  # type: ignore[arg-type]
         citations=[
-            ScreeningChatCitationRead.model_validate(item) for item in message.citations_json
+            ScreeningChatCitationRead.model_validate(
+                {
+                    **item,
+                    "label": (citation_labels or {}).get(
+                        str(item.get("evaluation_id")), str(item.get("label", "Criterion"))
+                    ),
+                }
+            )
+            for item in message.citations_json
         ],
         provider=provider,
         created_at=message.created_at,
         suggested_questions=suggested_questions or [],
     )
-
-
-def _contextual_suggestions(context: ScreeningChatContext) -> list[str]:
-    prompts = ["Why does this result have its current state?", "Which criteria passed?"]
-    if context.counts["unknown"]:
-        prompts.insert(1, "What information is missing?")
-    return prompts[:3]
 
 
 @router.get(
@@ -334,11 +344,15 @@ async def get_screening_conversation(
     limit = request.app.state.settings.screening_chat_max_messages
     messages = await _recent_chat(session, screening.id, limit)
     context = _chat_context(screening)
+    citation_labels = {
+        str(item["evaluation_id"]): str(item["source_text"])
+        for item in context.evaluations
+    }
     return ScreeningConversationRead(
         screening_id=screening.id,
-        messages=[_message_read(message) for message in messages],
+        messages=[_message_read(message, citation_labels=citation_labels) for message in messages],
         provider=_provider_read(request.app.state.chat_provider),
-        suggested_questions=_contextual_suggestions(context),
+        suggested_questions=contextual_suggestions(context),
         max_messages=limit,
         max_message_chars=request.app.state.settings.screening_chat_message_max_chars,
     )
@@ -373,22 +387,50 @@ async def create_screening_chat_message(
     history = [{"role": item.role, "content": item.content} for item in history_rows]
     context = _chat_context(screening)
     provider = request.app.state.chat_provider
-    try:
-        answer = validate_answer(
-            await provider.answer(context=context, history=history, message=message), context
-        )
-    except ProviderCallError as exception:
-        code_map = {
-            "PROVIDER_TIMEOUT": ("ASSISTANT_TIMEOUT", 504),
-            "PROVIDER_RATE_LIMITED": ("ASSISTANT_RATE_LIMITED", 429),
-            "PROVIDER_RESPONSE_INVALID": ("ASSISTANT_RESPONSE_INVALID", 502),
-            "PROVIDER_ERROR": ("ASSISTANT_PROVIDER_ERROR", 502),
-            "ASSISTANT_DISABLED": ("ASSISTANT_DISABLED", 503),
-        }
-        code, status_code = code_map.get(exception.code, ("ASSISTANT_PROVIDER_ERROR", 502))
-        raise ApplicationError(
-            code=code, message=exception.message, status_code=status_code
-        ) from exception
+    provider_used = provider
+    fallback_used = False
+    started = time.perf_counter()
+    if (
+        is_screening_assistant_capability_question(message.casefold())
+        or is_criterion_state_question(message.casefold())
+    ):
+        provider_used = CanonicalExplainer()
+        raw_answer = await provider_used.answer(context=context, history=history, message=message)
+        answer = validate_answer(raw_answer, context)
+    else:
+        try:
+            raw_answer = await provider.answer(context=context, history=history, message=message)
+            answer = validate_answer(raw_answer, context)
+        except ProviderCallError as exception:
+            code_map = {
+                "PROVIDER_TIMEOUT": ("ASSISTANT_TIMEOUT", 504),
+                "PROVIDER_RATE_LIMITED": ("ASSISTANT_RATE_LIMITED", 429),
+                "PROVIDER_RESPONSE_INVALID": ("ASSISTANT_RESPONSE_INVALID", 502),
+                "PROVIDER_ERROR": ("ASSISTANT_PROVIDER_ERROR", 502),
+                "ASSISTANT_DISABLED": ("ASSISTANT_DISABLED", 503),
+            }
+            code, status_code = code_map.get(exception.code, ("ASSISTANT_PROVIDER_ERROR", 502))
+            chat_metrics.warning(
+                "screening_chat_provider_failed",
+                extra={
+                    "provider": provider.provider_name,
+                    "model_id": provider.model_id,
+                    "prompt_version": CHAT_PROMPT_VERSION,
+                    "latency_ms": round((time.perf_counter() - started) * 1_000, 2),
+                    "validation_outcome": exception.code,
+                    "answer_state": None,
+                },
+            )
+            if provider.provider_name != "groq":
+                raise ApplicationError(
+                    code=code, message=exception.message, status_code=status_code
+                ) from exception
+            provider_used = CanonicalExplainer()
+            raw_answer = await provider_used.answer(
+                context=context, history=history, message=message
+            )
+            answer = validate_answer(raw_answer, context)
+            fallback_used = True
     now = datetime.now(UTC)
     user_message = ScreeningChatMessage(
         screening_id=screening.id,
@@ -404,8 +446,8 @@ async def create_screening_chat_message(
         content=answer.answer[: settings.screening_chat_max_answer_chars],
         answer_state=answer.answer_state,
         citations_json=[item.model_dump(mode="json") for item in answer.citations],
-        provider=provider.provider_name,
-        model_id=provider.model_id,
+        provider=provider_used.provider_name,
+        model_id=provider_used.model_id,
         prompt_version=CHAT_PROMPT_VERSION,
         created_at=now + timedelta(microseconds=1),
     )
@@ -432,6 +474,26 @@ async def create_screening_chat_message(
     except Exception:
         await session.rollback()
         raise
+    validation_outcome = (
+        "provider_fallback"
+        if fallback_used
+        else "safe_downgrade"
+        if raw_answer.answer_state == "supported"
+        and answer.answer_state == "insufficient_evidence"
+        else "valid"
+    )
+    chat_metrics.info(
+        "screening_chat_completed",
+        extra={
+            "provider": provider_used.provider_name,
+            "model_id": provider_used.model_id,
+            "prompt_version": CHAT_PROMPT_VERSION,
+            "latency_ms": round((time.perf_counter() - started) * 1_000, 2),
+            "validation_outcome": validation_outcome,
+            "answer_state": answer.answer_state,
+            "citation_count": len(answer.citations),
+        },
+    )
     return _message_read(assistant_message, answer.suggested_questions)
 
 

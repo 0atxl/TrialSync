@@ -45,12 +45,12 @@ The repeatable development seed creates six patients, two approved trials, one 6
 
 | Required case | Seed evidence |
 |---|---|
-| Strong potentially eligible | Synthetic Ada Eligible |
-| Inclusion failure | Synthetic Ben Inclusion Fail |
-| Exclusion trigger | Synthetic Cora Exclusion Trigger |
-| Missing-data needs review | Synthetic Dev Needs Review |
-| Type 1 / Type 2 distinction | Synthetic Emi Type 1 Distinction |
-| Numeric boundary | Synthetic Finn Age Boundary |
+| Strong potentially eligible | Synthetic Ada Mercer |
+| Inclusion failure | Synthetic Ben Carter |
+| Exclusion trigger | Synthetic Cora Bennett |
+| Missing-data needs review | Synthetic Dev Malik |
+| Type 1 / Type 2 distinction | Synthetic Emi Tanaka |
+| Numeric boundary | Synthetic Finn Osei |
 | Mixed batch | 4 potentially eligible, 4 likely ineligible, 4 needs review |
 | Supported/refused/insufficient chat | Eight messages on the seeded needs-review result |
 | PDF import | Generated machine-readable `/tmp/trialsync-phase8.pdf` fixture in the E2E preparation step |

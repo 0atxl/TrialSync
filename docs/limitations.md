@@ -4,5 +4,6 @@
 - The deterministic rule DSL supports a bounded subset of eligibility language. Unsupported language remains reviewable but evaluates as `unknown` until represented by a supported approved rule.
 - Tesseract OCR is local, English-language, and best-effort. Handwriting, complex tables, poor scans, and recognition errors require human correction; OCR cannot approve a fact.
 - Groq extraction and explanation are optional aids. They can time out, be rate-limited, or return invalid output; deterministic/manual workflows remain available. Provider output cannot decide eligibility.
-- Conversation is limited to one stored screening, the latest ten messages, and evidence-grounded explanations. It cannot provide diagnosis, treatment, enrollment, or other medical advice.
+- Conversation is limited to one stored screening, the latest ten messages, and evidence-grounded explanations. It cannot provide diagnosis, treatment, enrollment, or other medical advice. Responses are intentionally non-streaming; the UI shows a bounded typing state while the validated response is generated.
+- Operational chat metrics are written to privacy-safe application logs only; they are not a persisted analytics or audit dataset and exclude question/document text and provider payloads.
 - Batch screening is synchronous and intentionally bounded for the semester demo.

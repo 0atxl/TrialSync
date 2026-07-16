@@ -18,3 +18,25 @@ The domain engine is deliberately isolated from FastAPI, SQLAlchemy, provider cl
 Imports are bounded to 1 MB of pasted text or 5 MB/10 PDF pages. PDFs first use embedded text. If that is insufficient, local Tesseract OCR runs after Poppler rasterization at 200 DPI with timeouts. OCR source text remains page-local, is marked in the review UI, and is never trusted without human approval. Groq receives only the bounded synthetic source text and must return schema-validated candidates with exact, verified quotations. Provider failure falls back to deterministic candidates.
 
 The screening conversation is scoped to one authorized saved screening. The server rebuilds authoritative context each request, validates citations, persists at most ten messages, and rejects unsupported, advice, cross-record, and prompt-injection requests. Conversation content is never evidence.
+
+## Final request flow
+
+The React client authenticates once, then sends only the current user action to
+the versioned FastAPI API. A screening-detail request loads the immutable patient
+snapshot, approved trial version, stored criterion evaluations, evidence, missing
+information, and the latest bounded chat messages. The chat endpoint authorizes
+the screening through the authenticated owner, assembles that context on the
+server, and returns a validated answer with criterion/evidence citations and
+replacement suggestions. The browser renders the persisted user question and
+assistant answer in an internally scrolling transcript; it never supplies
+authoritative history or screening state to the provider.
+
+The deterministic boundary is deliberate: parsing and approved rule evaluation
+produce the only screening outcome, and persistence stores the reproducible
+evidence-backed result. Groq may propose reviewable import candidates or explain
+that stored result, but it cannot approve candidates, create evidence, change a
+criterion result, or access another record. Provider-disabled, timeout,
+rate-limit, invalid-output, and refusal paths use canonical server explanations
+or safe refusal responses. Operational chat metrics contain provider/model,
+prompt version, latency, validation outcome, answer state, and citation count;
+they exclude questions, documents, raw payloads, and secrets.

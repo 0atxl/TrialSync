@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
@@ -10,7 +10,7 @@ const navItems = [
   { to: '/trials', label: 'Trials', glyph: 'T' },
   { to: '/screenings', label: 'Screenings', glyph: 'S' },
   { to: '/batches/new', label: 'Batch screening', glyph: 'B' },
-  { to: '/evaluation', label: 'Evaluation', glyph: 'E' },
+  { to: '/help', label: 'Help', glyph: '?' },
 ]
 
 function initialSidebarState() {
@@ -18,9 +18,17 @@ function initialSidebarState() {
   catch { return false }
 }
 
+function initials(name: string | undefined) {
+  return (name ?? 'TrialSync').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+}
+
 export function AppLayout() {
   const { user, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(initialSidebarState)
+  useEffect(() => {
+    delete document.documentElement.dataset.theme
+    try { localStorage.removeItem('trialsync_theme') } catch { /* legacy preference cleanup */ }
+  }, [])
   const toggleSidebar = () => setCollapsed((current) => {
     const next = !current
     try { localStorage.setItem(SIDEBAR_KEY, String(next)) } catch { /* optional preference */ }
@@ -31,10 +39,10 @@ export function AppLayout() {
     <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
       <header className="topbar">
         <NavLink className="brand" to="/" aria-label="TrialSync workspace">
-          <span className="brand-mark" aria-hidden="true">TS</span>
-          <span><strong>TrialSync</strong><small>Research workspace</small></span>
+          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
+          <span><strong>TrialSync</strong><small>Trial workspace</small></span>
         </NavLink>
-        <div className="account-area"><span className="phase-label">{user?.display_name}</span></div>
+        <div className="account-area"><span className="account-name">{user?.display_name}</span><span className="account-avatar" aria-label={`${user?.display_name ?? 'User'} account`}>{initials(user?.display_name)}</span></div>
       </header>
 
       <div className="shell-grid">
@@ -48,8 +56,7 @@ export function AppLayout() {
               aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
               title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
             >
-              <span aria-hidden="true">{collapsed ? '›' : '‹'}</span>
-              <span className="nav-label">Collapse navigation</span>
+              <span className="menu-icon" aria-hidden="true"><i /><i /><i /></span>
             </button>
             <nav>
               {navItems.map((item) => (
@@ -69,11 +76,6 @@ export function AppLayout() {
           </div>
 
           <div className="sidebar-footer">
-            <div className="scope-note">
-              <span className="scope-rule" aria-hidden="true" />
-              <p>Synthetic data only</p>
-              <small>Educational pre-screening prototype—not clinical guidance.</small>
-            </div>
             <button className="signout-button" onClick={logout} title="Sign out">
               <span className="nav-glyph" aria-hidden="true">↗</span>
               <span className="nav-label">Sign out</span>

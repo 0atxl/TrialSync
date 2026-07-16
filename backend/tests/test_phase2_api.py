@@ -193,11 +193,28 @@ async def test_trial_ownership_and_criterion_ordering(api: AsyncClient, email_pr
     )
     assert version.status_code == 201
     version_id = version.json()["id"]
+    incomplete = await api.put(
+        f"/api/v1/trials/{trial_id}/versions/{version_id}",
+        headers=auth(first),
+        json={"version": 1, "status": "approved"},
+    )
+    assert incomplete.status_code == 422
+    assert incomplete.json()["error"]["code"] == "TRIAL_VERSION_REVIEW_INCOMPLETE"
     criterion_url = f"/api/v1/trials/{trial_id}/versions/{version_id}/criteria"
     inclusion = await api.post(
         criterion_url,
         headers=auth(first),
-        json={"kind": "inclusion", "order": 1, "source_text": "Age 18 years or older"},
+        json={
+            "kind": "inclusion",
+            "order": 1,
+            "source_text": "Age 18 years or older",
+            "normalized_rule": {
+                "op": "gte",
+                "fact": "demographic.age",
+                "value": 18,
+                "unit": "year",
+            },
+        },
     )
     assert inclusion.status_code == 201
     duplicate_order = await api.post(

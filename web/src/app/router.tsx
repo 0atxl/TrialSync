@@ -15,6 +15,7 @@ import { NewImportPage } from '../pages/NewImportPage'
 import { BatchDetailPage } from '../pages/BatchDetailPage'
 import { BatchScreeningPage } from '../pages/BatchScreeningPage'
 import { DashboardPage } from '../pages/DashboardPage'
+import { EvaluationPage } from '../pages/EvaluationPage'
 import { NewScreeningPage } from '../pages/NewScreeningPage'
 import { ScreeningDetailPage } from '../pages/ScreeningDetailPage'
 import { ScreeningHistoryPage } from '../pages/ScreeningHistoryPage'
@@ -46,6 +47,7 @@ export const routes = [
           { path: 'screenings/:screeningId', element: <ScreeningDetailPage /> },
           { path: 'batches/new', element: <BatchScreeningPage /> },
           { path: 'batches/:batchId', element: <BatchDetailPage /> },
+          { path: 'evaluation', element: <EvaluationPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

@@ -26,6 +26,7 @@ export type Criterion = {
   kind: 'inclusion' | 'exclusion'
   order: number
   source_text: string
+  normalized_rule: Record<string, unknown> | null
   required: boolean
 }
 export type TrialVersion = {

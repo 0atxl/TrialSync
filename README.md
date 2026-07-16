@@ -214,23 +214,58 @@ or `disabled`. Never send real patient data. The held-out synthetic evaluation a
 its live-provider limitations are documented in
 `backend/evaluation/PHASE7_EVALUATION.md`.
 
-## Verification
+## Phase 8 reproducible demo and evaluation
 
-With `.env` present, run every Phase 1 check from the repository root:
+Create or restore the fixed synthetic development account and its deterministic
+screening matrix:
 
 ```bash
-docker compose config --quiet
-docker compose up -d --wait db
-backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
-backend/.venv/bin/pytest backend
-backend/.venv/bin/ruff check backend/src backend/tests backend/migrations
-backend/.venv/bin/mypy backend/src
-backend/.venv/bin/python -c "import trialsync.main; print('backend import ok')"
-npm --prefix web run lint
-npm --prefix web run typecheck
-npm --prefix web test -- --run
-npm --prefix web run build
+make seed-demo
 ```
+
+Sign in with `demo@trialsync.example` / `SyntheticDemo123!`. In development, the
+login page can fill these values with **Use seeded synthetic demo**. The seed is
+idempotent: it replaces only that demo account and creates six fictional patients,
+two approved trials, 12 linked screenings with a balanced 4/4/4 state distribution,
+and supported/refused/insufficient conversation history. It refuses to run in the
+production environment.
+
+Reset only this fixed account with:
+
+```bash
+make reset-demo
+```
+
+The `/evaluation` route summarizes the offline held-out fixture, deterministic demo
+coverage, and interpretation limits. Reproduce the machine-readable measurements
+with `make evaluate`; the detailed results and live-provider limitations are in
+`backend/evaluation/PHASE8_EVALUATION.md`. Extraction measurements describe
+reviewable candidate structures, never eligibility confidence.
+
+The critical browser journeys use installed system Chromium and local ports 8002
+and 5175:
+
+```bash
+make test-e2e
+```
+
+The preparation step reseeds the fixed demo account and writes a generated,
+machine-readable synthetic PDF to `/tmp`; it does not use Groq or the network.
+
+## Verification
+
+With `.env` present and PostgreSQL running, run the complete backend/frontend gate
+from the repository root:
+
+```bash
+docker compose up -d --wait db
+make verify
+make audit
+```
+
+`make verify-backend` and `make verify-frontend` provide narrower full-suite gates.
+`make audit` checks installed Python packages and the locked npm tree against current
+advisory data, so it requires network access.
 
 The backend import is intentionally side-effect free: it does not connect to PostgreSQL, create tables, or load models. Schema changes are made only through Alembic.
 
@@ -246,5 +281,6 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 5. Single and batch frontend | Complete | Dashboard, single and batch workflows, evidence detail, history filters, and linked result matrix |
 | 6. Reviewed text and PDF ingestion | Complete | Deterministic candidate extraction, immutable provenance, editable review, explicit approval, bounded PDF handling, API/UI error states, and ownership tests |
 | 7. Groq extraction and explanation chat | Complete | Provider-neutral reviewed extraction, exact provenance validation, bounded screening conversation, citation validation, safe refusals/fallbacks, persistence, and UI states |
+| 8. Evaluation and polish | Complete | Repeatable 6-patient/2-trial seed, offline held-out evaluation, five critical browser workflows, responsive evaluation UI, dependency audit, and full-suite task runner |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

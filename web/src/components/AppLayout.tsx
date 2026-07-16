@@ -10,6 +10,7 @@ const navItems = [
   { to: '/trials', label: 'Trials', glyph: 'T' },
   { to: '/screenings', label: 'Screenings', glyph: 'S' },
   { to: '/batches/new', label: 'Batch screening', glyph: 'B' },
+  { to: '/evaluation', label: 'Evaluation', glyph: 'E' },
 ]
 
 function initialSidebarState() {

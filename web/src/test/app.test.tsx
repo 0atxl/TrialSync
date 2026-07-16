@@ -76,6 +76,13 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
+  it('fills development-only seeded demo credentials on request', async () => {
+    renderRoute('/login')
+    await userEvent.click(screen.getByRole('button', { name: /Use seeded synthetic demo/ }))
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveValue('demo@trialsync.example')
+    expect(screen.getByLabelText('Password')).toHaveValue('SyntheticDemo123!')
+  })
+
   it('collapses the navigation, persists the preference, and keeps sign out in the sidebar', async () => {
     authenticate()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
@@ -87,6 +94,16 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(container.querySelector('.app-shell')).toHaveClass('sidebar-collapsed')
     expect(localStorage.getItem('trialsync_sidebar_collapsed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Expand navigation' })).toBeInTheDocument()
+  })
+
+  it('shows reproducible Phase 8 metrics and their evaluation limits', () => {
+    authenticate()
+    renderRoute('/evaluation')
+    expect(screen.getByRole('heading', { name: 'Evaluation, with the boundary visible.' })).toBeInTheDocument()
+    expect(screen.getByText('6 / 6')).toBeInTheDocument()
+    expect(screen.getByText('Extraction confidence is not eligibility confidence.')).toBeInTheDocument()
+    expect(screen.getByText(/trialsync\.evaluation --iterations 20/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Evaluation' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('loads approved inputs and submits a patient/trial pair', async () => {
@@ -438,5 +455,45 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Approve version' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Approve version' })).not.toBeInTheDocument())
     expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(true)
+  })
+
+  it('builds a deterministic rule during manual criterion entry', async () => {
+    authenticate()
+    const draft = { ...trial, versions: [{ ...trial.versions[0], status: 'draft' as const, criteria: [] }] }
+    const criterion = {
+      id: 'c-age', kind: 'inclusion', order: 1, source_text: 'Age 18 to 75 years',
+      normalized_rule: { op: 'between', fact: 'demographic.age', min: 18, max: 75, unit: 'year' },
+      required: true,
+    }
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.includes('/criteria') && options?.method === 'POST') return Promise.resolve(json(criterion, 201))
+      return Promise.resolve(json(draft))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/trials/t1')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Protocol criterion' }), 'Age 18 to 75 years')
+    await userEvent.click(screen.getByRole('button', { name: 'Add criterion' }))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(true))
+    const request = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      normalized_rule: {
+        op: 'between', fact: 'demographic.age', min: 18, max: 75, unit: 'year',
+      },
+    })
+  })
+
+  it('does not persist an invalid manual numeric rule', async () => {
+    authenticate()
+    const draft = { ...trial, versions: [{ ...trial.versions[0], status: 'draft' as const, criteria: [] }] }
+    const fetchMock = vi.fn().mockResolvedValue(json(draft))
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/trials/t1')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Protocol criterion' }), 'Invalid age range')
+    const minimum = screen.getByRole('textbox', { name: 'Minimum' })
+    await userEvent.clear(minimum)
+    await userEvent.type(minimum, 'not-a-number')
+    await userEvent.click(screen.getByRole('button', { name: 'Add criterion' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid deterministic range')
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false)
   })
 })

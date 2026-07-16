@@ -24,10 +24,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "mypy==1.17.0",
-  "pytest==8.4.1",
+  "pip-audit==2.10.1",
+  "pytest==9.0.3",
   "pytest-cov==6.2.1",
   "ruff==0.12.5",
 ]
+
+[project.scripts]
+trialsync-demo = "trialsync.demo:main"
+trialsync-evaluate = "trialsync.evaluation:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trialsync"]

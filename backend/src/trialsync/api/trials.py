@@ -65,6 +65,24 @@ def require_draft(version: TrialVersion) -> None:
         )
 
 
+def require_approvable(version: TrialVersion) -> None:
+    if not version.criteria:
+        raise ApplicationError(
+            code="TRIAL_VERSION_REVIEW_INCOMPLETE",
+            message="Add at least one reviewed criterion before approval.",
+            status_code=422,
+        )
+    if any(
+        not isinstance(criterion.normalized_rule, dict) or not criterion.normalized_rule
+        for criterion in version.criteria
+    ):
+        raise ApplicationError(
+            code="TRIAL_VERSION_REVIEW_INCOMPLETE",
+            message="Every criterion needs a deterministic rule before approval.",
+            status_code=422,
+        )
+
+
 @router.get("", response_model=list[TrialRead])
 async def list_trials(session: SessionDep, user: CurrentUser) -> list[Trial]:
     result = await session.scalars(
@@ -173,6 +191,8 @@ async def update_version(
 ) -> TrialVersion:
     version = await owned_version(session, user, trial_id, version_id)
     require_draft(version)
+    if payload.status is VersionStatus.approved:
+        require_approvable(version)
     for key, value in payload.model_dump().items():
         setattr(version, key, value)
     try:

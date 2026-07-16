@@ -5,6 +5,8 @@ import { ApiError, apiRequest, type Trial } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
 
+type RuleTemplate = 'age_between' | 'condition_present' | 'observation_between'
+
 export function TrialDetailPage() {
   const { trialId = '' } = useParams()
   const { token } = useAuth()
@@ -17,6 +19,11 @@ export function TrialDetailPage() {
   const [kind, setKind] = useState('inclusion')
   const [order, setOrder] = useState('1')
   const [sourceText, setSourceText] = useState('')
+  const [ruleTemplate, setRuleTemplate] = useState<RuleTemplate>('age_between')
+  const [ruleConcept, setRuleConcept] = useState('')
+  const [ruleMinimum, setRuleMinimum] = useState('18')
+  const [ruleMaximum, setRuleMaximum] = useState('75')
+  const [ruleUnit, setRuleUnit] = useState('year')
 
   const load = useCallback(async () => {
     try {
@@ -57,10 +64,26 @@ export function TrialDetailPage() {
     event.preventDefault()
     const version = trial?.versions.at(-1)
     if (!version) { setError('Create a draft version first.'); return }
+    const minimum = Number(ruleMinimum)
+    const maximum = Number(ruleMaximum)
+    const usesRange = ruleTemplate !== 'condition_present'
+    if (usesRange && (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum > maximum)) {
+      setError('Enter a valid deterministic range with the minimum at or below the maximum.')
+      return
+    }
+    const normalizedRule = ruleTemplate === 'age_between'
+      ? { op: 'between', fact: 'demographic.age', min: minimum, max: maximum, unit: 'year' }
+      : ruleTemplate === 'condition_present'
+        ? { op: 'present', fact: `condition.${ruleConcept.trim()}` }
+        : { op: 'between', fact: `observation.${ruleConcept.trim()}`, min: minimum, max: maximum, unit: ruleUnit.trim(), selection: 'latest' }
+    if ((ruleTemplate !== 'age_between' && !ruleConcept.trim()) || (ruleTemplate === 'observation_between' && !ruleUnit.trim())) {
+      setError('Complete every deterministic rule field before adding the criterion.')
+      return
+    }
     try {
       await apiRequest(`/trials/${trialId}/versions/${version.id}/criteria`, {
         method: 'POST',
-        body: JSON.stringify({ kind, order: Number(order), source_text: sourceText, required: true }),
+        body: JSON.stringify({ kind, order: Number(order), source_text: sourceText, normalized_rule: normalizedRule, required: true }),
       }, token)
       setSourceText('')
       setOrder(String(Number(order) + 1))
@@ -130,12 +153,13 @@ export function TrialDetailPage() {
           <form className="criterion-form" onSubmit={addCriterion}>
             <div className="form-pair"><label>Kind<select value={kind} onChange={(event) => setKind(event.target.value)}><option value="inclusion">Inclusion</option><option value="exclusion">Exclusion</option></select></label><label>Order<input min="1" required type="number" value={order} onChange={(event) => setOrder(event.target.value)} /></label></div>
             <label>Protocol criterion<textarea required rows={3} value={sourceText} onChange={(event) => setSourceText(event.target.value)} /></label>
+            <fieldset className="rule-builder"><legend>Deterministic rule</legend><label>Rule template<select value={ruleTemplate} onChange={(event) => setRuleTemplate(event.target.value as RuleTemplate)}><option value="age_between">Age between</option><option value="condition_present">Condition present</option><option value="observation_between">Observation between</option></select></label>{ruleTemplate !== 'age_between' && <label>Normalized concept<input required value={ruleConcept} onChange={(event) => setRuleConcept(event.target.value)} placeholder={ruleTemplate === 'condition_present' ? 'type2_diabetes' : 'hba1c'} /></label>}{ruleTemplate !== 'condition_present' && <div className="form-pair"><label>Minimum<input required inputMode="decimal" value={ruleMinimum} onChange={(event) => setRuleMinimum(event.target.value)} /></label><label>Maximum<input required inputMode="decimal" value={ruleMaximum} onChange={(event) => setRuleMaximum(event.target.value)} /></label></div>}{ruleTemplate === 'observation_between' && <label>Unit<input required value={ruleUnit} onChange={(event) => setRuleUnit(event.target.value)} placeholder="%" /></label>}<small>The saved rule—not the wording alone—drives deterministic screening.</small></fieldset>
             <button className="primary-button" disabled={!activeVersion} type="submit">Add criterion</button>
           </form>
           {error && <div className="form-error" role="alert">{error}</div>}
           <div className="record-list">
             {activeVersion?.criteria.length ? activeVersion.criteria.map((criterion) => (
-              <article className="criterion-row" key={criterion.id}><span className="criterion-order">{criterion.order}</span><div className="criterion-copy"><span className="record-kind">{criterion.kind}</span><strong>{criterion.source_text}</strong></div><button className="text-button danger" onClick={() => void deleteCriterion(activeVersion.id, criterion.id)} type="button">Remove</button></article>
+              <article className="criterion-row" key={criterion.id}><span className="criterion-order">{criterion.order}</span><div className="criterion-copy"><span className="record-kind">{criterion.kind}</span><strong>{criterion.source_text}</strong><small>{criterion.normalized_rule ? 'Deterministic rule reviewed' : 'Rule review required'}</small></div><button className="text-button danger" onClick={() => void deleteCriterion(activeVersion.id, criterion.id)} type="button">Remove</button></article>
             )) : <div className="empty-state"><h2>No criteria</h2><p>Create a draft version, then add ordered rules.</p></div>}
           </div>
         </section>

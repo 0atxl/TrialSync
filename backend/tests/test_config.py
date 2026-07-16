@@ -22,3 +22,13 @@ def test_secret_database_url_is_not_exposed_in_repr() -> None:
     )
 
     assert password not in repr(settings)
+
+
+def test_groq_extraction_is_the_default_when_a_key_is_configured() -> None:
+    settings = Settings(
+        _env_file=None,
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/test",
+        GROQ_API_KEY="synthetic-test-key",
+    )
+
+    assert settings.extraction_provider == "groq"

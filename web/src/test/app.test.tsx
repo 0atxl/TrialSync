@@ -419,24 +419,24 @@ describe('TrialSync Phase 5 screening workflow', () => {
     renderRoute('/imports/new?kind=trial')
     await userEvent.click(screen.getByRole('radio', { name: 'Upload PDF' }))
     const file = new File([new Uint8Array(5_000_001)], 'oversized.pdf', { type: 'application/pdf' })
-    fireEvent.change(screen.getByLabelText(/Text-based PDF/i), { target: { files: [file] } })
+    fireEvent.change(screen.getByLabelText(/PDF document/i), { target: { files: [file] } })
     await userEvent.click(screen.getByRole('button', { name: 'Analyze for review' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('5 MB PDF limit')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('explains when a selected PDF requires unavailable OCR', async () => {
+  it('explains when OCR cannot recover readable text', async () => {
     authenticate()
     const fetchMock = vi.fn().mockResolvedValue(json({
-      error: { code: 'PDF_OCR_NOT_ENABLED', message: 'No machine-readable text was found.' },
+      error: { code: 'OCR_NO_TEXT', message: 'No machine-readable text was found.' },
     }, 422))
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/imports/new?kind=patient')
     await userEvent.click(screen.getByRole('radio', { name: 'Upload PDF' }))
     const file = new File(['%PDF-1.4 synthetic scan fixture'], 'scan-like.pdf', { type: 'application/pdf' })
-    fireEvent.change(screen.getByLabelText(/Text-based PDF/i), { target: { files: [file] } })
+    fireEvent.change(screen.getByLabelText(/PDF document/i), { target: { files: [file] } })
     fireEvent.submit(screen.getByRole('button', { name: 'Analyze for review' }).closest('form') as HTMLFormElement)
-    expect(await screen.findByRole('alert')).toHaveTextContent('OCR is not enabled')
+    expect(await screen.findByRole('alert')).toHaveTextContent('OCR could not recover')
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 

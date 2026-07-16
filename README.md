@@ -7,6 +7,7 @@ TrialSync is an academic full-stack prototype for explainable clinical-trial pre
 - Python 3.12 or newer
 - Node.js 20.19 or newer and npm
 - Docker Engine with Docker Compose
+- Tesseract OCR and Poppler (`tesseract-ocr` and `poppler-utils` on Debian/Ubuntu)
 
 ## First-time setup
 
@@ -173,9 +174,13 @@ medical advice or enrollment guidance.
 ## Phase 6 reviewed imports
 
 Patient and trial list pages link to a review-first import flow for pasted text and
-text-based PDFs. Pasted text is limited to 1 MB and PDFs to 5 MB. Encrypted,
-malformed, empty, wrong-type, and image-only PDFs are rejected with explicit error
-codes; OCR is intentionally not enabled.
+PDFs. Pasted text is limited to 1 MB and PDFs to 5 MB/10 pages. Encrypted,
+malformed, empty, and wrong-type PDFs are rejected with explicit error codes. When a
+PDF has insufficient embedded text, TrialSync rasterizes it locally and uses
+Tesseract OCR (`tesseract-ocr` plus Poppler's `pdftoppm`) with bounded per-page and
+whole-document timeouts. OCR text is visibly labelled in the review UI, retains
+page-local provenance, and remains unapproved candidate data; poor scans fail
+explicitly and manual entry remains available.
 
 Deterministic parsing proposes profile fields, patient facts, trial criteria, and a
 small supported subset of rule structures. Every candidate remains editable and
@@ -188,9 +193,9 @@ used in this phase.
 
 ## Phase 7 bounded NLP and explanation conversation
 
-Reviewed import now uses a provider-neutral extractor. With no `GROQ_API_KEY`, `auto`
-mode keeps the deterministic parser. With a key, Groq may propose schema-validated
-patient facts or trial criteria from synthetic text; every proposal must retain an
+Reviewed import uses Groq-assisted extraction by default (`TRIALSYNC_EXTRACTION_PROVIDER=groq`).
+With a configured `GROQ_API_KEY`, Groq may propose schema-validated patient facts or
+trial criteria from deterministic or local-OCR source text; every proposal must retain an
 exact verified source quotation and remains unapproved until human review. Timeout,
 rate-limit, invalid-schema, or provider failures fall back visibly to deterministic
 candidates and record the provider transition in review metadata.
@@ -282,5 +287,6 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 6. Reviewed text and PDF ingestion | Complete | Deterministic candidate extraction, immutable provenance, editable review, explicit approval, bounded PDF handling, API/UI error states, and ownership tests |
 | 7. Groq extraction and explanation chat | Complete | Provider-neutral reviewed extraction, exact provenance validation, bounded screening conversation, citation validation, safe refusals/fallbacks, persistence, and UI states |
 | 8. Evaluation and polish | Complete | Repeatable 6-patient/2-trial seed, offline held-out evaluation, five critical browser workflows, responsive evaluation UI, dependency audit, and full-suite task runner |
+| 9. Final semester delivery | Complete | Runbook, architecture/evaluation/limitations documentation, API documentation link, and offline OCR/manual fallback guidance |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.

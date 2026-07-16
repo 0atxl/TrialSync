@@ -13,6 +13,7 @@ from sqlalchemy import delete
 
 from trialsync.db.models import User
 from trialsync.db.session import get_session_factory
+from trialsync.imports.parser import extract_pdf_input
 
 pytestmark = pytest.mark.anyio
 
@@ -234,11 +235,23 @@ async def test_text_pdf_preserves_page_text_and_pdf_failures_are_explicit(
     writer.add_blank_page(width=612, height=792)
     scan = BytesIO()
     writer.write(scan)
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            "trialsync.imports.parser._extract_with_tesseract",
+            lambda content, page_count: [
+                "Patient name: Synthetic OCR Ada\nDate of birth: 1990-01-01\nHbA1c: 7.4 %"
+            ],
+        )
+        ocr_input = extract_pdf_input(scan.getvalue())
+    assert ocr_input.pages[0]["text"].startswith("Patient name: Synthetic OCR Ada")
+    assert ocr_input.quality["extractor"] == "tesseract-ocr"
+    assert ocr_input.quality["ocr"]["engine"] == "tesseract"
+
     scan_like = await api.post(
         "/api/v1/imports", headers=headers, json=pdf_payload(scan.getvalue())
     )
     assert scan_like.status_code == 422
-    assert scan_like.json()["error"]["code"] == "PDF_OCR_NOT_ENABLED"
+    assert scan_like.json()["error"]["code"] == "OCR_NO_TEXT"
 
     empty_writer = PdfWriter()
     empty = BytesIO()

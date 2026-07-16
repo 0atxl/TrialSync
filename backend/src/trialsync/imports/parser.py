@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import uuid
 from dataclasses import dataclass
 from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from pypdf import PdfReader
@@ -11,6 +14,8 @@ from pypdf.errors import PdfReadError
 
 MAX_TEXT_BYTES = 1_000_000
 MAX_PDF_BYTES = 5_000_000
+MAX_PDF_PAGES = 10
+MIN_MACHINE_TEXT_CHARS = 40
 
 
 class ImportParseError(Exception):
@@ -61,7 +66,34 @@ def extract_pdf_input(content: bytes) -> ExtractedInput:
         ) from exception
     if not raw_pages:
         raise ImportParseError("PDF_EMPTY", "The PDF does not contain any pages.")
+    if len(raw_pages) > MAX_PDF_PAGES:
+        raise ImportParseError(
+            "PDF_TOO_MANY_PAGES",
+            f"PDF import is limited to {MAX_PDF_PAGES} pages.",
+        )
 
+    extracted = _compose_pdf_input(raw_pages, extractor="pypdf-6.14.2")
+    if _has_usable_text(extracted.text, extracted.quality):
+        return extracted
+
+    ocr_pages = _extract_with_tesseract(content, len(raw_pages))
+    ocr_extracted = _compose_pdf_input(ocr_pages, extractor="tesseract-ocr")
+    if not _has_usable_text(ocr_extracted.text, ocr_extracted.quality):
+        raise ImportParseError(
+            "OCR_NO_TEXT",
+            "OCR could not recover enough readable text from this PDF. "
+            "Use manual entry or a clearer scan.",
+        )
+    ocr_extracted.quality["ocr"] = {
+        "used": True,
+        "engine": "tesseract",
+        "language": "eng",
+        "render_dpi": 200,
+    }
+    return ocr_extracted
+
+
+def _compose_pdf_input(raw_pages: list[str], *, extractor: str) -> ExtractedInput:
     parts: list[str] = []
     pages: list[dict[str, object]] = []
     offset = 0
@@ -78,13 +110,74 @@ def extract_pdf_input(content: bytes) -> ExtractedInput:
         )
     text = "".join(parts)
     quality = _quality(text, len(pages))
-    quality["extractor"] = "pypdf-6.14.2"
-    if len(re.sub(r"\s+", "", text)) < 40 or float(str(quality["characters_per_page"])) < 20:
-        raise ImportParseError(
-            "PDF_OCR_NOT_ENABLED",
-            "No machine-readable text was found. Upload a text-based PDF; OCR is not enabled.",
-        )
+    quality["extractor"] = extractor
     return ExtractedInput(text=text, pages=pages, quality=quality)
+
+
+def _has_usable_text(text: str, quality: dict[str, Any]) -> bool:
+    return (
+        len(re.sub(r"\s+", "", text)) >= MIN_MACHINE_TEXT_CHARS
+        and float(str(quality["characters_per_page"])) >= 20
+    )
+
+
+def _extract_with_tesseract(content: bytes, page_count: int) -> list[str]:
+    """Rasterize a bounded PDF locally, then OCR every page without shell execution."""
+
+    try:
+        with TemporaryDirectory(prefix="trialsync-ocr-") as temporary_directory:
+            directory = Path(temporary_directory)
+            source = directory / "source.pdf"
+            output_prefix = directory / "page"
+            source.write_bytes(content)
+            rendered = subprocess.run(
+                [
+                    "pdftoppm",
+                    "-f",
+                    "1",
+                    "-l",
+                    str(page_count),
+                    "-r",
+                    "200",
+                    "-png",
+                    str(source),
+                    str(output_prefix),
+                ],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=20,
+            )
+            images = sorted(directory.glob("page-*.png"))
+            if rendered.returncode != 0 or len(images) != page_count:
+                raise ImportParseError(
+                    "OCR_RENDER_FAILED", "The PDF could not be prepared for local OCR."
+                )
+            pages: list[str] = []
+            for image in images:
+                recognized = subprocess.run(
+                    ["tesseract", str(image), "stdout", "-l", "eng", "--psm", "6"],
+                    capture_output=True,
+                    check=False,
+                    text=True,
+                    timeout=15,
+                )
+                if recognized.returncode != 0:
+                    raise ImportParseError(
+                        "OCR_FAILED", "Tesseract could not read this PDF page."
+                    )
+                pages.append(recognized.stdout)
+            return pages
+    except FileNotFoundError as exception:
+        raise ImportParseError(
+            "OCR_UNAVAILABLE",
+            "OCR requires local Tesseract and Poppler installation. "
+            "Use manual entry or install them.",
+        ) from exception
+    except subprocess.TimeoutExpired as exception:
+        raise ImportParseError(
+            "OCR_TIMEOUT", "Local OCR timed out; use manual entry or a smaller PDF."
+        ) from exception
 
 
 def _quality(text: str, page_count: int) -> dict[str, Any]:

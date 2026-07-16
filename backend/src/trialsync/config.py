@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     screening_batch_max_pairs: int = Field(default=500, ge=1, le=1000)
     groq_api_key: SecretStr = Field(default=SecretStr(""), validation_alias="GROQ_API_KEY")
     groq_model: str = Field(default="openai/gpt-oss-20b", min_length=1, max_length=120)
-    extraction_provider: Literal["auto", "rule_based", "groq", "disabled"] = "auto"
+    extraction_provider: Literal["auto", "rule_based", "groq", "disabled"] = "groq"
     screening_chat_provider: Literal["auto", "canonical", "groq", "disabled"] = "auto"
     provider_timeout_seconds: float = Field(default=12.0, ge=1.0, le=30.0)
     provider_max_retries: int = Field(default=1, ge=0, le=2)

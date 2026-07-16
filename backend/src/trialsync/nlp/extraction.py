@@ -122,7 +122,7 @@ def build_extractor(settings: Settings) -> StructuredExtractor:
     if mode == "rule_based" or (mode == "auto" and not api_key):
         return RuleBasedExtractor()
     if not api_key:
-        return DisabledExtractor()
+        return RuleBasedExtractor()
     return GroqExtractor(
         GroqStructuredClient(
             api_key=api_key,

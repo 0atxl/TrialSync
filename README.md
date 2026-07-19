@@ -80,6 +80,15 @@ screenshots use only the seeded synthetic workspace:
 
 The browser API base URL comes from `VITE_API_BASE_URL` in the root `.env`; backend settings come from `DATABASE_URL` and `TRIALSYNC_*` variables. No credentials belong in Git.
 
+## Production deployment
+
+The development `compose.yaml` intentionally runs only PostgreSQL. The full
+production stack is defined in `compose.prod.yaml`: Nginx serves the compiled
+frontend and proxies the API at the same origin, PostgreSQL remains private to
+Compose, and only `127.0.0.1:8081` is published for Cloudflare Tunnel. See
+[`DEPLOYMENT.md`](DEPLOYMENT.md) for first deployment, migrations, backup,
+restore, upgrades, and the required `trialsync.atuls.me` tunnel origin.
+
 ## Phase 2 workflow
 
 1. Register a demo account at `/register` or sign in at `/login`.

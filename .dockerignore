@@ -1,0 +1,34 @@
+.git
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Python environments and caches
+backend/.venv
+backend/venv
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Node dependencies and frontend output
+**/node_modules
+web/dist
+**/*.tsbuildinfo
+coverage
+playwright-report
+test-results
+
+# Generated application data and local editor files
+uploads
+models
+*.log
+.idea
+.vscode
+*.swp
+.DS_Store

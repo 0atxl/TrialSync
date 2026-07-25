@@ -342,3 +342,7 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 | 9. Final semester delivery | In progress | Documentation and screenshot package is being finalized; clean-release verification and commit/tag remain |
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.
+
+## License
+
+TrialSync is available under the [MIT License](LICENSE).

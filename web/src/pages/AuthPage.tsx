@@ -11,6 +11,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -51,7 +52,33 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <label>Display name<input required minLength={2} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>
           )}
           <label>Email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label>Password<input required minLength={mode === 'register' ? 10 : 1} type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          {mode === 'login' ? (
+            <div className="auth-field">
+              <label htmlFor="login-password">Password</label>
+              <div className="password-field">
+                <input
+                  id="login-password"
+                  required
+                  minLength={1}
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                  aria-controls="login-password"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="password-toggle"
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <label>Password<input required minLength={10} type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          )}
           {mode === 'login' && import.meta.env.DEV && (
             <button
               className="sample-data-button"

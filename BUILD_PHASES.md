@@ -1,5 +1,10 @@
 # TrialSync Student Project: Phased Build Plan
 
+> **Historical reference — phases completed.** The instructions, prompts, and progress tracker
+> below applied to the original rebuild and are no longer current. Agents must not use this
+> document to choose a phase or read it by default. Current work is governed by `AGENTS.md` and
+> [`docs/research-extension-implementation-plan.md`](docs/research-extension-implementation-plan.md).
+
 > Execution companion to `REBUILD_GUIDE.md`. The rebuild guide is the product and architecture specification; this file is the ordered implementation plan.
 
 ## 1. How to use this plan

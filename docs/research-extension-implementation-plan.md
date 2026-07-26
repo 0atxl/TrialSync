@@ -262,7 +262,7 @@ Complete. Begin R1 only; later phase approval does not authorize combining phase
 | RAG trial matching | Measured ClinicalTrials.gov retrieval plus bounded citation-validated comparison |
 | LLM eligibility | Rejected; the deterministic engine remains authoritative |
 | PDF report | Generated from canonical stored screening evidence |
-| CI/CD | CI implemented; automatic CD deferred in favor of manual health-gated deployment |
+| CI/CD | CI is approved for R2; automatic CD is deferred in favor of manual health-gated deployment |
 | Production clinical platform | Corrected to research-grade academic prototype using synthetic participant data |
 
 ## 7. Phase R1 — Canonical screening report PDF
@@ -276,8 +276,9 @@ Generate a reproducible, downloadable PDF from one stored screening without aski
 - TrialSync title and educational/synthetic-data disclaimer.
 - Screening ID and creation timestamp.
 - Overall cautious screening state.
-- Patient snapshot label, version/hash, and as-of date.
-- Trial title, registry label where applicable, approved version/hash.
+- Patient snapshot label, ID, version/content hash, and as-of date.
+- Trial title, registry label where applicable, approved version number, and immutable version
+  ID. Include a content checksum only if R1 defines and tests one from canonical stored data.
 - Engine and DSL versions.
 - Pass/fail/unknown totals.
 - One section or table row for every criterion:
@@ -684,7 +685,7 @@ Candidate entities:
   - created timestamp.
 - `research_predictions`
   - owner;
-  - synthetic research subject ID or approved demo-patient mapping;
+  - R3 synthetic research participant ID;
   - model version;
   - feature snapshot JSON/hash;
   - probability;
@@ -1026,10 +1027,16 @@ R7 is genuine RAG only when:
 - retrieval is a distinct measured step;
 - retrieved criterion context is supplied to a bounded extractor or explainer;
 - source IDs and versions are retained;
-- generated claims cite retrieved NCT/criterion identifiers and are rejected when those citations are invalid;
+- generated claims cite retrieved NCT IDs and stable internal source-excerpt IDs; after reviewed
+  import, TrialSync criterion IDs may also be cited;
 - retrieval quality and generated-answer grounding are evaluated separately.
 
 The generated artifact should be a schema-validated, query-scoped trial-discovery summary. It may explain why a retrieved record matched the query, quote bounded eligibility excerpts, and identify missing query information. It may not approve a trial, create screening evidence, claim eligibility, or bypass the existing review flow.
+
+ClinicalTrials.gov eligibility criteria are source markup, not pre-existing TrialSync criterion
+records. Every indexed excerpt therefore needs a stable internal identifier, source offsets,
+the parent NCT ID/source version, and a checksum. TrialSync criterion IDs are created only
+after the selected source passes through review and import.
 
 The RAG context is assembled server-side from only the top bounded retrieved records. Retrieved text and user queries are untrusted data. The provider receives no database, web, MCP, code-execution, or write tools. A deterministic ranked-results view remains available when the provider is disabled, times out, is rate-limited, or returns an invalid response.
 

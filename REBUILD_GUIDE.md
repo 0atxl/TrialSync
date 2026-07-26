@@ -1,5 +1,12 @@
 # CTA TrialSync: Student-Project Rebuild Specification
 
+> **Historical reference — completed rebuild.** This document describes the original TrialSync
+> rebuild and is not the current implementation plan. Agents must not read or apply it by
+> default. Current work is governed by `AGENTS.md` and
+> [`docs/research-extension-implementation-plan.md`](docs/research-extension-implementation-plan.md).
+> Consult only a narrowly relevant section when current code and tests do not answer a
+> core-product question.
+
 > Repository audit and implementation playbook for rebuilding the semester project as a polished NLP-assisted full-stack application.
 
 | Item | Value |

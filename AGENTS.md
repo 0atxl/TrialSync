@@ -4,13 +4,45 @@
 
 TrialSync is a polished academic full-stack project for explainable clinical-trial pre-screening with **synthetic data only**. It uses NLP-assisted, human-reviewed extraction, deterministic eligibility rules, and a bounded explanation assistant. It is not a hospital system, medical device, autonomous eligibility tool, or general medical chatbot.
 
-Before changing code, read:
+## Current execution authority and context loading
 
-1. `REBUILD_GUIDE.md` for product and architecture rules.
-2. `BUILD_PHASES.md` for the current milestone, its scope, and its exit criteria.
-3. The relevant existing code, tests, and README sections.
+The original rebuild is complete. `REBUILD_GUIDE.md` and `BUILD_PHASES.md` are historical
+records of that completed work. Their old phase tracker and implementation prompts are not
+current instructions.
 
-For Phase 0/1 or architecture work, read both planning documents completely. For later bounded tasks, use the focused-context rules in `BUILD_PHASES.md` and do not reload unrelated material.
+Do **not** read either legacy document by default and do not use them to determine the current
+phase. Consult the smallest relevant legacy section only when:
+
+- the current research phase explicitly references an old invariant or contract;
+- existing code, tests, and current documentation do not answer a core-product question; or
+- the task is specifically to audit the completed rebuild.
+
+For research-extension work, the authoritative plan is
+`docs/research-extension-implementation-plan.md`.
+
+Before changing code:
+
+1. Read this `AGENTS.md`.
+2. Inspect `git status`.
+3. Read Sections 1–5 of the research implementation plan and the current R-phase only.
+4. Read the relevant existing code, tests, README/API sections, and migrations.
+5. Read Sections 15–18 of the research plan only when the task affects persistence,
+   testing, observability, or dependencies.
+
+Do not reload future R-phase bodies. Do not read
+`docs/research-pivot-findings.md` or
+`docs/research-feasibility-rating-and-local-llm.md` for routine implementation; consult the
+relevant section only when revisiting feasibility, dataset justification, project claims, or
+the provider decision.
+
+For R1 specifically, the default context is:
+
+- this file;
+- Sections 1–5 and Phase R1 of the research implementation plan;
+- the screening models, schemas, service/API, detail page, API client, and related tests;
+- the applicable README commands and dependency files.
+
+No legacy rebuild document or later research phase is required for R1.
 
 ## Working rules
 

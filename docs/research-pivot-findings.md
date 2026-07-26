@@ -1,8 +1,12 @@
 # TrialSync Research Pivot: Feasibility Findings and Recommended Scope
 
-**Date:** 2026-07-19  
-**Status:** Research and architecture recommendation  
+**Date:** 2026-07-19
+**Status:** Feasibility findings; implementation scope selected on 2026-07-26
 **Relationship to existing project:** Incremental extension of the completed TrialSync application; not a replacement or total rewrite.
+
+This document preserves the feasibility evidence behind the pivot. The locked scope, phase order, dataset sizes, and exit criteria live in
+[`research-extension-implementation-plan.md`](research-extension-implementation-plan.md). The concise decision rationale lives in
+[`research-feasibility-rating-and-local-llm.md`](research-feasibility-rating-and-local-llm.md).
 
 ## Executive conclusion
 
@@ -10,11 +14,13 @@ The proposed pivot is valuable, but it should be presented as a research extensi
 
 The strongest incremental direction is:
 
-1. Add trial discovery and criterion retrieval.
+1. Add ClinicalTrials.gov discovery, measured criterion retrieval, and a genuinely retrieval-augmented bounded generator.
 2. Reuse the existing deterministic, evidence-backed screening engine.
-3. Add research-only cohort embeddings and patient similarity.
-4. Add BioBERT experiments with a precisely defined supervised task.
-5. Add dropout prediction only after obtaining a dataset with valid participant-level dropout labels.
+3. Add reproducible synthetic dropout-risk experiments with logistic regression, XGBoost, LightGBM, SHAP, and MLflow.
+4. Add research-only cohort embeddings, DBSCAN clustering, and FAISS patient similarity.
+5. Add canonical PDF reporting, a separate research UI/API, CI, and final evaluation.
+
+BioBERT is deferred from the selected implementation scope. It remains a possible future experiment only after one supervised task and a suitable labelled dataset are approved.
 
 The current eligibility decision must remain deterministic. Machine-learning models, FAISS similarity, SHAP explanations, and LLM/RAG output may assist discovery or explain a result, but they must not silently approve evidence or change `pass`, `fail`, `unknown`, or the final screening state.
 
@@ -24,7 +30,7 @@ The current eligibility decision must remain deterministic. Machine-learning mod
 
 > **TrialSync Research: Explainable Clinical-Trial Discovery, Deterministic Pre-screening, and Patient-Cohort Analytics**
 
-If a valid participant-level dropout dataset is later obtained:
+If access to a valid participant-level dropout dataset is secured:
 
 > **TrialSync Research: Explainable Trial Matching, Cohort Discovery, and Participant Retention-Risk Modeling**
 
@@ -50,6 +56,18 @@ Use the Kaggle snapshot for a reproducible historical benchmark if its exact lic
 
 Source: [ClinicalTrials.gov API](https://clinicaltrials.gov/data-about-studies/learn-about-api)
 
+### Candidate participant-level retention datasets
+
+The NCI NCTN/NCORP Data Archive includes a verified candidate for a bounded retention-risk research experiment: **NCT02054715-D1**, a randomized multimedia-versus-print psychoeducation study for patients with cancer who were eligible for clinical trials. Its published data dictionary includes a participant identifier, baseline demographics, cancer type, recent treatment history, education, income, marital status, study group, `Dropouttime` (`0=no dropout`, `1=dropout at follow-up 1`, `2=dropout at follow-up 2`), and a `Dropout` reason field. This is a genuine participant-level dropout outcome; it is not inferred from missing records.
+
+It can support a narrowly framed prototype such as “research-only retention-risk prediction in the NCT02054715-derived study.” It cannot support a claim that the model predicts dropout across cancer trials or clinical trials generally: it is one study with one intervention context, and its event count and follow-up structure must be inspected after access is granted.
+
+NCI now directs researchers to obtain NCTN/NCORP patient-level data through dbGaP. The data must therefore remain outside the repository, be used only under the applicable approval and data-use conditions, and never be sent to hosted model providers without explicit authorization.
+
+Sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.nih.gov/system/files/dataset/NCT02054715-D1/NCT02054715-D1-Data-Dictionary.pdf), [NCI NCTN/NCORP Data Archive](https://dctd.cancer.gov/research/networks/nctn/data-archive)
+
+For future multi-study work, [Project Data Sphere](https://data.projectdatasphere.org/) provides de-identified patient-level randomized cancer-trial datasets. A dataset is suitable only after its study documentation confirms a usable completion/discontinuation outcome and baseline or pre-horizon predictors. When data are in CDISC SDTM form, inspect the Disposition (`DS`) domain: its standard fields record completion/discontinuation status, date, and primary reason. Do not assume every Project Data Sphere study includes a usable `DS` domain or compatible follow-up window. [CDISC disposition guidance](https://www.cdisc.org/standards/foundational/cdash/cdashig-v2-0)
+
 ### Central label problem
 
 The proposed datasets do not support patient-level clinical-trial dropout prediction by themselves:
@@ -59,21 +77,21 @@ The proposed datasets do not support patient-level clinical-trial dropout predic
 - Discharge, mortality, readmission, or disappearance from MIMIC cannot be treated as trial dropout.
 - A proxy label created from missing later records would be clinically and methodologically invalid.
 
-Therefore, “predict patient trial dropout” is blocked unless a separate participant-level dataset includes enrollment, follow-up, withdrawal/dropout, reason, and censoring information.
+Therefore, “predict patient trial dropout” remains blocked for the originally listed datasets, but NCT02054715-D1 is a viable controlled-access candidate for a narrowly scoped retention-risk experiment. Any selected dataset must include enrollment, follow-up, withdrawal/dropout, reason, and censoring information sufficient for the chosen prediction task.
 
 ## Feature-by-feature assessment
 
 | Feature | Feasibility | Recommendation |
 |---|---|---|
-| Patient dropout prediction | Not valid with the listed datasets | Reframe as trial-level recruitment/termination risk, or defer until a valid participant-level dataset is available |
+| Patient dropout prediction | Feasible as a reproducible synthetic fixed-horizon experiment; real-world validation needs an approved participant-level dataset | Implement the selected synthetic longitudinal protocol; retain NCT02054715-D1 only as a possible future external-validation dataset |
 | XGBoost/LightGBM | Feasible when labels exist | Use time-aware feature windows, leakage controls, calibration, and model-versioned inference |
 | SHAP explanations | Feasible | Explain predictive risk features only; do not call SHAP an eligibility score |
-| DBSCAN cohort discovery | Feasible research module | Use fixed, normalized time windows and report cluster stability and clinical enrichment |
-| FAISS similarity search | Feasible | Store embedding/index versions and label results as research similarity, not evidence |
-| BioBERT ICD extraction | Feasible after task definition | Treat ICD coding, span extraction, and eligibility matching as separate tasks |
-| BioBERT eligibility matcher | Requires new labels | Use annotated patient–criterion pairs or reviewed candidates; do not train an opaque replacement for the deterministic engine |
-| RAG over trial criteria | Strong fit | Add retrieval before the existing screening workflow |
-| Gemini eligibility summary | Strong fit with controls | Ground it in stored screening evidence and validate structured citations server-side |
+| DBSCAN cohort discovery | Feasible research module | Build versioned patient-fact and screening-profile vectors from synthetic screening data and report stability and interpretable summaries |
+| FAISS similarity search | Feasible | Index the same approved cohort representations and label neighbors as research similarity, not evidence |
+| BioBERT ICD extraction | Feasible after task definition | Deferred from the selected implementation scope |
+| BioBERT eligibility matcher | Requires new labels | Deferred; do not train an opaque replacement for the deterministic engine |
+| RAG over trial criteria | Strong fit | Implement and evaluate retrieval separately, then supply versioned retrieved context to a bounded citation-validated generator |
+| Groq eligibility summary | Strong fit with controls | Ground it in stored screening evidence, validate structured citations server-side, and retain deterministic fallbacks for rate limits or provider failure |
 | LangChain | Optional | A small provider/retriever interface may be simpler and more reproducible |
 | Docker and GitHub Actions | Feasible | Add research profiles and CI checks without claiming clinical production readiness |
 | PDF eligibility report | Strong fit | Generate from stored canonical screening JSON; LLM prose is supplementary |
@@ -82,7 +100,7 @@ Therefore, “predict patient trial dropout” is blocked unless a separate part
 
 ### What is scientifically required
 
-If a valid participant-level dataset becomes available, define:
+For the selected synthetic longitudinal experiment, define and freeze:
 
 - an index date;
 - a prediction horizon, such as dropout within 30 or 90 days;
@@ -91,7 +109,7 @@ If a valid participant-level dataset becomes available, define:
 - a feature cutoff so post-outcome information cannot leak into training;
 - patient-level and temporal train/validation/test splits.
 
-Although the initial proposal says binary classification, time-to-event or survival modeling may be more appropriate when follow-up duration varies. A binary model can still be used for a fixed horizon as an explicit benchmark.
+The approved benchmark is a fixed-horizon binary task: use features available by day 30 to predict dropout by day 90. Survival modeling and controlled real-world validation are later research options, not implementation dependencies.
 
 ### Recommended model experiments
 
@@ -127,59 +145,46 @@ MLflow currently recommends model aliases and tags for references such as `champ
 
 ## B. Cohort clustering and patient similarity
 
-This is a feasible and visually compelling research extension.
+This is a feasible and visually compelling research extension built from synthetic screening data, not from the dropout-training table.
 
 ### Suggested pipeline
 
 ```text
-MIMIC event tables
-  -> approved feature extraction
-  -> aligned time windows with missingness masks
-  -> trajectory embeddings
-  -> DBSCAN clusters
-  -> FAISS vector index
-  -> cohort explorer and similar-patient view
+unique synthetic patient snapshots + fixed approved trial panel
+  -> exact existing deterministic screening engine
+  -> versioned patient-fact and screening-profile vectors
+  -> separate DBSCAN cluster runs
+  -> separate exact FAISS indexes
+  -> Cohort Atlas and similar-patient views
 ```
 
 ### Required safeguards
 
-- Normalize units and sampling intervals.
-- Handle irregular observations and missing values explicitly.
-- Prevent future events from entering an index-time embedding.
+- Count each patient once in the cohort; a patient × trial result matrix is a feature representation, not extra patients.
+- Encode `unknown` explicitly rather than treating it as pass, fail, or zero evidence.
+- Freeze patient generator, trial versions, screening-engine version, feature schema, and random seed.
 - Version the feature pipeline, embedding model, and FAISS index.
-- Report cluster stability and clinically interpretable cluster summaries.
+- Report cluster stability, noise points, and clinically interpretable summaries without asserting discovered phenotypes.
 - Keep similarity separate from eligibility evidence.
-- Never expose restricted MIMIC text or identifiers in a public deployment.
+- Exclude dropout outcomes, risk scores, chat text, and RAG output from cohort features.
 
 FAISS supports exact and approximate dense-vector similarity search, including cosine similarity through normalized inner products. [FAISS repository](https://github.com/facebookresearch/faiss)
 
 For the initial scale, an exact CPU index is sufficient. A vector database or separate microservice is not required.
 
-## C. BioBERT experiments
+## C. Deferred BioBERT experiment
+
+**Scope decision:** Deferred on 2026-07-26 and not part of the approved extension implementation.
 
 “ICD extraction” and “eligibility criterion matching” are different supervised tasks and should not be presented as one model objective.
-
-### Possible tasks
-
-1. **ICD prediction:** multi-label document classification from clinical notes.
-2. **Clinical entity extraction:** token/span classification for diagnoses, medications, observations, or procedures.
-3. **Patient–criterion matching:** pair classification or ranking using explicitly annotated pairs.
 
 MIMIC ICD codes can provide weak labels for document-level coding, but they do not provide span-level annotations or clinical-trial eligibility labels. Eligibility matching therefore needs a separately annotated dataset or a reviewed synthetic benchmark.
 
 BioBERT was evaluated for biomedical NER, relation extraction, and question answering; its pretraining does not guarantee performance on this project’s clinical eligibility task. [BioBERT paper](https://arxiv.org/abs/1901.08746)
 
-### Recommended evaluation
+Reconsider it only after choosing one labelled task, securing a valid dataset, and defining a leakage-safe held-out evaluation. Any future output must remain reviewable and disconnected from final eligibility.
 
-- Split by patient, not by note, to prevent leakage.
-- Compare BioBERT with a simple terminology/regex baseline and optionally ClinicalBERT.
-- Report micro-F1, macro-F1, per-label precision/recall, and error categories.
-- Preserve source spans and confidence as reviewable candidates.
-- Never allow the model to set the final screening state.
-
-PhysioNet also provides expert-annotated MIMIC phenotype notes that could support a narrower supervised NLP experiment, subject to the same credentialed-access and data-use requirements. [MIMIC phenotype annotations](https://physionet.org/content/phenotype-annotations-mimic/1.20.3/)
-
-## D. RAG, Gemini, and eligibility reports
+## D. RAG, Groq, and eligibility reports
 
 This is the most natural extension of the existing TrialSync product.
 
@@ -192,7 +197,7 @@ Trial source/API
   -> coordinator reviews/selects a trial version
   -> existing deterministic screening
   -> canonical evidence-backed result
-  -> optional Gemini/Groq structured explanation
+  -> optional Groq structured explanation
   -> PDF report generated from stored result
 ```
 
@@ -200,9 +205,7 @@ RAG should retrieve and rank candidates. It must not replace deterministic crite
 
 The report generator should use the stored screening JSON as its source of truth. LLM-generated wording may supplement the canonical explanation, but it must not invent facts, citations, or outcome changes.
 
-Gemini supports JSON-schema structured output, but schema compliance alone does not guarantee semantic correctness. Validate criterion IDs, evidence IDs, quotations, values, and answer scope in backend code. [Gemini structured outputs](https://ai.google.dev/gemini-api/docs/structured-output)
-
-The current bounded screening assistant can become provider-neutral across Groq and Gemini. Keep the existing rules:
+The current bounded screening assistant remains Groq-backed when available. Keep the existing rules:
 
 - only one authorized screening per conversation;
 - latest ten messages maximum;
@@ -211,7 +214,9 @@ The current bounded screening assistant can become provider-neutral across Groq 
 - refusal of diagnosis, treatment, enrollment advice, unrelated questions, and prompt injection;
 - canonical fallback when the provider is disabled or fails.
 
-LangChain is optional. It may help with orchestration, but it is not itself a research result. A direct retriever/provider interface will likely be easier to test and version.
+Provider resilience must parse numeric or HTTP-date `Retry-After`, maintain a short in-process cooldown, bound concurrency, retry only within a small budget with jitter, and cache safe retrieval/extraction work. Do not cache patient-specific chat across users. Deterministic extraction and canonical explanation fallbacks remain usable during `429` responses; a local small model is not an automatic fallback.
+
+LangChain is optional. It is not itself a research result; a direct retriever/provider interface will likely be easier to test and version.
 
 ## Recommended incremental architecture
 
@@ -221,11 +226,12 @@ Add separate research-oriented modules:
 
 ```text
 research/
-  trial_discovery/       # ClinicalTrials.gov/Kaggle adapters and retrieval
-  risk_models/            # training, inference, SHAP, model metadata
-  cohorts/                # trajectory features, DBSCAN, embeddings, FAISS
-  nlp_experiments/        # BioBERT training and held-out evaluation
+  trial_discovery/       # ClinicalTrials.gov adapter, retrieval, and bounded RAG
+  dropout_data/           # synthetic longitudinal enrollment-event protocol
+  risk_models/            # training, inference, SHAP, scenario analysis
+  cohort_profiles/        # screening-derived vectors, DBSCAN, FAISS
   mlflow_tracking/        # runs, artifacts, model aliases
+  provider_resilience/    # cooldown, retry, concurrency, and safe caches
 ```
 
 Suggested data entities:
@@ -239,53 +245,15 @@ Suggested data entities:
 
 Research outputs should be visibly labeled as research analytics and should not be conflated with screening evidence.
 
-## Suggested implementation phases
+## Selected implementation sequence
 
-### Research Phase 0: protocol and governance
-
-- Decide whether the project will use only synthetic data publicly or also run a private credentialed MIMIC workflow.
-- Record PhysioNet approvals and data-use constraints before downloading MIMIC.
-- Define research questions, target labels, splits, metrics, and leakage controls.
-- Confirm the Kaggle dataset’s exact fields and license.
-
-### Research Phase 1: trial discovery and reports
-
-- Add an official ClinicalTrials.gov API adapter.
-- Store source timestamps and raw-source checksums without exposing restricted patient data.
-- Retrieve candidate trials and criteria.
-- Reuse the existing review workflow and deterministic screening.
-- Add a PDF report generated from canonical stored results.
-
-### Research Phase 2: experiment tracking
-
-- Add MLflow locally or in a controlled development environment.
-- Track dataset, feature, code, model, metrics, and artifact versions.
-- Add a model registry with `champion` and `challenger` aliases.
-- Add CI checks for training reproducibility and inference schema compatibility.
-
-### Research Phase 3: BioBERT task
-
-- Select exactly one initial task: ICD classification, entity extraction, or criterion retrieval.
-- Build a leakage-safe held-out evaluation.
-- Keep model output reviewable and disconnected from final eligibility.
-
-### Research Phase 4: cohort explorer
-
-- Build trajectory features and embeddings.
-- Run DBSCAN with stability checks.
-- Build a versioned FAISS index.
-- Add cohort and similarity views with research-only labels.
-
-### Research Phase 5: valid retention-risk model
-
-- Proceed only after securing participant-level dropout labels.
-- Implement a fixed-horizon binary baseline and, if appropriate, a survival model.
-- Add calibration, subgroup analysis, SHAP, MLflow registry, and a versioned API.
+The phase order is intentionally maintained only in
+[`research-extension-implementation-plan.md`](research-extension-implementation-plan.md) so findings cannot drift into a second competing plan. In summary: canonical PDF reporting and CI come first, followed by the synthetic longitudinal dropout protocol, MLflow-tracked models, screening-derived cohorts and similarity, ClinicalTrials.gov RAG, and final hardening/evaluation.
 
 ## Claims to avoid
 
 - “Automatically enrolls or rejects patients.”
-- “Predicts clinical-trial dropout” when the dataset contains no trial dropout labels.
+- “Predicts clinical-trial dropout” when the dataset contains no trial dropout labels, or when evidence comes from a single study but the claim implies generalization.
 - “Production-ready clinical AI.”
 - “SHAP-based eligibility scoring.”
 - “BioBERT matches eligibility criteria” without a labeled held-out matching dataset.
@@ -294,6 +262,6 @@ Research outputs should be visibly labeled as research analytics and should not 
 
 ## Final recommendation
 
-Proceed with the pivot, but make **trial discovery + deterministic screening + grounded reporting** the product centerpiece. Treat **cohorts, BioBERT, and MLflow** as research analytics modules. Defer or reframe **patient dropout prediction** until a valid outcome dataset exists.
+Proceed with the selected scope: **genuine trial-retrieval RAG + deterministic screening + grounded reporting** as the product centerpiece, with **synthetic dropout modeling, MLflow, SHAP, DBSCAN cohorts, and FAISS similarity** as clearly separated research analytics. BioBERT is deferred. Controlled-access NCT02054715-D1 work remains future external validation and is not an implementation dependency.
 
 This approach adds meaningful research depth while preserving the architecture, tests, safety boundaries, and user experience already built in TrialSync.

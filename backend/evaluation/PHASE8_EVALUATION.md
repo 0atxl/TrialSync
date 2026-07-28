@@ -15,7 +15,7 @@ make test-e2e
 make audit
 ```
 
-The offline evaluator reads `phase7_heldout.json`, uses the deterministic extractor and canonical explainer, and makes zero provider network requests. The seed command replaces only the fixed development demo account and refuses to run when `TRIALSYNC_ENV=production`.
+The offline evaluator reads `phase7_heldout.json`, uses the deterministic extractor and canonical explainer, and makes zero provider network requests. The seed command replaces only the fixed development demo account and refuses to run when `TRIALSYNC_ENVIRONMENT=production`.
 
 ## Held-out extraction and conversation results
 

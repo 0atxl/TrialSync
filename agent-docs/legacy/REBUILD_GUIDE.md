@@ -3,7 +3,7 @@
 > **Historical reference — completed rebuild.** This document describes the original TrialSync
 > rebuild and is not the current implementation plan. Agents must not read or apply it by
 > default. Current work is governed by `AGENTS.md` and
-> [`docs/research-extension-implementation-plan.md`](docs/research-extension-implementation-plan.md).
+> [`agent-docs/research-extension-implementation-plan.md`](../research-extension-implementation-plan.md).
 > Consult only a narrowly relevant section when current code and tests do not answer a
 > core-product question.
 
@@ -1462,7 +1462,8 @@ Do not migrate the existing development database blindly. Export records to an i
 Use the first paper as project motivation rather than a claim of reproduction; the remaining sources support implementation and optional future work:
 
 - [Lee et al., JMIR AI 2024](https://ai.jmir.org/2024/1/e50800/) trained eligibility-criteria NER/relation models, built a computable knowledge base, and used rule-based patient matching. TrialSync is a smaller, explicitly explainable adaptation rather than a reproduction of its clinical scale.
-- [ClinicalTrials.gov API v2](https://clinicaltrials.gov/data-api/api) provides an official OpenAPI-described source for future trial metadata import. Preserve the returned source/version timestamp.
+- Any future external trial-metadata import requires a separately approved source contract and
+  versioned provenance; it is not part of the current eligibility-criteria RAG scope.
 - [HL7 FHIR ResearchStudy](https://hl7.org/fhir/researchstudy.html) describes study metadata and exchange use cases. Its current maturity should be considered before adopting it as the internal model.
 - [HL7 FHIR R5 EvidenceVariable](https://hl7.org/fhir/R5/evidencevariable.html) includes computable characteristics and inclusion/exclusion representation, but is marked Trial Use; use it as inspiration/interchange mapping rather than forcing the MVP database to mirror it.
 - [BioBERT paper](https://arxiv.org/abs/1901.08746) documents biomedical NER/relation/QA results; it does not establish performance on this project’s clinical records without local evaluation.

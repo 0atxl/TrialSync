@@ -1,6 +1,6 @@
 # TrialSync architecture
 
-TrialSync is an educational, synthetic-data-only pre-screening prototype. It is not a medical device, enrollment system, or general medical assistant.
+TrialSync is an educational, synthetic-data-only platform for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. A separately approved research extension is planned for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over approved trial eligibility criteria; those capabilities are not currently implemented.
 
 ```text
 reviewed text/PDF -> deterministic text extraction -> optional local Tesseract OCR
@@ -10,6 +10,10 @@ structured records -> immutable patient snapshot + approved trial version
                    -> deterministic rule engine -> stored criterion evidence/result
 stored screening + authoritative evidence -> bounded explanation conversation
 ```
+
+The planned extension would add a versioned dropout model, research cohorts, and an
+eligibility-criteria retrieval workflow. Those future research outputs will remain separate from
+the deterministic eligibility outcome.
 
 The FastAPI application owns authentication, owner-scoped persistence, document review, and immutable screening history. PostgreSQL schema changes are versioned with Alembic. The React/Vite client consumes only the versioned HTTP API.
 
@@ -31,12 +35,15 @@ replacement suggestions. The browser renders the persisted user question and
 assistant answer in an internally scrolling transcript; it never supplies
 authoritative history or screening state to the provider.
 
-The deterministic boundary is deliberate: parsing and approved rule evaluation
-produce the only screening outcome, and persistence stores the reproducible
-evidence-backed result. Groq may propose reviewable import candidates or explain
-that stored result, but it cannot approve candidates, create evidence, change a
-criterion result, or access another record. Provider-disabled, timeout,
-rate-limit, invalid-output, and refusal paths use canonical server explanations
-or safe refusal responses. Operational chat metrics contain provider/model,
-prompt version, latency, validation outcome, answer state, and citation count;
-they exclude questions, documents, raw payloads, and secrets.
+The deterministic matching boundary is deliberate: parsing and approved rule
+evaluation produce the eligibility outcome, and persistence stores the
+reproducible evidence-backed result. The planned dropout model is versioned and
+evaluated independently, allowing TrialSync to offer a forward-looking retention
+signal without turning a risk score into a match decision. Groq may propose
+reviewable import candidates or provide an AI explanation of a stored result,
+but it cannot approve candidates, create evidence, change a criterion result, or
+access another record. Provider-disabled, timeout, rate-limit, invalid-output,
+and refusal paths use canonical server explanations or safe refusal responses.
+Operational chat metrics contain provider/model, prompt version, latency,
+validation outcome, answer state, and citation count; they exclude questions,
+documents, raw payloads, and secrets.

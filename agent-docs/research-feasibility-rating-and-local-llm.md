@@ -1,7 +1,7 @@
 # TrialSync Research Feasibility, Project Assessment, and Local LLM Decision
 
 **Date:** 2026-07-26
-**Status:** R0 decision brief approved on 2026-07-26; R1 is the next implementation phase
+**Status:** R0 decision brief revised and re-approved on 2026-07-26; R1 is the next implementation phase
 **Purpose:** Record the practical feasibility audit, an intentionally blunt academic
 assessment, and the local-versus-hosted LLM recommendation before the research extension
 is implemented.
@@ -20,18 +20,20 @@ The central conclusions are:
 2. Those screening records are not a dropout dataset. A separate, reproducible, event-level
    synthetic enrollment cohort is required only for dropout modeling and scenario analysis.
 3. The research extension therefore needs two explicit datasets: a screening-derived cohort
-   for DBSCAN/FAISS and a longitudinal enrollment dataset for dropout prediction.
+   for DBSCAN/FAISS and a longitudinal enrollment dataset for dropout prediction. Product-facing
+   demo enrollments use an immutable link to the exact patient snapshot, approved trial version,
+   and potentially eligible screening needed by the Trial Recruitment Overview.
 4. Missed-dose what-if visualization is feasible and valuable, but it is model sensitivity,
    not a causal treatment-effect estimate.
 5. DBSCAN and exact CPU FAISS are technically easy at semester scale. Honest feature design,
    stability evaluation, and the frontend Cohort Atlas are the harder and more valuable work.
-6. ClinicalTrials.gov RAG is feasible if retrieval remains deterministic and measurable,
-   generation is bounded to retrieved records, citations are validated, and a cached corpus
-   supports offline use.
-7. `alsomine` can execute the installed 1–1.5B Ollama models, but live measurements show that
-   neither is reliable enough to replace Groq for grounded generation.
-8. The preferred response to Groq 429s is a stronger rate-limit-aware provider gateway plus
-   deterministic fallbacks, not an automatic switch to a weaker local model.
+6. Eligibility-criteria RAG is feasible using LangChain over TrialSync's approved trial corpus
+   and Gemini for a structured, citation-validated eligibility summary.
+7. `alsomine` can execute the installed 1–1.5B Ollama models, but live measurements do not
+   justify using either as an automatic replacement for Gemini RAG generation or the existing
+   Groq extraction/explanation features.
+8. Gemini and Groq need separate rate-limit-aware provider adapters with operation-specific
+   fallbacks, not an automatic switch to a weaker local model.
 9. The current application is already stronger than a CRUD-and-chatbot demo, but its ML
    research contribution is limited. A well-executed extension can make it a strong BTech
    capstone; merely adding library names will not.
@@ -417,42 +419,30 @@ distance is approximate and exact neighbor scores come from the full feature vec
 Drawing every possible neighbor edge would create an unreadable graph. Cluster structure should
 be visible globally, while neighbor edges appear only for the selected participant.
 
-## 7. Why ClinicalTrials.gov genuine RAG remains useful
+## 7. Why eligibility-criteria RAG is useful
 
-TrialSync currently screens trials that a user has already created or imported. It does not
-discover current public trial records.
-
-ClinicalTrials.gov API v2 exposes structured study records and an OpenAPI specification. The
-official documentation describes the `/api/v2/studies` search endpoint and structured fields
-such as NCT ID, recruitment status, conditions, age, locations, and eligibility:
-[ClinicalTrials.gov API](https://clinicaltrials.gov/data-api/api) and
-[study data structure](https://clinicaltrials.gov/data-api/about-api/study-data-structure).
-
-The proposed pipeline is:
+TrialSync already stores approved trial versions and ordered eligibility criteria, which provide
+a natural versioned corpus for the RAG component in the project brief. The coordinator uploads or
+selects a patient record, LangChain uses criterion chunks to rank candidate trial versions, the
+system expands each bounded candidate to its complete approved criteria set, and Gemini turns that
+complete context into a structured eligibility summary.
 
 ```text
-User query or approved synthetic patient summary
-  -> deterministic status/age/condition/location filters
-  -> BM25 retrieval over a versioned cached corpus
-  -> top bounded trial records and eligibility excerpts
-  -> bounded LLM comparison using only retrieved context
-  -> validate every NCT/criterion citation
-  -> user selects a result
-  -> existing review and approval workflow
+Uploaded or selected patient record
+  -> reviewed patient facts
+  -> LangChain candidate retrieval over approved eligibility criteria
+  -> complete approved criteria expansion for each bounded candidate trial
+  -> Gemini structured eligibility summary
+  -> validate every trial-version and criterion citation
+  -> user selects a candidate trial
   -> existing deterministic screening
+  -> canonical eligibility report PDF
 ```
 
-RAG adds value because the generator receives a small, current, attributable evidence package
-instead of relying on model memory. It also creates a separate retrieval research question with
-Recall@k, Precision@k, mean reciprocal rank, filter correctness, citation validity, grounded
-claim precision, and unsupported-claim counts.
-
-RAG does not replace screening. Retrieval score is not eligibility, generated prose is not
-evidence, and every selected trial still requires human review and approval.
-
-The live API should update the corpus, but automated tests and the presentation fallback should
-use a cached, checksummed public-record fixture. That keeps the demo working when the registry
-or internet is unavailable.
+RAG adds value because Gemini receives a small, attributable evidence package instead of relying
+on model memory. It also creates a measurable retrieval task with trial Recall@k, criterion
+Recall@k, mean reciprocal rank, citation validity, grounded-claim precision, and unsupported-claim
+counts. The checked-in synthetic trial corpus keeps tests and the demonstration reproducible.
 
 ## 8. MLflow, CI, and CD
 
@@ -500,21 +490,21 @@ The current manual `alsomine` workflow is safer while the research schema is cha
 push -> inspect -> SSH -> fast-forward pull -> Compose rebuild -> migration -> health checks
 ```
 
-Recommendation: implement CI now and retain manual production deployment until the research
-extension stabilizes. CD adds less academic value than the dataset, evaluation, RAG, or
-visualization work.
+Recommendation: implement CI and a protected GitHub Actions deployment workflow. Environment
+approval may remain manual, but the workflow must deploy the exact tested commit, apply
+migrations, verify health, and restore the prior commit when the health gate fails.
 
 ## 9. Practicality by phase
 
 | Phase | Practicality | Main risk | Honest effort for one student |
 |---|---|---|---|
 | R1 canonical PDF | High | deterministic pagination and long text | 3–5 focused days |
-| R2 GitHub Actions CI | High | PostgreSQL/service setup and secrets | 2–4 focused days |
+| R2 GitHub Actions CI/CD | High | PostgreSQL, deployment secrets, health gates, and rollback | 4–6 focused days |
 | R3 synthetic longitudinal protocol/dataset | Medium–high | invalid or trivially learnable generator | 1.5–2.5 weeks |
 | R4 models, MLflow, SHAP | Medium–high | leakage, calibration, dependency weight | 2–3 weeks |
 | R5 risk API and Scenario Lab | Medium–high | feature parity and non-causal wording | 1.5–2.5 weeks |
 | R6 DBSCAN, FAISS, Cohort Atlas | Medium–high | patient-level matrix design, stability, and honest 2D visualization | 2–3 weeks |
-| R7 ClinicalTrials.gov RAG | Medium–high | source drift, grounding, and provider resilience | 2.5–4 weeks |
+| R7 LangChain/Gemini eligibility RAG | Medium–high | corpus design, grounding, and provider resilience | 2–3 weeks |
 | R8 integrated evaluation | High but substantial | clean reproducibility and presentation | 1.5–2.5 weeks |
 
 The phases overlap somewhat, but the complete extension is roughly a 12–18 week part-time
@@ -599,10 +589,10 @@ The final extension would be above average in breadth and engineering complexity
 examiner story is not “many AI libraries.” It is:
 
 > One carefully bounded platform demonstrates deterministic eligibility, synthetic predictive
-> research, unsupervised cohort analytics, measured public-trial retrieval, grounded
+> research, unsupervised cohort analytics, measured eligibility-criteria retrieval, grounded
 > generation, reproducibility, and visible degraded modes without confusing those outputs.
 
-## 11. Groq resilience and local LLM decision
+## 11. Provider resilience and local LLM decision
 
 ### 11.1 Inspected hardware and deployment
 
@@ -687,20 +677,19 @@ is insufficient when Groq communicates a longer cooldown or when an account-leve
 exhausted. Repeated users can also reach the provider independently before the application
 learns that it should cool down.
 
-### 11.5 Recommended 429-resilient provider gateway
+### 11.5 Recommended provider resilience
 
-Do not place Ollama in the default request path. Strengthen the Groq boundary:
+Do not place Ollama in the default request path. Keep two explicit provider paths:
 
 ```text
-Request
-  -> operation-specific cache lookup
-  -> in-process concurrency semaphore
-  -> shared provider cooldown/circuit check
-  -> Groq call
-       -> success: validate schema, citations, and scope
-       -> 429: parse Retry-After, record cooldown, bounded retry only when short
-       -> timeout/5xx: one jittered bounded retry
-  -> deterministic fallback
+Groq extraction/chat
+  -> Groq-specific cache, concurrency limit, cooldown, validation, and canonical fallback
+
+Gemini eligibility RAG
+  -> LangChain candidate retrieval
+  -> complete approved criteria expansion
+  -> Gemini-specific concurrency limit, cooldown, schema/citation validation
+  -> fallback to ranked LangChain candidates without a generated summary
 ```
 
 Recommended behavior:
@@ -712,12 +701,12 @@ Recommended behavior:
 - retry once only when the indicated wait is short and remains inside the request deadline;
 - fall back immediately when the cooldown is long or the daily/token quota appears exhausted;
 - add small randomized jitter to transient retry delays;
-- limit concurrent Groq calls with an async semaphore;
+- limit concurrent Groq and Gemini calls with separate async semaphores and cooldown state;
 - cache reviewed extraction by redacted source checksum + model + prompt version;
-- cache public-trial RAG summaries by query/filter + corpus + retriever + model + prompt version;
+- cache owner-scoped RAG summaries by patient snapshot + corpus + retriever + model + prompt version;
 - do not cross-user cache patient-specific chat answers;
 - return an explicit rate-limited/degraded state and `retry_after_seconds` metadata;
-- validate all NCT, criterion, evaluation, and evidence identifiers;
+- validate all trial-version, criterion, evaluation, and evidence identifiers;
 - reject unsupported generated claims;
 - expose a user-controlled retry action after the cooldown;
 - record only safe aggregate provider metrics, never prompt or patient content.
@@ -726,7 +715,7 @@ Operation-specific fallback remains:
 
 - extraction: deterministic candidates and human review;
 - screening explanation: canonical criterion explanations;
-- RAG: deterministic ranked ClinicalTrials.gov results without generated comparison;
+- RAG: ranked LangChain criteria retrieval without the Gemini summary;
 - eligibility: unchanged deterministic engine.
 
 The local benchmark remains useful evidence for why this decision was made. Ollama can stay
@@ -742,7 +731,16 @@ The research extension should create a coherent visible surface:
 - synthetic-data boundary;
 - dataset and generator versions;
 - champion model and evaluation summary;
-- links to Scenario Lab, Cohort Atlas, Trial Discovery, and methods.
+- links to Trial Recruitment Overview, Scenario Lab, Cohort Atlas, Eligibility RAG, and methods.
+
+### Trial Recruitment Overview
+
+- group canonical screening states by approved trial version;
+- show potentially eligible, needs-review, and likely-ineligible totals;
+- chart dropout-risk bands only for potentially eligible participants with a versioned
+  research-enrollment linkage;
+- show linked and unlinked denominators;
+- link aggregate values back to the screening, enrollment, model, and prediction versions.
 
 ### Risk Scenario Lab
 
@@ -761,13 +759,13 @@ The research extension should create a coherent visible surface:
 - full-space similarity scores and feature differences;
 - table alternative.
 
-### Trial Discovery
+### Eligibility RAG
 
-- ClinicalTrials.gov filters and source date;
-- ranked deterministic retrieval results;
-- citation-validated bounded RAG comparison;
-- provider-degraded state that preserves ranked results;
-- send-to-review action.
+- patient-record upload or existing-patient selection;
+- LangChain-ranked candidate trials followed by complete approved-criteria expansion;
+- Gemini structured summary with validated criterion citations;
+- provider-degraded state that preserves LangChain retrieval results;
+- run-authoritative-screening action.
 
 ### Methods and evidence
 
@@ -787,14 +785,14 @@ method or evidence that produced it.
 ### Go
 
 - canonical PDF;
-- GitHub Actions CI;
+- GitHub Actions CI/CD with a protected, health-gated deployment and rollback;
 - separate multi-condition synthetic longitudinal dropout cohort;
 - screening-derived patient-fact and screening-profile cohorts;
 - logistic regression, XGBoost, LightGBM, MLflow, and SHAP;
 - missed-dose Scenario Lab;
 - DBSCAN and exact FAISS;
 - Cohort Atlas;
-- ClinicalTrials.gov retrieval with bounded, citation-validated RAG;
+- LangChain criteria retrieval with Gemini structured, citation-validated summaries;
 - rate-limit-aware Groq gateway and deterministic fallbacks;
 - integrated evaluation and documentation.
 
@@ -807,14 +805,15 @@ method or evidence that produced it.
 - cluster on dropout outcome, predicted risk, or a single overall eligibility outcome;
 - expose raw MLflow or Ollama publicly;
 - automatically route 429s to an unevaluated 1B model;
-- add automatic CD before migration, health-gate, and rollback behavior are stable;
+- deploy from an untested commit or without migration, health-gate, and rollback behavior;
 - claim clinical validity from synthetic data.
 
 ### Next task
 
-R0 has locked the condition portfolio, day-30/day-90 task, approximate prevalence, cohort
+R0 has re-locked the condition portfolio, day-30/day-90 task, approximate prevalence, cohort
 sizes, Scenario Lab direction, patient-fact and screening-profile representations, seeded PCA
-display, and the Groq-resilience approach. Begin R1 only: generate a canonical screening PDF
+display, linked Trial Recruitment Overview, LangChain/Gemini RAG, provider-resilience approach,
+and GitHub Actions CI/CD contract. Begin R1 only: generate a canonical screening PDF
 from stored evidence and verify its populated, `unknown`, long-text, and pagination states.
 
 Phase-specific details such as the exact synthetic event taxonomy, bounded generator regimes,

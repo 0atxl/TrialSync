@@ -1,8 +1,8 @@
-# TrialSync Explanation Chatbot Implementation Plan
+# TrialSync AI Explanation Assistant Implementation Plan
 
 ## Purpose and boundary
 
-This plan is intentionally separate from the general product build phases. It covers only the screening-scoped explanation assistant on a saved screening result. The assistant explains authoritative stored criteria and evidence; it cannot provide medical advice, recommend enrollment or treatment, invent evidence, approve extracted candidates, or change a screening outcome.
+This plan is intentionally separate from the general product build phases. It covers the AI explanation assistant for a saved screening result: a practical interface for turning criterion evidence into clear answers about a patient–trial match. Its grounding rules ensure that explanations strengthen the matching workflow rather than competing with it; the assistant cannot invent evidence, approve extracted candidates, or change a screening outcome.
 
 The deterministic screening engine, canonical criterion explanations, and structured evidence table remain the source of truth and must keep working when the conversational provider is disabled or unavailable.
 

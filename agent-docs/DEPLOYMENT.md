@@ -6,6 +6,22 @@ network. Only Nginx is published to the host at `127.0.0.1:8081`; PostgreSQL
 has no host port. Configure Cloudflare Tunnel with origin
 `http://127.0.0.1:8081` and public hostname `trialsync.atuls.me`.
 
+## GitHub Actions CI/CD contract
+
+Phase R2 will automate this existing Docker Compose deployment through a protected GitHub
+`production` environment. The deployment job must:
+
+1. run only for the exact main-branch commit that passed every CI gate;
+2. use repository/environment secrets for the constrained SSH deployment credential;
+3. record the currently deployed commit before rollout;
+4. deploy the tested commit, run migrations, and wait for Compose health checks;
+5. verify the public live and ready endpoints; and
+6. restore the prior commit and rerun the health gate when rollout fails.
+
+Environment approval may remain manual, but deployment commands, health verification, rollback,
+and workflow evidence are automated. Until R2 is implemented and tested, use the manual procedure
+below.
+
 ## First deployment
 
 Install Docker Engine with the Compose plugin and Cloudflare Tunnel on the host.
@@ -28,6 +44,10 @@ same value in `DATABASE_URL` after `trialsync:` (hex output needs no encoding).
 Put the second value in `TRIALSYNC_AUTH_SECRET`. Do not commit
 `.env.production`. Optionally set `GROQ_API_KEY` on the host; leaving it empty
 keeps the deterministic/canonical fallbacks available.
+
+After R7 is implemented, set `GEMINI_API_KEY` through the protected GitHub production
+environment when Gemini summaries are enabled. CI and image builds must not receive either
+provider key.
 
 Start the complete stack. The `migrate` service runs `alembic upgrade head`
 after PostgreSQL is healthy, and the API is not started until it succeeds.

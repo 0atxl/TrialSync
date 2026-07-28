@@ -1,6 +1,8 @@
 # TrialSync
 
-TrialSync is an academic full-stack prototype for explainable clinical-trial pre-screening using synthetic data only. It connects the deterministic `pass`, `fail`, and `unknown` engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
+TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with a planned research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
+
+The deterministic matching result is the foundation. The research extension will add separately versioned dropout-risk predictions, scenario analysis, SHAP explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured eligibility summary.
 
 ## Prerequisites
 
@@ -80,16 +82,35 @@ screenshots use only the seeded synthetic workspace:
 
 The browser API base URL comes from `VITE_API_BASE_URL` in the root `.env`; backend settings come from `DATABASE_URL` and `TRIALSYNC_*` variables. No credentials belong in Git.
 
+## Current capabilities
+
+The current workspace supports the evidence-backed matching workflow:
+
+- Match a patient against trial criteria and inspect the evidence behind every result.
+- Identify missing facts that block a confident match and preserve immutable screening evidence.
+- Review imported synthetic text or PDFs before approving structured facts and criteria.
+- Ask evidence-grounded questions about one stored screening without changing its outcome.
+
+## Planned research extension
+
+The approved research roadmap is not yet implemented in the running application. It proposes
+separately versioned fixed-horizon dropout-risk predictions, scenario analysis, SHAP
+explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini eligibility-criteria
+workflow. These research outputs will remain separate from the deterministic eligibility result.
+
+This is an educational, synthetic-data-only platform. Eligibility is a reproducible rule-based
+matching outcome; optional AI-assisted extraction and explanations never determine it.
+
 ## Production deployment
 
 The development `compose.yaml` intentionally runs only PostgreSQL. The full
 production stack is defined in `compose.prod.yaml`: Nginx serves the compiled
 frontend and proxies the API at the same origin, PostgreSQL remains private to
 Compose, and only `127.0.0.1:8081` is published for Cloudflare Tunnel. See
-[`DEPLOYMENT.md`](DEPLOYMENT.md) for first deployment, migrations, backup,
+[`agent-docs/DEPLOYMENT.md`](agent-docs/DEPLOYMENT.md) for first deployment, migrations, backup,
 restore, upgrades, and the required `trialsync.atuls.me` tunnel origin.
 
-## Phase 2 workflow
+## Core workflow
 
 1. Register a demo account at `/register` or sign in at `/login`.
 2. Search fictional patients at `/patients` or use **Add patient** for the focused creation flow, then open one to record conditions, medications, observations, and demographics.
@@ -104,7 +125,7 @@ after confirming it represents a distinct synthetic person. Detail pages provide
 confirmed delete actions. Patient deletion preserves immutable screening snapshots,
 while trials referenced by screening history remain protected from deletion.
 
-## Phase 3 deterministic engine
+## Deterministic eligibility engine
 
 The pure package at `backend/src/trialsync/domain` evaluates immutable typed inputs without importing FastAPI, SQLAlchemy, PostgreSQL drivers, hosted providers, ML packages, or the system clock. Callers supply the screening date explicitly:
 
@@ -159,7 +180,7 @@ POST               /api/v1/screenings/{screening_id}/conversation/messages
 DELETE             /api/v1/screenings/{screening_id}/conversation
 ```
 
-## Phase 4 screening history
+## Saved screening history
 
 `POST /api/v1/screenings` accepts a user-owned `patient_id`, an approved
 `trial_version_id`, and an optional ISO screening date. It creates or reuses an
@@ -181,7 +202,7 @@ engine version, and the whole batch rolls back on unexpected persistence failure
 The response includes state totals, the total unknown-criterion count, and a normal
 evidence-backed screening ID for every matrix cell.
 
-## Phase 5 screening workspace
+## Screening workspace
 
 After creating structured synthetic patients and approving a trial version, use the
 workspace dashboard to run a single screening. The result page shows the immutable
@@ -196,7 +217,7 @@ batch. Each batch matrix cell links back to the ordinary evidence-rich screening
 detail page. The UI is educational and uses synthetic data only; it does not provide
 medical advice or enrollment guidance.
 
-## Phase 6 reviewed imports
+## Reviewed imports
 
 Patient and trial list pages link to a review-first import flow for pasted text and
 PDFs. Pasted text is limited to 1 MB and PDFs to 5 MB/10 pages. Encrypted,
@@ -216,7 +237,7 @@ separate approval step. Unsupported criterion prose stays visible for manual rev
 and is never silently converted into an eligibility rule. No hosted NLP provider is
 used in this phase.
 
-## Phase 7 bounded NLP and explanation conversation
+## Bounded NLP and explanation conversation
 
 Reviewed import uses Groq-assisted extraction by default (`TRIALSYNC_EXTRACTION_PROVIDER=groq`).
 With a configured `GROQ_API_KEY`, Groq may propose schema-validated patient facts or
@@ -249,14 +270,14 @@ payloads, or secrets.
 The default hosted model is configurable through `TRIALSYNC_GROQ_MODEL`. As verified
 in the official [Groq supported-model list](https://console.groq.com/docs/models) and
 [structured-output guide](https://console.groq.com/docs/structured-outputs) on
-2026-07-16, `openai/gpt-oss-20b` is a production model supporting strict JSON-schema
+2026-07-29, `openai/gpt-oss-20b` is a production model supporting strict JSON-schema
 output. Set `TRIALSYNC_EXTRACTION_PROVIDER` to `auto`, `rule_based`, `groq`, or
 `disabled`; set `TRIALSYNC_SCREENING_CHAT_PROVIDER` to `auto`, `canonical`, `groq`,
 or `disabled`. Never send real patient data. The held-out synthetic evaluation and
 its live-provider limitations are documented in
 `backend/evaluation/PHASE7_EVALUATION.md`.
 
-## Phase 8 reproducible demo and evaluation
+## Reproducible demo and evaluation
 
 Create or restore the fixed synthetic development account and its deterministic
 screening matrix:
@@ -328,18 +349,10 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 
 ## Current scope
 
-| Phase | Status | Evidence |
-|---|---|---|
-| 0. Clean repository | Complete | Planning documents and agent instructions are committed |
-| 1. Foundation | Complete | Migration, health/config tests, routed frontend tests, type check, lint, and build |
-| 2. Authentication and structured data | Complete | Owner-scoped auth, patient/fact and trial/version/criterion API and UI tests |
-| 3. Deterministic screening engine | Complete | Pure typed engine with 43 domain golden tests and conservative unknown propagation |
-| 4. Screening API and history | Complete | Immutable snapshots, stored criterion evidence, transactional single/batch history, ownership, limits, rollback, and equivalence tests |
-| 5. Single and batch frontend | Complete | Dashboard, single and batch workflows, evidence detail, history filters, and linked result matrix |
-| 6. Reviewed text and PDF ingestion | Complete | Deterministic candidate extraction, immutable provenance, editable review, explicit approval, bounded PDF handling, API/UI error states, and ownership tests |
-| 7. Groq extraction and explanation chat | Complete | Provider-neutral reviewed extraction, exact provenance validation, bounded screening conversation, citation validation, safe refusals/fallbacks, persistence, and UI states |
-| 8. Evaluation and polish | Complete | Repeatable 6-patient/2-trial seed, offline held-out evaluation, six critical browser workflows, responsive chatbot UI, dependency audit, and full-suite task runner |
-| 9. Final semester delivery | In progress | Documentation and screenshot package is being finalized; clean-release verification and commit/tag remain |
+The implemented application covers owner-scoped synthetic patient and trial records, deterministic
+single and batch screening, reviewed text/PDF imports, bounded Groq-assisted candidate extraction,
+and evidence-grounded screening conversations. The research extension described above remains
+planned and is not represented as a current product capability.
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.
 

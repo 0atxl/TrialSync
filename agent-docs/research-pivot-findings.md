@@ -14,11 +14,12 @@ The proposed pivot is valuable, but it should be presented as a research extensi
 
 The strongest incremental direction is:
 
-1. Add ClinicalTrials.gov discovery, measured criterion retrieval, and a genuinely retrieval-augmented bounded generator.
+1. Add measured LangChain retrieval over approved trial eligibility criteria and a
+   schema-validated Gemini eligibility-summary generator.
 2. Reuse the existing deterministic, evidence-backed screening engine.
 3. Add reproducible synthetic dropout-risk experiments with logistic regression, XGBoost, LightGBM, SHAP, and MLflow.
 4. Add research-only cohort embeddings, DBSCAN clustering, and FAISS patient similarity.
-5. Add canonical PDF reporting, a separate research UI/API, CI, and final evaluation.
+5. Add canonical PDF reporting, a separate research UI/API, GitHub Actions CI/CD, and final evaluation.
 
 BioBERT is deferred from the selected implementation scope. It remains a possible future experiment only after one supervised task and a suitable labelled dataset are approved.
 
@@ -28,7 +29,7 @@ The current eligibility decision must remain deterministic. Machine-learning mod
 
 ### Recommended title
 
-> **TrialSync Research: Explainable Clinical-Trial Discovery, Deterministic Pre-screening, and Patient-Cohort Analytics**
+> **TrialSync: Clinical Trial Patient Matching and Dropout Prediction**
 
 If access to a valid participant-level dropout dataset is secured:
 
@@ -48,13 +49,17 @@ Access requires PhysioNet credentialing, human-subjects/HIPAA training, and a da
 
 Source: [PhysioNet MIMIC-III Clinical Database](https://physionet.org/content/mimiciii/1.4/)
 
-### COVID-19 clinical-trials dataset
+### Trial eligibility-criteria corpus
 
-A ClinicalTrials.gov-derived COVID-19 dataset is useful for study-level information such as trial status, design, eligibility text, recruitment, and locations. It does not provide patient-level medical records linked to enrollment and dropout outcomes.
+The RAG requirement does not need a public trial-registry integration. TrialSync already owns the
+right retrieval unit: immutable approved trial versions with ordered inclusion and exclusion
+criteria. These records form a versioned, checksummed corpus that can be expanded with synthetic
+trial fixtures for retrieval training, evaluation, and demonstration.
 
-Use the Kaggle snapshot for a reproducible historical benchmark if its exact license and fields are verified. For current open-trial discovery, prefer the official ClinicalTrials.gov API v2, recording the source timestamp and study version.
-
-Source: [ClinicalTrials.gov API](https://clinicaltrials.gov/data-about-studies/learn-about-api)
+One indexed chunk should represent one approved criterion with its criterion ID, trial-version ID,
+kind, source text, order, and content checksum. LangChain ranks candidate trials from those
+chunks; each bounded candidate then expands to its complete approved criteria set before Gemini
+generates the structured summary.
 
 ### Candidate participant-level retention datasets
 
@@ -91,9 +96,9 @@ Therefore, “predict patient trial dropout” remains blocked for the originall
 | BioBERT ICD extraction | Feasible after task definition | Deferred from the selected implementation scope |
 | BioBERT eligibility matcher | Requires new labels | Deferred; do not train an opaque replacement for the deterministic engine |
 | RAG over trial criteria | Strong fit | Implement and evaluate retrieval separately, then supply versioned retrieved context to a bounded citation-validated generator |
-| Groq eligibility summary | Strong fit with controls | Ground it in stored screening evidence, validate structured citations server-side, and retain deterministic fallbacks for rate limits or provider failure |
-| LangChain | Optional | A small provider/retriever interface may be simpler and more reproducible |
-| Docker and GitHub Actions | Feasible | Add research profiles and CI checks without claiming clinical production readiness |
+| Gemini eligibility summary | Strong fit | Generate a schema-validated summary from only the patient context and criteria returned by LangChain |
+| LangChain | Required by brief | Use it as the explicit retrieval orchestration layer over versioned approved criteria |
+| Docker and GitHub Actions | Feasible | Run CI and deploy the tested commit through a protected environment with migrations, health gates, and rollback |
 | PDF eligibility report | Strong fit | Generate from stored canonical screening JSON; LLM prose is supplementary |
 
 ## A. Dropout or retention-risk prediction
@@ -184,20 +189,21 @@ BioBERT was evaluated for biomedical NER, relation extraction, and question answ
 
 Reconsider it only after choosing one labelled task, securing a valid dataset, and defining a leakage-safe held-out evaluation. Any future output must remain reviewable and disconnected from final eligibility.
 
-## D. RAG, Groq, and eligibility reports
+## D. LangChain/Gemini RAG and eligibility reports
 
 This is the most natural extension of the existing TrialSync product.
 
 ### Recommended flow
 
 ```text
-Trial source/API
-  -> retrieve candidate trials and relevant criteria
-  -> show retrieval score and source metadata
-  -> coordinator reviews/selects a trial version
+Coordinator uploads or selects a patient record
+  -> review/approve extracted patient facts
+  -> LangChain ranks candidate trials from approved criteria
+  -> expand each bounded candidate to its complete approved criteria set
+  -> Gemini generates a structured, criterion-cited eligibility summary
+  -> coordinator selects a candidate trial
   -> existing deterministic screening
   -> canonical evidence-backed result
-  -> optional Groq structured explanation
   -> PDF report generated from stored result
 ```
 
@@ -205,7 +211,8 @@ RAG should retrieve and rank candidates. It must not replace deterministic crite
 
 The report generator should use the stored screening JSON as its source of truth. LLM-generated wording may supplement the canonical explanation, but it must not invent facts, citations, or outcome changes.
 
-The current bounded screening assistant remains Groq-backed when available. Keep the existing rules:
+The existing screening explanation assistant may remain Groq-backed. It is a different feature
+from the Gemini RAG summary and should keep its existing grounding rules:
 
 - only one authorized screening per conversation;
 - latest ten messages maximum;
@@ -214,9 +221,10 @@ The current bounded screening assistant remains Groq-backed when available. Keep
 - refusal of diagnosis, treatment, enrollment advice, unrelated questions, and prompt injection;
 - canonical fallback when the provider is disabled or fails.
 
-Provider resilience must parse numeric or HTTP-date `Retry-After`, maintain a short in-process cooldown, bound concurrency, retry only within a small budget with jitter, and cache safe retrieval/extraction work. Do not cache patient-specific chat across users. Deterministic extraction and canonical explanation fallbacks remain usable during `429` responses; a local small model is not an automatic fallback.
-
-LangChain is optional. It is not itself a research result; a direct retriever/provider interface will likely be easier to test and version.
+Provider resilience must bound Gemini context/output, maintain a short in-process cooldown, limit
+concurrency, retry only within a small budget, and cache only owner-scoped results keyed by patient
+snapshot, corpus/index, retriever, model, and prompt versions. LangChain retrieval remains
+available when Gemini generation fails.
 
 ## Recommended incremental architecture
 
@@ -226,7 +234,7 @@ Add separate research-oriented modules:
 
 ```text
 research/
-  trial_discovery/       # ClinicalTrials.gov adapter, retrieval, and bounded RAG
+  eligibility_rag/       # LangChain criteria retrieval and Gemini structured summaries
   dropout_data/           # synthetic longitudinal enrollment-event protocol
   risk_models/            # training, inference, SHAP, scenario analysis
   cohort_profiles/        # screening-derived vectors, DBSCAN, FAISS
@@ -236,8 +244,11 @@ research/
 
 Suggested data entities:
 
-- `trial_source_records`: source, fetched timestamp, source version, checksum.
-- `trial_retrieval_results`: query, candidate trial, rank, retrieval score, model/index version.
+- `eligibility_rag_indexes`: corpus checksum, chunking/retriever/index versions, build timestamp.
+- `eligibility_rag_results`: patient snapshot, candidate trial, criterion citations, rank,
+  retrieval score, Gemini model/prompt version.
+- `research_enrollment_links`: immutable linkage among a generated enrollment, patient snapshot,
+  approved trial version, and canonical potentially eligible screening.
 - `research_model_versions`: MLflow name, version, alias, feature schema, validation status.
 - `research_predictions`: subject, model version, prediction horizon, output, explanation metadata.
 - `cohort_runs`: feature pipeline version, embedding version, cluster parameters, metrics.
@@ -248,7 +259,7 @@ Research outputs should be visibly labeled as research analytics and should not 
 ## Selected implementation sequence
 
 The phase order is intentionally maintained only in
-[`research-extension-implementation-plan.md`](research-extension-implementation-plan.md) so findings cannot drift into a second competing plan. In summary: canonical PDF reporting and CI come first, followed by the synthetic longitudinal dropout protocol, MLflow-tracked models, screening-derived cohorts and similarity, ClinicalTrials.gov RAG, and final hardening/evaluation.
+[`research-extension-implementation-plan.md`](research-extension-implementation-plan.md) so findings cannot drift into a second competing plan. In summary: canonical PDF reporting and GitHub Actions CI/CD come first, followed by the synthetic longitudinal dropout protocol, MLflow-tracked models, screening-derived cohorts and similarity, LangChain/Gemini eligibility RAG, and final hardening/evaluation.
 
 ## Claims to avoid
 
@@ -262,6 +273,12 @@ The phase order is intentionally maintained only in
 
 ## Final recommendation
 
-Proceed with the selected scope: **genuine trial-retrieval RAG + deterministic screening + grounded reporting** as the product centerpiece, with **synthetic dropout modeling, MLflow, SHAP, DBSCAN cohorts, and FAISS similarity** as clearly separated research analytics. BioBERT is deferred. Controlled-access NCT02054715-D1 work remains future external validation and is not an implementation dependency.
+Proceed with the selected scope: **LangChain candidate retrieval + complete approved-criteria
+expansion + Gemini structured eligibility summaries + deterministic screening + grounded
+reporting** as the product centerpiece, with **linked synthetic dropout modeling, MLflow, SHAP,
+trial-grouped retention views, DBSCAN cohorts, and FAISS similarity** as the research analytics
+layer. GitHub Actions provides CI/CD to the configured target. BioBERT is deferred.
+Controlled-access NCT02054715-D1 work remains future external validation and is not an
+implementation dependency.
 
 This approach adds meaningful research depth while preserving the architecture, tests, safety boundaries, and user experience already built in TrialSync.

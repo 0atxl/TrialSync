@@ -1,24 +1,26 @@
 # TrialSync Research Extension: Phased Implementation Plan
 
 **Date:** 2026-07-24
-**Status:** R0 approved and locked on 2026-07-26; R1 is the next authorized phase
+**Status:** R0 revised and re-locked on 2026-07-26 after alignment with the supplied
+LangChain/Gemini RAG and GitHub Actions CI/CD brief; R1 is the next authorized phase
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
 
-This document is the authoritative implementation sequence for the selected TrialSync research
-extension. It converts the original bootcamp brief into bounded, testable phases while
-preserving the completed deterministic screening product.
+This document is the authoritative implementation sequence for **TrialSync: Clinical Trial
+Patient Matching and Dropout Prediction**. It evolves the completed explainable matching product
+into a broader, testable clinical-research platform while preserving deterministic eligibility as
+the trusted matching core.
 
 The approved extension contains:
 
-1. Canonical evidence-backed PDF reporting and GitHub Actions CI.
+1. Canonical evidence-backed PDF reporting and GitHub Actions CI/CD.
 2. A separate synthetic longitudinal enrollment dataset for dropout-risk research.
 3. Logistic regression, XGBoost, LightGBM, MLflow, SHAP, and a missed-dose Scenario Lab.
 4. A screening-derived patient cohort for DBSCAN clustering, FAISS similarity, and the
    Cohort Atlas.
-5. ClinicalTrials.gov discovery with measured retrieval, bounded grounded generation,
-   citation validation, and Groq 429 resilience.
+5. LangChain retrieval over approved, versioned trial eligibility criteria with a
+   Gemini-generated structured eligibility summary and citation validation.
 6. Integrated evaluation, documentation, and presentation evidence.
 
 The feasibility evidence and rationale are recorded in
@@ -28,7 +30,7 @@ The feasibility evidence and rationale are recorded in
 The extension has two distinct surfaces:
 
 ```text
-TrialSync core product
+TrialSync patient-matching core
   -> reviewed patient/trial inputs
   -> deterministic pass/fail/unknown screening
   -> canonical evidence and downloadable report
@@ -38,11 +40,11 @@ TrialSync research analytics
   -> dropout-risk experiments and Scenario Lab
   -> screening-derived patient cohort
   -> DBSCAN clustering, FAISS similarity, and Cohort Atlas
-  -> public-trial retrieval and grounded RAG
+  -> patient-record-to-criteria RAG and grounded eligibility summary
   -> clearly separated research outputs
 ```
 
-The deterministic screening result remains the source of truth. Research predictions, clusters, similarity results, SHAP values, retrieval scores, and LLM prose must never change eligibility.
+The deterministic screening result remains the source of truth for patient–trial matching. Research predictions, clusters, similarity results, SHAP values, retrieval scores, and LLM prose enrich the workflow with retention, discovery, and explanatory insight; they must never change eligibility.
 
 ## 2. Current baseline
 
@@ -64,14 +66,14 @@ The following capabilities already exist and should not be rebuilt:
 Known extension gaps:
 
 - No downloadable canonical screening-result PDF.
-- No GitHub Actions workflow.
+- No GitHub Actions CI/CD workflow.
 - No synthetic longitudinal enrollment dataset for dropout research.
 - No screening-derived patient cohort/reference-trial matrix.
 - No dropout-risk model, model registry, calibration report, or SHAP explanation.
 - No research-risk inference API or UI.
 - No patient-fact or screening-profile clustering/similarity experiment.
 - No FAISS index.
-- No ClinicalTrials.gov discovery adapter or retrieval evaluation.
+- No LangChain eligibility-criteria retriever, Gemini structured-summary provider, or RAG evaluation.
 - No research-extension evaluation/reporting package.
 
 ## 3. Fixed decisions
@@ -87,9 +89,10 @@ These decisions apply to every phase unless the user explicitly changes them aft
   a fixed, versioned panel of approved synthetic trial versions.
 - MIMIC-III, PRO-ACT, n2c2, NCT02054715-D1, and Project Data Sphere are not implementation dependencies.
 - Restricted datasets may be discussed as future validation sources but are never required to run the project.
-- ClinicalTrials.gov may be accessed because it contains public study records, not patient records.
+- The RAG corpus is built from approved, versioned trial criteria already stored in TrialSync
+  plus checked-in synthetic trial fixtures; it does not require a live external trial registry.
 
-### 3.2 Decision boundary
+### 3.2 Product-integrity boundary
 
 - Eligibility remains deterministic.
 - A dropout probability is not an eligibility score.
@@ -102,12 +105,15 @@ These decisions apply to every phase unless the user explicitly changes them aft
 ### 3.3 Product boundary
 
 - Research analytics live in a visibly labelled research area.
+- The research frontend includes a **Trial Recruitment Overview** that groups saved screenings by approved trial version. Selecting a trial shows its potentially eligible, needs-review, and likely-ineligible counts, then a compact retention chart showing how many linked, potentially eligible research participants are in each dropout-risk band.
+- The retention chart is an operational planning view, not a new eligibility result. It requires an explicit, versioned linkage between a screening snapshot and the longitudinal research participant/trial context; no count may be inferred by joining unrelated screening and dropout cohorts.
 - Existing screening contracts remain backward compatible unless a phase explicitly documents a versioned addition.
-- The core application continues to work when research dependencies, MLflow, FAISS, ClinicalTrials.gov, or Groq are unavailable.
+- The core application continues to work when research dependencies, MLflow, FAISS, Gemini, or Groq are unavailable.
 - No queue, Redis, Celery, microservice, Kubernetes, vector database, billing system, or EHR integration is introduced.
 - Ollama and local language models are not part of TrialSync's default provider path.
-- Groq remains optional; deterministic extraction, ranked retrieval, canonical explanations,
-  and screening continue to work during provider cooldown or failure.
+- Gemini is used for the required RAG eligibility summary; Groq remains the existing optional
+  extraction/chat provider. Criteria retrieval, canonical explanations, and screening continue
+  to work during provider cooldown or failure.
 
 ### 3.4 Claim boundary
 
@@ -116,7 +122,7 @@ Allowed claims:
 - "Synthetic dropout-risk modeling demonstration."
 - "Research-only cohort discovery over generated patient profiles."
 - "Similarity in a versioned synthetic feature space."
-- "Public trial discovery using ClinicalTrials.gov records."
+- "RAG-assisted matching over approved, versioned trial eligibility criteria."
 - "Evidence-backed deterministic pre-screening."
 
 Disallowed claims:
@@ -127,27 +133,28 @@ Disallowed claims:
 - "Automatically determines trial eligibility."
 - "Production clinical platform."
 - "HIPAA compliant" or "hospital ready."
-- "Continuous deployment" unless a real tested deployment target is configured.
+- "Continuous deployment" before the configured target, protected environment, health gate,
+  and rollback path are implemented and tested.
 
 ### 3.5 Selected scope
 
 Approved for inclusion:
 
 - Canonical evidence-backed screening PDF reports.
-- GitHub Actions continuous integration and reproducible delivery checks.
+- GitHub Actions continuous integration and health-gated deployment to the configured target.
 - A versioned synthetic longitudinal participant dataset.
 - Logistic-regression, XGBoost, and LightGBM dropout-risk experiments with MLflow and SHAP.
 - A separate research-risk API and UI.
+- A trial-centric recruitment and retention overview, including grouped screening counts and an aggregate dropout-risk chart for explicitly linked research participants.
 - DBSCAN cohort discovery and FAISS participant similarity.
-- ClinicalTrials.gov discovery plus a measured, genuinely retrieval-augmented bounded generator.
+- LangChain retrieval over approved trial criteria plus a schema-validated Gemini eligibility summary.
 - Integrated evaluation, documentation, and presentation evidence.
 
 Deferred:
 
 - BioBERT clinical extraction or patient–criterion matching.
 - Restricted patient-level datasets as runtime, build, test, or public-demo dependencies.
-- Automatic continuous deployment.
-- Local small-model fallback for Groq failures.
+- Local small-model fallback for Gemini or Groq failures.
 
 ## 4. Proposed final architecture
 
@@ -161,8 +168,8 @@ backend/src/trialsync/
     cohort_profiles/         # patient facts and screening-profile matrices
     cohorts/                 # DBSCAN, stability, projections, summaries
     similarity/              # FAISS index build/query and metadata
-    trial_discovery/         # ClinicalTrials.gov adapter, retrieval, and bounded RAG
-    provider_resilience/     # Groq cooldown, cache, concurrency, and fallbacks
+    eligibility_rag/         # LangChain criteria retrieval and Gemini structured summaries
+    provider_resilience/     # Gemini/Groq cooldown, cache, concurrency, and fallbacks
 
 backend/research/
   configs/                    # versioned experiment configurations
@@ -182,7 +189,7 @@ R0 Scope lock
  |
  +--> R1 Canonical screening report
  |
- +--> R2 Continuous integration
+ +--> R2 GitHub Actions CI/CD
  |
  +--> R3 Synthetic longitudinal dropout protocol and dataset
        -> R4 Dropout model experiments
@@ -190,7 +197,7 @@ R0 Scope lock
  |
  +--> R6 Screening-derived cohorts, DBSCAN, FAISS, and Cohort Atlas
  |
- +--> R7 ClinicalTrials.gov discovery and genuine RAG
+ +--> R7 Eligibility-criteria RAG with LangChain and Gemini
  |
  +--> R8 Integrated evaluation, documentation, and presentation
 ```
@@ -198,8 +205,8 @@ R0 Scope lock
 R1 and R2 may proceed independently after R0. R4 depends on the accepted R3 longitudinal
 dropout dataset, and R5 depends on an R4 model passing its declared acceptance criteria. R6
 uses a different screening-derived patient cohort and does not depend on the dropout dataset.
-R7 is independent of both research datasets and includes the Groq resilience work required by
-grounded generation.
+R7 is independent of both research datasets and uses the existing approved trial versions as
+its retrieval corpus.
 
 ## 6. Phase R0 — Scope lock and research protocol
 
@@ -224,11 +231,12 @@ Record the approved extension boundaries and prevent later phases from silently 
 | Scenario analysis | Missed-dose Scenario Lab with non-causal model-sensitivity wording |
 | Cohort representations | Patient-fact space and screening-profile space |
 | Cohort visualization | Seeded PCA initially; DBSCAN/FAISS operate in full feature space |
-| Trial discovery | Required ClinicalTrials.gov API v2 retrieval plus cached fixtures |
-| RAG | Bounded grounded generation over retrieved records with validated citations |
-| Provider resilience | Groq cooldown, caching, concurrency control, bounded retry, and deterministic fallback |
+| RAG corpus | Approved, versioned TrialSync eligibility criteria plus frozen synthetic fixtures |
+| RAG orchestration | LangChain candidate retrieval followed by complete-criteria expansion for each bounded candidate |
+| RAG generation | Gemini API structured eligibility summary with validated criterion citations |
+| Provider resilience | Gemini/Groq cooldown, caching, concurrency control, bounded retry, and deterministic fallback |
 | Local models | Not in the default TrialSync path |
-| Delivery | GitHub Actions CI; manual health-gated deployment; automatic CD deferred |
+| Delivery | GitHub Actions CI/CD with protected, health-gated deployment of the tested commit to the configured target |
 | BioBERT | Deferred |
 
 ### Deliverables
@@ -247,7 +255,10 @@ Record the approved extension boundaries and prevent later phases from silently 
 
 ### Status
 
-Complete. Begin R1 only; later phase approval does not authorize combining phases.
+Complete and re-locked on 2026-07-26 after correcting R7 to the supplied LangChain/Gemini brief,
+adding the trial-to-enrollment linkage required by the recruitment overview, and including
+health-gated GitHub Actions deployment. Begin R1 only; later phase approval does not authorize
+combining phases.
 
 ### Claims matrix
 
@@ -259,10 +270,10 @@ Complete. Begin R1 only; later phase approval does not authorize combining phase
 | DBSCAN cohorts | Patient-fact and screening-profile clusters over unique synthetic patients |
 | FAISS similarity | Exact cosine neighbors in versioned synthetic feature spaces |
 | BioBERT matching | Deferred because no approved labelled matching task exists |
-| RAG trial matching | Measured ClinicalTrials.gov retrieval plus bounded citation-validated comparison |
+| RAG trial matching | LangChain retrieval over approved criteria plus a Gemini structured eligibility summary |
 | LLM eligibility | Rejected; the deterministic engine remains authoritative |
 | PDF report | Generated from canonical stored screening evidence |
-| CI/CD | CI is approved for R2; automatic CD is deferred in favor of manual health-gated deployment |
+| CI/CD | GitHub Actions verifies the commit, then deploys that tested commit through a protected production environment with health checks and rollback |
 | Production clinical platform | Corrected to research-grade academic prototype using synthetic participant data |
 
 ## 7. Phase R1 — Canonical screening report PDF
@@ -346,11 +357,12 @@ Generate a reproducible, downloadable PDF from one stored screening without aski
 - It contains no invented eligibility reasoning.
 - Backend tests, frontend tests, production build, and visual review pass.
 
-## 8. Phase R2 — GitHub Actions continuous integration
+## 8. Phase R2 — GitHub Actions CI/CD
 
 ### Objective
 
-Run the repository's existing quality gates automatically on pushes and pull requests.
+Run the repository's quality gates on pushes and pull requests, then deploy an approved,
+tested commit to the configured TrialSync target through GitHub Actions.
 
 ### Steps
 
@@ -358,7 +370,7 @@ Run the repository's existing quality gates automatically on pushes and pull req
 2. Pin action major versions and document update policy.
 3. Use service-container PostgreSQL or the existing Compose-compatible test path.
 4. Install the pinned Python project and locked npm dependencies.
-5. Run:
+5. Run the CI gate:
    - backend formatting/lint/type checks;
    - Alembic migration verification;
    - backend unit and integration tests;
@@ -368,25 +380,45 @@ Run the repository's existing quality gates automatically on pushes and pull req
    - secret scanning or the existing safe audit subset;
    - optional container builds.
 6. Cache only safe dependency directories; never cache `.env`, uploads, database files, model artifacts, or MLflow stores.
-7. Ensure no workflow requires a Groq key.
+7. Ensure CI requires neither a Gemini nor Groq key. The deployment job may inject configured
+   provider keys from the protected production environment without exposing them to build or test jobs.
 8. Keep live provider evaluation manual and separately labelled.
 9. Add job timeouts and concurrency cancellation for superseded branch runs.
+10. Add a deployment job that:
+    - runs only after CI succeeds for the selected main-branch commit;
+    - uses a protected GitHub `production` environment and repository secrets;
+    - deploys the exact tested commit to the existing Docker Compose target;
+    - applies migrations before application health is declared;
+    - verifies live and ready health endpoints;
+    - records the previous deployed commit and restores it if the health gate fails.
+11. Support an explicit `workflow_dispatch` release while the production environment requires
+    approval; do not deploy pull-request code.
+12. Constrain the deployment credential to the TrialSync host and deployment directory.
 
-### CI versus CD
+### CI/CD contract
 
-This phase implements CI. It must not be called CD unless another approved phase publishes versioned images or deploys a saved release to a real target with verified rollback.
+CI verifies every candidate commit. CD deploys only the exact commit that passed CI, through the
+protected production environment. Environment approval may remain manual, but build, migration,
+Compose rollout, health verification, and rollback are executed by GitHub Actions and retained in
+the workflow history.
 
 ### Tests
 
 - Reproduce every workflow command locally.
 - Verify migrations against an empty database.
 - Verify tests use deterministic providers.
-- Verify no secret is required.
+- Verify CI requires no deployment or provider secret, and deployment secrets are available only
+  to the protected production job.
 - Verify a deliberate test failure fails the job during development of the workflow.
+- Verify pull requests cannot invoke the production deployment job.
+- Verify a failed readiness check invokes the documented rollback path.
+- Verify the deployed commit matches the CI-tested SHA.
 
 ### Exit criteria
 
 - The full required gate passes in GitHub Actions.
+- A protected workflow deploys the tested commit and passes the production health gate.
+- A forced failed-health fixture proves the rollback path without affecting the live target.
 - Local and CI commands are documented.
 - Workflow logs contain no secrets or synthetic document contents.
 - README badges, if added, link to the actual workflow.
@@ -424,6 +456,9 @@ No event after the observation cutoff may become a model feature.
 Static baseline variables:
 
 - Synthetic participant ID.
+- Immutable TrialSync patient snapshot ID.
+- Approved trial version ID.
+- Canonical screening ID and stored eligibility state for that exact snapshot × trial version.
 - Age band or age.
 - Sex where relevant to the simulated protocol.
 - Disease category.
@@ -476,6 +511,13 @@ Required event tables:
 - `research_adverse_events`;
 - `research_outcomes`.
 
+Each `research_enrollment` is the explicit versioned bridge between the dropout dataset and the
+matching product. It references one immutable patient snapshot, one approved trial version, and
+the ordinary screening created by the exact single-screening service for that pair. Longitudinal
+events are generated only for linked screenings whose stored state is `potentially_eligible`, so
+the dataset represents simulated enrolled participants without relabelling screening rows as
+dropout outcomes.
+
 ### 9.4 Generation principles
 
 1. Use a fixed default seed plus configurable alternative seeds.
@@ -488,6 +530,11 @@ Required event tables:
 8. Define at least one deliberately nonlinear relationship so tree models have something meaningful to compare with logistic regression.
 9. Preserve hidden generator state only for generator validation; do not export it as a model feature.
 10. Generate only fictional values and identifiers.
+11. Generate the matching patient/trial inputs first, call the existing single-screening service,
+    and freeze the linkage before generating any longitudinal events or dropout outcome.
+12. Use documented bounded resampling to reach the requested enrollment count when a generated
+    snapshot is not potentially eligible; report attempted-versus-accepted counts and never use a
+    future dropout outcome during acceptance.
 
 ### 9.5 Dataset sizes
 
@@ -496,6 +543,11 @@ Use three locked sizes:
 - Tiny fixture: 50 enrollments for unit and schema tests.
 - Demo cohort: 400 enrollments for the Scenario Lab and local inference.
 - Experiment cohort: 4,000 enrollments for model comparison and stress evaluation.
+
+The 400-enrollment demo cohort is the bounded product-facing cohort whose enrollment links are
+materialized for R5. The 4,000-enrollment experiment cohort remains an offline versioned research
+artifact; its linkage manifest is used for reproducibility and training, not bulk ordinary
+screening history.
 
 Target approximately 25% synthetic dropout through day 90. Report the exact generated
 prevalence and event counts for every split; never adjust the test set after inspection.
@@ -529,6 +581,9 @@ prevalence and event counts for every split; never adjust the test set after ins
 - Dates follow the declared ordering.
 - No post-cutoff feature leakage.
 - Dropout labels agree with event times.
+- Every enrollment resolves to exactly one immutable patient snapshot, approved trial version,
+  and `potentially_eligible` canonical screening.
+- Linkage metadata cannot change when risk predictions are regenerated.
 - Censoring is internally consistent.
 - Values and units stay in declared artificial ranges.
 - Train/validation/test participants do not overlap.
@@ -540,6 +595,7 @@ prevalence and event counts for every split; never adjust the test set after ins
 - The dataset card and feature dictionary are understandable without reading generator code.
 - Leakage tests pass.
 - Outcome prevalence and split event counts are reported.
+- The dataset card reports enrollments and dropout prevalence by linked trial version.
 - The user approves the artificial assumptions before model training begins.
 
 ### Stop point
@@ -675,6 +731,14 @@ Expose the accepted synthetic model through a separate authenticated research in
 
 Candidate entities:
 
+- `research_enrollment_links`
+  - owner;
+  - R3 research enrollment ID;
+  - immutable patient snapshot ID;
+  - approved trial version ID;
+  - canonical screening ID;
+  - dataset/linkage version and checksum;
+  - unique constraints on the enrollment and exact snapshot × trial-version context.
 - `research_model_versions`
   - model name/version/alias;
   - dataset and feature schema versions;
@@ -685,7 +749,7 @@ Candidate entities:
   - created timestamp.
 - `research_predictions`
   - owner;
-  - R3 synthetic research participant ID;
+  - research enrollment link ID;
   - model version;
   - feature snapshot JSON/hash;
   - probability;
@@ -694,7 +758,8 @@ Candidate entities:
   - prediction timestamp;
   - synthetic/research disclaimer version.
 
-Do not attach mutable risk fields to `screenings` or `patients`.
+The enrollment-link record provides the immutable join to its patient snapshot, approved trial
+version, and canonical screening. Do not attach mutable risk fields to `screenings` or `patients`.
 
 ### API
 
@@ -706,6 +771,40 @@ GET  /api/v1/research/risk/models/{model_version}
 POST /api/v1/research/risk/predictions
 GET  /api/v1/research/risk/predictions
 GET  /api/v1/research/risk/predictions/{prediction_id}
+GET  /api/v1/research/trial-overview
+GET  /api/v1/research/trial-overview/{trial_version_id}
+```
+
+The overview endpoints group ordinary screening states by approved trial version. Their retention
+distribution includes only potentially eligible screenings with a version-matched
+`research_enrollment` and prediction, and returns explicit linked/unlinked counts so the graph's
+denominator is visible. One aggregate uses one approved model version, horizon, and versioned band
+policy; predictions from different model versions are never mixed into the same chart.
+
+Example overview fields:
+
+```json
+{
+  "trial_version_id": "trial-version-id",
+  "screening_counts": {
+    "potentially_eligible": 28,
+    "needs_review": 9,
+    "likely_ineligible": 13
+  },
+  "retention": {
+    "eligible_total": 28,
+    "linked_predictions": 20,
+    "unlinked_eligible": 8,
+    "risk_bands": {
+      "lower": 11,
+      "near_threshold": 4,
+      "higher": 5
+    },
+    "model_version": "dropout-lightgbm:1",
+    "horizon_day": 90,
+    "band_policy_version": "1"
+  }
+}
 ```
 
 Example response:
@@ -739,10 +838,12 @@ Example response:
 - Validate the feature schema before inference.
 - Fail readiness only for the optional research capability, not the core API.
 - Record model/dataset/feature versions with every prediction.
-- Do not call Groq.
+- Derive chart bands from the accepted model's versioned threshold/band policy.
+- Do not call Gemini or Groq.
 - Do not trigger screening.
 - Do not convert probability into `potentially_eligible`, `likely_ineligible`, or `needs_review`.
 - Do not permit prediction creation for arbitrary real records.
+- Resolve trial-overview risk aggregates only through the immutable research-enrollment linkage.
 
 ### Frontend
 
@@ -752,6 +853,10 @@ Create a clearly labelled research area:
 - Model card with dataset, horizon, metrics, threshold, and limitations.
 - Synthetic participant selector or form.
 - Risk result with probability, threshold, and top SHAP contributions.
+- Trial Recruitment Overview with a trial selector, total screening-state counts, and a compact
+  chart of linked potentially eligible participants by dropout-risk band.
+- Visible numerator/denominator labels showing how many potentially eligible screenings have a
+  linked research enrollment and prediction.
 - Link to model version and feature definitions.
 - Clear separation from the screening workspace.
 
@@ -772,12 +877,19 @@ Avoid:
 - Prediction persistence and version metadata.
 - SHAP contribution display.
 - Core screening equivalence before and after prediction.
+- Trial grouping uses approved trial-version IDs rather than mutable trial titles.
+- Overview state counts agree with ordinary saved screenings.
+- Risk-band counts include only version-matched linked enrollments and expose unlinked counts.
+- Overview aggregates reject mixed model, horizon, or band-policy versions.
+- No cross-owner or cross-version linkage.
 - Provider/network-disabled behavior.
 - UI loading, populated, invalid-input, artifact-missing, and API-error states.
 
 ### Visual review
 
 - Research overview.
+- Trial Recruitment Overview with no screenings, mixed eligibility states, no linked predictions,
+  partial linkage, all risk bands, long trial names, and narrow layout.
 - Model card.
 - Low, near-threshold, and high synthetic probabilities.
 - Long feature names.
@@ -790,6 +902,7 @@ Avoid:
 - A prediction cannot mutate any screening record.
 - Every display says synthetic/research-only.
 - Model and feature versions are reproducible.
+- Every trial-overview risk count is traceable to a versioned enrollment, screening, and prediction.
 - Core application tests still pass unchanged.
 - Full build and required visual review pass.
 
@@ -932,199 +1045,172 @@ GET  /api/v1/research/similarity/queries/{query_id}
 - No cluster or neighbor is used as screening evidence.
 - Research disclaimers remain visible.
 
-## 13. Phase R7 — ClinicalTrials.gov discovery and genuine RAG
+## 13. Phase R7 — Eligibility-criteria RAG with LangChain and Gemini
 
 ### Objective
 
-Add public trial discovery, measured criterion retrieval, and a bounded generation step over retrieved trial context before the existing reviewed import and deterministic screening workflow.
+Implement the RAG component from the project brief: a coordinator uploads or selects a patient
+record, LangChain retrieves the most relevant eligibility criteria from TrialSync's approved trial
+corpus, and Gemini generates a structured eligibility summary grounded only in those criteria.
 
-### Source
+### Corpus
 
-Use the official ClinicalTrials.gov API v2. Do not depend on an unspecified Kaggle snapshot.
-
-### Source adapter
-
-The adapter should retrieve and normalize:
-
-- NCT identifier.
-- Brief and official title.
-- Overall recruitment status and verification date.
-- Conditions.
-- Study type and phase where available.
-- Locations where required by the query.
-- Minimum/maximum age and sex fields.
-- Full eligibility text.
-- Last update/source timestamp.
-- Raw-record checksum.
+Build the retrieval corpus from approved, immutable TrialSync trial versions. Each indexed chunk
+must retain the trial version ID, criterion ID, criterion kind, source text, content checksum, and
+index version. A checked-in synthetic fixture corpus supports deterministic tests and the final
+demonstration. No live external trial registry is required.
 
 ### Retrieval sequence
 
 ```text
-Coordinator query or approved synthetic patient summary
-  -> deterministic filters
-  -> text retrieval/ranking
-  -> candidate trials with score and source metadata
-  -> bounded LLM summary over only the retrieved records
-  -> validate every generated NCT/criterion citation
-  -> coordinator selects a trial
-  -> existing review-first criterion extraction
-  -> explicit approval of a trial version
-  -> existing deterministic screening
+Coordinator uploads or selects a patient record
+  -> review/approve extracted patient facts
+  -> LangChain retrieves top candidate trial versions from approved criterion chunks
+  -> expand each bounded candidate to its complete ordered approved criteria set
+  -> Gemini generates a schema-validated eligibility summary from the complete candidate context
+  -> validate every trial-version and criterion citation
+  -> coordinator opens a candidate trial match
+  -> existing deterministic screening verifies the final eligibility state
+  -> canonical screening result and PDF report
 ```
 
-### Ranking
+### LangChain retrieval
 
-Start with a reproducible baseline:
-
-- Structured condition/status/age filters.
-- BM25 or another documented local lexical ranking method.
-- Optional embedding reranker only after a held-out retrieval set exists.
-
-FAISS from R6 must not automatically become the trial-retrieval index; participant similarity and trial retrieval have different corpora and evaluation questions.
+- Use LangChain as the required retrieval orchestration layer.
+- Begin with a reproducible lexical or locally computed embedding retriever over approved criteria.
+- Keep chunking, preprocessing, top-k, and index versions explicit.
+- Use first-stage criterion retrieval to rank candidate trial versions.
+- For each bounded top candidate, load its complete ordered approved criteria set before
+  generation; a low-scoring or lexically unrelated exclusion criterion must not be omitted.
+- If a complete candidate does not fit the declared context bound, reduce the number of candidate
+  trials or summarize candidates separately—never truncate a trial's required criteria silently.
+- Measure retrieval independently from Gemini generation.
+- Do not reuse the R6 participant-similarity FAISS index automatically; patient similarity and
+  eligibility-criteria retrieval are different tasks and require separate indexes.
 
 ### Storage
 
 Candidate entities:
 
-- `trial_source_records`
-  - source;
-  - NCT ID;
-  - source timestamp;
-  - fetched timestamp;
-  - checksum;
-  - normalized public fields;
-  - raw response or bounded source snapshot according to storage decision.
-- `trial_retrieval_runs`
+- `eligibility_rag_indexes`
+  - corpus checksum;
+  - chunking/retriever/index versions;
+  - build timestamp.
+- `eligibility_rag_runs`
   - owner;
-  - query;
-  - filters;
-  - retriever/index version;
-  - timestamps.
-- `trial_retrieval_results`
+  - patient snapshot;
+  - index and prompt versions;
+  - timestamps and status.
+- `eligibility_rag_results`
   - run;
-  - source record;
-  - rank;
-  - score;
-  - explanation of matched fields.
+  - trial version and criterion;
+  - rank and retrieval score;
+  - Gemini structured-summary fields and validated citations.
 
 ### API
 
 Candidate routes:
 
 ```text
-POST /api/v1/trial-discovery/search
-GET  /api/v1/trial-discovery/runs/{run_id}
-POST /api/v1/trial-discovery/results/{result_id}/create-review
+POST /api/v1/eligibility-rag/match
+GET  /api/v1/eligibility-rag/runs/{run_id}
+POST /api/v1/eligibility-rag/runs/{run_id}/screen/{trial_version_id}
 ```
 
-Creating a review copies the selected source record into the existing unapproved import/review boundary. It does not create an approved trial or screening.
+The final route invokes the existing single-screening operation for the selected patient snapshot
+and approved trial version; it does not let Gemini create or alter the screening result.
 
-### Required RAG contract
+### Gemini structured-summary contract
 
-R7 is genuine RAG only when:
+Gemini receives only the approved patient summary and complete approved criterion sets for the
+bounded candidate trial versions identified by LangChain. Its response must validate against a
+versioned schema containing:
 
-- a corpus/index exists;
-- retrieval is a distinct measured step;
-- retrieved criterion context is supplied to a bounded extractor or explainer;
-- source IDs and versions are retained;
-- generated claims cite retrieved NCT IDs and stable internal source-excerpt IDs; after reviewed
-  import, TrialSync criterion IDs may also be cited;
-- retrieval quality and generated-answer grounding are evaluated separately.
+- candidate trial version;
+- concise eligibility summary;
+- matched, conflicting, and missing-information items;
+- cited TrialSync criterion IDs for every substantive item;
+- retrieval, model, and prompt-version metadata.
 
-The generated artifact should be a schema-validated, query-scoped trial-discovery summary. It may explain why a retrieved record matched the query, quote bounded eligibility excerpts, and identify missing query information. It may not approve a trial, create screening evidence, claim eligibility, or bypass the existing review flow.
+The generated summary is the RAG presentation layer. The deterministic screening engine remains
+the final criterion evaluator, allowing the project to demonstrate both modern RAG and a
+reproducible patient-matching result.
 
-ClinicalTrials.gov eligibility criteria are source markup, not pre-existing TrialSync criterion
-records. Every indexed excerpt therefore needs a stable internal identifier, source offsets,
-the parent NCT ID/source version, and a checksum. TrialSync criterion IDs are created only
-after the selected source passes through review and import.
+### Provider resilience
 
-The RAG context is assembled server-side from only the top bounded retrieved records. Retrieved text and user queries are untrusted data. The provider receives no database, web, MCP, code-execution, or write tools. A deterministic ranked-results view remains available when the provider is disabled, times out, is rate-limited, or returns an invalid response.
+1. Bound the patient context, retrieved chunks, output schema, request time, and retry budget.
+2. Parse provider rate-limit responses and maintain a short in-process cooldown.
+3. Limit concurrent Gemini requests.
+4. Cache only safe outputs by patient snapshot checksum, corpus/index, retriever, model, and
+   prompt versions within the owning workspace.
+5. Preserve ranked LangChain retrieval results when Gemini is unavailable or returns invalid data.
+6. Keep the existing Groq extraction and explanation paths independent from the Gemini RAG path.
 
-LangChain is not required. Direct adapters are preferred when they are easier to test and version.
+### Configuration
 
-### Groq 429 resilience
+Add explicit settings for:
 
-Strengthen the existing structured client rather than routing failures to a local small model:
+- `TRIALSYNC_ELIGIBILITY_RAG_PROVIDER=gemini|disabled`;
+- `GEMINI_API_KEY`;
+- `TRIALSYNC_GEMINI_MODEL`;
+- retrieval top-k and maximum candidate-trial count;
+- Gemini request timeout, output bound, concurrency, and retry budget.
 
-1. Parse numeric and HTTP-date `Retry-After` values.
-2. Maintain an in-process `next_allowed_at` cooldown for the single production backend
-   process.
-3. Limit concurrent Groq requests with an async semaphore.
-4. Retry once only when the delay is short and remains inside the request deadline.
-5. Add bounded jitter for retryable 5xx/timeout responses.
-6. Cache public-trial RAG summaries by query/filter, corpus, retriever, model, and prompt
-   versions.
-7. Preserve the existing redacted-checksum extraction cache contract.
-8. Never cross-user cache patient-specific explanation answers.
-9. Return explicit degraded/rate-limited metadata and a safe retry time.
-10. Fall back by operation:
-    - extraction → deterministic candidates and human review;
-    - screening chat → canonical criterion explanations;
-    - RAG → deterministic ranked trial results;
-    - eligibility → unchanged deterministic engine.
-
-No Redis, queue, local LLM, or retry storm is introduced.
+Provider keys remain optional for local/core operation, are never required by automated tests, and
+enter production only through the protected GitHub environment.
 
 ### Retrieval and grounding evaluation
 
-Create a synthetic or manually curated query set containing expected relevant trials or conditions. Report:
+Create a frozen patient-query fixture set with expected relevant trials and criteria. Report:
 
-- Recall@k.
-- Precision@k where labels permit.
-- Mean reciprocal rank.
-- Filter correctness.
-- Stale/source-version behavior.
-- Failure and rate-limit handling.
-- Generated citation validity.
-- Grounded-claim precision.
+- Recall@k and mean reciprocal rank for trial retrieval.
+- Criterion Recall@k.
+- Complete-criteria expansion coverage of 100% for every generated candidate summary.
+- Retrieval determinism for the frozen corpus.
+- Structured-output schema validity.
+- Criterion-citation validity and grounded-claim precision.
 - Unsupported-claim count.
-- Prompt-injection resistance.
-- Deterministic fallback behavior.
-
-These metrics evaluate retrieval and grounded generation, not patient eligibility.
+- No-results, provider-failure, and prompt-injection behavior.
 
 ### Tests
 
-- API response-schema fixtures.
-- Pagination.
-- Rate limiting, timeout, invalid response, and no-results behavior.
-- Source timestamps and checksums.
-- Filter correctness.
-- Duplicate NCT version handling.
-- Retrieval determinism for a frozen fixture corpus.
-- Retrieved-context bounds and ordering.
-- Valid, missing, and fabricated generated citations.
-- Unsupported generated claims and prompt injection.
-- Provider-disabled, timeout, rate-limit, and invalid-schema fallbacks.
-- Numeric/date `Retry-After`, cooldown, concurrency, cache, and no-retry-storm behavior.
-- Review creation preserves source metadata.
-- No automatic approval or screening.
+- Approved-version-only corpus construction and owner scoping.
+- Stable criterion chunk IDs, checksums, and index versions.
+- Retrieval determinism and top-k bounds.
+- Correct grouping by trial version.
+- Complete ordered criteria expansion after candidate retrieval.
+- Oversized candidate handling never silently drops a required criterion.
+- Valid, missing, and fabricated Gemini criterion citations.
+- Invalid-schema, timeout, rate-limit, and provider-disabled states.
+- Ranked retrieval remains available without Gemini.
+- The selected match calls the unchanged single-screening service.
+- Generated text cannot alter criterion or overall eligibility results.
 
 ### Frontend
 
-- Trial discovery form with clear public-source label.
-- Ranked results with recruitment status, verification date, and matched fields.
-- A clearly labelled generated summary with validated links to its retrieved NCT records and criterion excerpts.
-- No-results and source-unavailable states.
-- Provider-disabled and invalid-generated-summary states that preserve deterministic ranked results.
-- Select-for-review action.
-- Existing side-by-side review flow for selected criteria.
+- Patient-record upload or existing-patient selector.
+- Ranked candidate trials with matched eligibility criteria and retrieval scores.
+- Structured Gemini eligibility summary with links to the cited criteria.
+- Clear matched, conflicting, and missing-information sections.
+- Action to run the authoritative screening for a selected trial.
+- Link from the completed result to the eligibility-report PDF.
+- Loading, no-match, invalid-summary, provider-unavailable, long-text, and narrow states.
 
 ### Visual review
 
-- Populated, no-results, API-error, stale-record, long-eligibility, grounded-summary, provider-degraded, and narrow states.
-- Keyboard navigation and focus.
-- Reduced motion.
+- Uploaded-record and existing-patient flows.
+- Populated, no-match, invalid-summary, provider-unavailable, long-criteria, and narrow states.
+- Criterion citation navigation, keyboard focus, contrast, and reduced motion.
 
 ### Exit criteria
 
-- Public source provenance is reproducible.
-- Retrieval is measured separately from screening.
-- The bounded generator receives only retrieved context and every substantive generated claim has a validated source citation.
-- Retrieval and grounding evaluations pass their declared acceptance thresholds.
-- Selected trials always pass through human review and approval.
-- Provider/source failure preserves cached/frozen retrieval fixtures and does not break manual trial creation.
-- Repeated requests during provider cooldown do not call Groq.
+- LangChain performs a distinct, measured retrieval step over approved trial criteria.
+- Every candidate passed to Gemini contains its complete approved criteria set.
+- Gemini produces the required schema-validated summary using only the expanded candidate context.
+- Every substantive generated item has a valid TrialSync criterion citation.
+- A selected candidate runs through the existing deterministic screening engine.
+- Retrieval remains usable when Gemini is unavailable.
+- The workflow ends in the canonical browser result and downloadable PDF.
 
 ## 14. Phase R8 — Integrated evaluation and final delivery
 
@@ -1146,11 +1232,14 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 6. Calibration and selected threshold.
 7. MLflow run/registry evidence.
 8. SHAP global and local explanation examples.
-9. Patient-fact and screening-profile DBSCAN parameter/stability reports.
-10. Both FAISS exact-neighbor verifications and Cohort Atlas projection evidence.
-11. ClinicalTrials.gov retrieval and grounded-generation metrics.
-12. Groq cooldown/cache/retry and full offline/degraded-mode behavior.
-13. Security, dependency, and secret checks.
+9. Trial Recruitment Overview reconciliation of screening totals, linked enrollments, predictions,
+   risk bands, and visible denominators.
+10. Patient-fact and screening-profile DBSCAN parameter/stability reports.
+11. Both FAISS exact-neighbor verifications and Cohort Atlas projection evidence.
+12. LangChain criteria-retrieval, complete-criteria expansion, and Gemini grounded-generation metrics.
+13. Gemini/Groq cooldown, cache, retry, and degraded-mode behavior.
+14. CI/CD deployed-commit, health-gate, and rollback evidence.
+15. Security, dependency, and secret checks.
 
 ### Final demonstration script
 
@@ -1162,12 +1251,15 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 6. Open the research area and state the synthetic-data boundary.
 7. Show the approved dropout model card and comparison with the logistic baseline.
 8. Run one synthetic dropout-risk prediction.
-9. Explain the top SHAP contributions without causal language.
-10. Switch the Cohort Atlas between patient-fact and screening-profile views, show noise
+9. Open the Trial Recruitment Overview, select one trial, and compare its canonical screening
+   counts with the linked dropout-risk distribution.
+10. Explain the top SHAP contributions without causal language.
+11. Switch the Cohort Atlas between patient-fact and screening-profile views, show noise
     handling, and inspect one FAISS neighbor comparison.
-11. Retrieve public trials, show the citation-validated RAG summary, and send one result through review.
-12. Show that neither risk, cluster, similarity, retrieval, nor LLM output changes eligibility.
-13. Show CI evidence and the offline/manual fallback.
+12. Upload a patient record, retrieve relevant trial criteria with LangChain, show the
+    citation-validated Gemini summary, and run the selected deterministic screening.
+13. Show that neither risk, cluster, similarity, retrieval, nor LLM output changes eligibility.
+14. Show CI/CD evidence, the deployed commit, the production health gate, and the offline fallback.
 
 ### Documentation updates
 
@@ -1192,7 +1284,7 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 - Frontend formatting, linting, type checks, tests, build.
 - Browser end-to-end workflows.
 - Docker/Compose validation.
-- GitHub Actions success.
+- GitHub Actions CI/CD success plus protected deployment, health-gate, and rollback evidence.
 - Dependency and secret audit.
 - No generated research artifact or restricted data accidentally tracked.
 - No local language model is required by the clean setup or live demonstration.
@@ -1200,7 +1292,7 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 ### Exit criteria
 
 - Every approved phase has reproducible evidence.
-- The project works without Groq and without live ClinicalTrials.gov access.
+- Core matching works without Gemini or Groq; LangChain retrieval remains available without generation.
 - Core screening remains deterministic and unchanged.
 - Research outputs are clearly synthetic and versioned.
 - No final claim exceeds the implemented evaluation.
@@ -1209,6 +1301,9 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 
 - Add one Alembic revision per bounded schema phase.
 - Research migrations must not rewrite immutable screening history.
+- Research enrollment links reference immutable snapshots, approved trial versions, and canonical
+  screenings through foreign keys plus a linkage checksum; they are append-only and cannot be
+  repointed when a model or prediction changes.
 - Avoid large opaque model binaries in PostgreSQL.
 - Store artifact metadata/checksums and use an explicit local artifact directory.
 - Validate artifact presence and checksum before loading.
@@ -1233,8 +1328,8 @@ For every behavioral phase:
 
 No automated test may:
 
-- call Groq;
-- depend on live ClinicalTrials.gov;
+- call Gemini or Groq;
+- depend on a live external trial registry;
 - download a restricted dataset;
 - depend on a mutable remote model registry;
 - send synthetic document contents to an external service.
@@ -1272,6 +1367,8 @@ Potential new dependencies must be approved during their phase. Expected categor
 - MLflow.
 - SHAP.
 - FAISS CPU.
+- LangChain for the required eligibility-criteria retrieval pipeline.
+- A Gemini API client or the LangChain Gemini integration.
 - A lexical retrieval library if the standard library or existing dependencies are insufficient.
 
 Before adding a dependency:
@@ -1291,12 +1388,12 @@ One possible history:
 ```text
 docs: approve TrialSync research extension plan
 feat: add canonical screening PDF reports
-ci: add backend and frontend verification workflow
+ci: add verification and health-gated deployment workflows
 feat: add reproducible synthetic participant generator
 feat: add dropout model experiments and MLflow tracking
 feat: add versioned synthetic risk inference
 feat: add research cohort and similarity explorer
-feat: add ClinicalTrials.gov discovery and genuine RAG
+feat: add LangChain and Gemini eligibility-criteria RAG
 test: complete research extension evaluation
 docs: finalize research report and presentation
 ```
@@ -1306,7 +1403,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 ## 20. Final scope audit
 
 - [x] R1–R8 remain separate bounded phases.
-- [x] BioBERT, restricted-data dependencies, automatic CD, and local-LLM fallback are deferred.
+- [x] BioBERT, restricted-data dependencies, and local-LLM fallback are deferred.
 - [x] Dropout and cohort/similarity use different datasets and units of analysis.
 - [x] Dummy, logistic, XGBoost, and LightGBM are compared before champion selection.
 - [x] MLflow uses a private optional Compose profile.
@@ -1315,23 +1412,24 @@ Commits are phase checkpoints, not permission to combine several phases into one
 - [x] Cohort analysis uses 750 unique patients × 20 fixed reference trials.
 - [x] The Scenario Lab presents model sensitivity, never causality.
 - [x] The Cohort Atlas supports patient-fact and screening-profile representations.
-- [x] ClinicalTrials.gov genuine RAG is required with cached fixtures.
-- [x] Groq 429 handling uses cooldown/cache/concurrency/fallback instead of local models.
-- [x] CI is required and deployment remains manual and health-gated.
+- [x] Eligibility RAG uses LangChain candidate retrieval, complete-criteria expansion, and Gemini structured summaries.
+- [x] Gemini/Groq rate-limit handling uses cooldown/cache/concurrency/fallback instead of local models.
+- [x] GitHub Actions CI/CD deploys only a tested commit through a protected, health-gated environment with rollback.
+- [x] Trial-grouped risk counts resolve through versioned research-enrollment linkages.
 - [x] Every research output remains separate from deterministic eligibility.
 
 ## 21. Phase status tracker
 
 | Phase | Status | Approval evidence | Exit evidence |
 |---|---|---|---|
-| R0. Scope lock | Complete | Locked decisions and claims matrix approved 2026-07-26 | This document |
+| R0. Scope lock | Complete | Revised scope re-locked by user after final consistency audit, 2026-07-26 | This document |
 | R1. Canonical report PDF | Approved | User selected evidence-backed reporting, 2026-07-26 | |
-| R2. GitHub Actions CI | Approved | User selected supporting engineering delivery, 2026-07-26 | |
+| R2. GitHub Actions CI/CD | Approved | Corrected to the supplied delivery brief, 2026-07-26 | |
 | R3. Synthetic dropout protocol/dataset | Approved | User selected dropout-risk modeling, 2026-07-26 | |
 | R4. Dropout models/MLflow/SHAP | Approved | User selected dropout-risk modeling, 2026-07-26 | |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |
 | R6. Screening-derived DBSCAN/FAISS cohorts | Approved | User selected cohort analytics, 2026-07-26 | |
-| R7. ClinicalTrials.gov genuine RAG | Approved | User explicitly selected genuine RAG, 2026-07-26 | |
+| R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
 | R8. Evaluation/final delivery | Approved | User selected supporting engineering/evaluation, 2026-07-26 | |
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.

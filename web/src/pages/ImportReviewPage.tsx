@@ -3,7 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { ApiError, apiRequest, type ImportDocument, type PatientImportFact, type TrialImportCriterion } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { BiologicalSexField } from '../components/BiologicalSexField'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
+import { isFutureIsoDate, todayIsoDate } from '../utils/dates'
+import { parseBiologicalSex } from '../utils/demographics'
 
 export function ImportReviewPage() {
   const { importId = '' } = useParams()
@@ -34,7 +37,12 @@ export function ImportReviewPage() {
   const reviewedCandidates = () => {
     if (!review) return null
     const candidates = structuredClone(review.candidates)
-    if (review.kind === 'trial') {
+    if (review.kind === 'patient') {
+      const sex = parseBiologicalSex(candidates.profile.sex)
+      if (sex !== undefined) candidates.profile.sex = sex
+      const dateOfBirth = candidates.profile.date_of_birth ?? ''
+      if (isFutureIsoDate(dateOfBirth)) throw new Error('Patient date of birth is in the future.')
+    } else {
       for (const criterion of candidates.criteria ?? []) {
         const text = ruleTexts[criterion.candidate_id]?.trim()
         if (!text) { criterion.normalized_rule = null; criterion.parse_state = 'needs_manual_rule'; continue }
@@ -57,7 +65,16 @@ export function ImportReviewPage() {
   const saveReview = async () => {
     setSaving(true); setError('')
     try { await save() }
-    catch (exception) { setError(exception instanceof SyntaxError || exception instanceof Error && exception.message.includes('Rule JSON') ? 'Each selected trial criterion needs valid rule JSON.' : 'The candidate edits could not be saved.') }
+    catch (exception) {
+      setError(
+        exception instanceof Error && exception.message.includes('date of birth')
+          ? 'Date of birth cannot be in the future.'
+          : exception instanceof SyntaxError ||
+              exception instanceof Error && exception.message.includes('Rule JSON')
+            ? 'Each selected trial criterion needs valid rule JSON.'
+            : 'The candidate edits could not be saved.',
+      )
+    }
     finally { setSaving(false) }
   }
   const approve = async (confirmDuplicate = false) => {
@@ -69,6 +86,7 @@ export function ImportReviewPage() {
     } catch (exception) {
       if (exception instanceof ApiError && exception.code === 'PATIENT_NAME_REVIEW_REQUIRED') setDuplicateOpen(true)
       else if (exception instanceof ApiError && exception.code === 'IMPORT_REVIEW_INCOMPLETE') setError('Selected criteria need valid deterministic rule JSON before approval. Deselect unsupported criteria or enter a supported rule.')
+      else if (exception instanceof Error && exception.message.includes('date of birth')) setError('Date of birth cannot be in the future.')
       else if (exception instanceof SyntaxError) setError('Each selected trial criterion needs valid rule JSON.')
       else setError('The reviewed import could not be approved. No structured record was created.')
     } finally { setSaving(false) }
@@ -87,7 +105,12 @@ export function ImportReviewPage() {
     ? review.quality.nlp as Record<string, unknown>
     : null
   const ocr = review.quality.ocr as Record<string, unknown> | undefined
-  return <section className="route-entry workspace-page"><Link className="back-link" to={back}>← {review.kind === 'patient' ? 'Patients' : 'Trials'}</Link><header className="page-heading"><div><p className="eyebrow">Human review required</p><h1>Review extracted {review.kind} candidates</h1><p>Compare every editable candidate with its immutable source span before creating structured data.</p></div><div className="review-meta"><span className="review-status">{review.status.replace('_', ' ')}</span>{nlp && <span className="extractor-label">Extraction · {String(nlp.provider ?? 'deterministic').replace('_', ' ')}{nlp.model_id ? ` · ${String(nlp.model_id)}` : ''}</span>}{ocr?.used === true && <span className="extractor-label">Source text · local Tesseract OCR</span>}</div></header>{review.warnings.length > 0 && <div className="import-warnings" role="status"><strong>Review warnings</strong><ul>{review.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}<div className="import-review-grid"><aside className="source-pane" aria-label="Imported source"><div className="source-pane-head"><div><p className="eyebrow">Original source</p><strong>{review.filename ?? 'Pasted text'}</strong></div><small>{review.quality.page_count} page{Number(review.quality.page_count) === 1 ? '' : 's'} · {review.quality.character_count} characters</small></div>{review.pages.map((page) => <section className="source-page" key={page.page}><span>Page {page.page}</span><pre>{page.text}</pre></section>)}</aside><div className="candidate-pane"><section className="candidate-section"><h2>{review.kind === 'patient' ? 'Patient profile' : 'Trial profile'}</h2><div className="form-grid">{review.kind === 'patient' ? <><label>Display name<input value={profile.display_name ?? ''} onChange={(event) => updateProfile('display_name', event.target.value)} /></label><label>Date of birth<input type="date" value={profile.date_of_birth ?? ''} onChange={(event) => updateProfile('date_of_birth', event.target.value || null)} /></label><label>Sex when relevant<input value={profile.sex ?? ''} onChange={(event) => updateProfile('sex', event.target.value || null)} /></label></> : <><label>Trial title<input value={profile.title ?? ''} onChange={(event) => updateProfile('title', event.target.value)} /></label><label>Condition<input value={profile.condition ?? ''} onChange={(event) => updateProfile('condition', event.target.value)} /></label><label>Phase<input value={profile.phase ?? ''} onChange={(event) => updateProfile('phase', event.target.value || null)} /></label></>}</div></section>{review.kind === 'patient' ? <PatientCandidates facts={review.candidates.facts ?? []} update={updateFact} /> : <TrialCandidates criteria={review.candidates.criteria ?? []} ruleTexts={ruleTexts} setRuleTexts={setRuleTexts} update={updateCriterion} />}{error && <div className="form-error" role="alert">{error}</div>}<div className="review-actions"><button className="danger-button danger-button-subtle" type="button" onClick={() => setRejectOpen(true)}>Reject import</button><div><button className="secondary-button" disabled={saving} type="button" onClick={() => void saveReview()}>{saving ? 'Saving…' : 'Save review'}</button><button className="primary-button" disabled={saving || review.status !== 'needs_review'} type="button" onClick={() => void approve()}>{saving ? 'Approving…' : `Approve and create ${review.kind}`}</button></div></div></div></div><ConfirmationDialog open={duplicateOpen} eyebrow="Possible duplicate" title="Create a distinct patient?" confirmLabel="Create distinct patient" busyLabel="Creating…" busy={saving} onCancel={() => setDuplicateOpen(false)} onConfirm={() => { setDuplicateOpen(false); void approve(true) }}><p>A patient with this name already exists. Continue only if this imported source represents a distinct synthetic person.</p></ConfirmationDialog><ConfirmationDialog open={rejectOpen} eyebrow="Discard candidates" title="Reject this import?" confirmLabel="Reject import" busyLabel="Rejecting…" busy={saving} onCancel={() => setRejectOpen(false)} onConfirm={() => void reject()}><p>The extracted candidates will be marked rejected and no patient or trial will be created.</p></ConfirmationDialog></section>
+  const patientSex = parseBiologicalSex(profile.sex)
+  const patientSexError =
+    review.kind === 'patient' && patientSex === undefined
+      ? `“${profile.sex}” is not supported. Choose Female, Male, or Not recorded.`
+      : undefined
+  return <section className="route-entry workspace-page"><Link className="back-link" to={back}>← {review.kind === 'patient' ? 'Patients' : 'Trials'}</Link><header className="page-heading"><div><p className="eyebrow">Human review required</p><h1>Review extracted {review.kind} candidates</h1><p>Compare every editable candidate with its immutable source span before creating structured data.</p></div><div className="review-meta"><span className="review-status">{review.status.replace('_', ' ')}</span>{nlp && <span className="extractor-label">Extraction · {String(nlp.provider ?? 'deterministic').replace('_', ' ')}{nlp.model_id ? ` · ${String(nlp.model_id)}` : ''}</span>}{ocr?.used === true && <span className="extractor-label">Source text · local Tesseract OCR</span>}</div></header>{review.warnings.length > 0 && <div className="import-warnings" role="status"><strong>Review warnings</strong><ul>{review.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}<div className="import-review-grid"><aside className="source-pane" aria-label="Imported source"><div className="source-pane-head"><div><p className="eyebrow">Original source</p><strong>{review.filename ?? 'Pasted text'}</strong></div><small>{review.quality.page_count} page{Number(review.quality.page_count) === 1 ? '' : 's'} · {review.quality.character_count} characters</small></div>{review.pages.map((page) => <section className="source-page" key={page.page}><span>Page {page.page}</span><pre>{page.text}</pre></section>)}</aside><div className="candidate-pane"><section className="candidate-section"><h2>{review.kind === 'patient' ? 'Patient profile' : 'Trial profile'}</h2><div className="form-grid">{review.kind === 'patient' ? <><label>Display name<input value={profile.display_name ?? ''} onChange={(event) => updateProfile('display_name', event.target.value)} /></label><label>Date of birth<input max={todayIsoDate()} type="date" value={profile.date_of_birth ?? ''} onChange={(event) => updateProfile('date_of_birth', event.target.value || null)} /></label><BiologicalSexField name="import-sex" value={patientSex} invalidMessage={patientSexError} onChange={(value) => updateProfile('sex', value)} /></> : <><label>Trial title<input value={profile.title ?? ''} onChange={(event) => updateProfile('title', event.target.value)} /></label><label>Condition<input value={profile.condition ?? ''} onChange={(event) => updateProfile('condition', event.target.value)} /></label><label>Phase<input value={profile.phase ?? ''} onChange={(event) => updateProfile('phase', event.target.value || null)} /></label></>}</div></section>{review.kind === 'patient' ? <PatientCandidates facts={review.candidates.facts ?? []} update={updateFact} /> : <TrialCandidates criteria={review.candidates.criteria ?? []} ruleTexts={ruleTexts} setRuleTexts={setRuleTexts} update={updateCriterion} />}{error && <div className="form-error" role="alert">{error}</div>}<div className="review-actions"><button className="danger-button danger-button-subtle" type="button" onClick={() => setRejectOpen(true)}>Reject import</button><div><button className="secondary-button" disabled={saving} type="button" onClick={() => void saveReview()}>{saving ? 'Saving…' : 'Save review'}</button><button className="primary-button" disabled={saving || review.status !== 'needs_review'} type="button" onClick={() => void approve()}>{saving ? 'Approving…' : `Approve and create ${review.kind}`}</button></div></div></div></div><ConfirmationDialog open={duplicateOpen} eyebrow="Possible duplicate" title="Create a distinct patient?" confirmLabel="Create distinct patient" busyLabel="Creating…" busy={saving} onCancel={() => setDuplicateOpen(false)} onConfirm={() => { setDuplicateOpen(false); void approve(true) }}><p>A patient with this name already exists. Continue only if this imported source represents a distinct synthetic person.</p></ConfirmationDialog><ConfirmationDialog open={rejectOpen} eyebrow="Discard candidates" title="Reject this import?" confirmLabel="Reject import" busyLabel="Rejecting…" busy={saving} onCancel={() => setRejectOpen(false)} onConfirm={() => void reject()}><p>The extracted candidates will be marked rejected and no patient or trial will be created.</p></ConfirmationDialog></section>
 }
 
 function PatientCandidates({ facts, update }: { facts: PatientImportFact[]; update: (id: string, values: Partial<PatientImportFact>) => void }) {

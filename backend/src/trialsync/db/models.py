@@ -97,7 +97,13 @@ class User(TimestampMixin, Base):
 
 class Patient(TimestampMixin, Base):
     __tablename__ = "patients"
-    __table_args__ = (UniqueConstraint("owner_id", "external_id"),)
+    __table_args__ = (
+        CheckConstraint(
+            "sex IS NULL OR sex IN ('male', 'female')",
+            name="ck_patients_biological_sex",
+        ),
+        UniqueConstraint("owner_id", "external_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(
@@ -109,6 +115,11 @@ class Patient(TimestampMixin, Base):
     sex: Mapped[str | None] = mapped_column(String(32), nullable=True)
     facts: Mapped[list[PatientFact]] = relationship(
         back_populates="patient", cascade="all, delete-orphan", order_by="PatientFact.created_at"
+    )
+    unsupported_details: Mapped[list[PatientUnsupportedDetail]] = relationship(
+        back_populates="patient",
+        cascade="all, delete-orphan",
+        order_by="PatientUnsupportedDetail.created_at",
     )
     snapshots: Mapped[list[PatientSnapshot]] = relationship(
         back_populates="patient", passive_deletes=True
@@ -134,6 +145,31 @@ class PatientFact(TimestampMixin, Base):
     effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     source_label: Mapped[str] = mapped_column(String(120), default="Manual entry")
     patient: Mapped[Patient] = relationship(back_populates="facts")
+
+
+class PatientUnsupportedDetail(TimestampMixin, Base):
+    __tablename__ = "patient_unsupported_details"
+    __table_args__ = (
+        CheckConstraint(
+            "category IN ('condition', 'medication', 'observation', 'other')",
+            name="ck_patient_unsupported_detail_category",
+        ),
+        Index(
+            "ix_patient_unsupported_details_patient_category",
+            "patient_id",
+            "category",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("patients.id", ondelete="CASCADE"), index=True
+    )
+    category: Mapped[str] = mapped_column(String(24))
+    label: Mapped[str] = mapped_column(String(160))
+    context: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_label: Mapped[str] = mapped_column(String(120), default="Manual review item")
+    patient: Mapped[Patient] = relationship(back_populates="unsupported_details")
 
 
 class Trial(TimestampMixin, Base):

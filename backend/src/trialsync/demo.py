@@ -63,8 +63,9 @@ class AdminWorkspaceSummary:
     needs_review: int
 
 
-def _id(name: str) -> uuid.UUID:
-    return uuid.uuid5(uuid.NAMESPACE_URL, f"https://trialsync.local/demo/{name}")
+def _id(name: str, *, namespace: str | None = None) -> uuid.UUID:
+    prefix = f"{namespace}/" if namespace else ""
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"https://trialsync.local/demo/{prefix}{name}")
 
 
 def _fact(
@@ -78,9 +79,10 @@ def _fact(
     assertion: Assertion = Assertion.present,
     effective_date: date | None = None,
     source_label: str = "Synthetic Phase 8 demo fixture",
+    namespace: str | None = None,
 ) -> PatientFact:
     return PatientFact(
-        id=_id(f"fact/{name}"),
+        id=_id(f"fact/{name}", namespace=namespace),
         patient_id=patient.id,
         fact_type=fact_type,
         concept=concept,
@@ -92,34 +94,34 @@ def _fact(
     )
 
 
-def _patients(owner_id: uuid.UUID) -> list[Patient]:
+def _patients(owner_id: uuid.UUID, *, namespace: str | None = None) -> list[Patient]:
     records = [
         Patient(
-            id=_id("patient/eligible"),
+            id=_id("patient/eligible", namespace=namespace),
             owner_id=owner_id,
             external_id="SYN-P8-001",
             display_name="Synthetic Ada Mercer",
             date_of_birth=date(1980, 1, 15),
-            sex="Female",
+            sex="female",
         ),
         Patient(
-            id=_id("patient/inclusion-fail"),
+            id=_id("patient/inclusion-fail", namespace=namespace),
             owner_id=owner_id,
             external_id="SYN-P8-002",
             display_name="Synthetic Ben Carter",
             date_of_birth=date(2012, 3, 10),
-            sex="Male",
+            sex="male",
         ),
         Patient(
-            id=_id("patient/exclusion-fail"),
+            id=_id("patient/exclusion-fail", namespace=namespace),
             owner_id=owner_id,
             external_id="SYN-P8-003",
             display_name="Synthetic Cora Bennett",
             date_of_birth=date(1988, 9, 22),
-            sex="Female",
+            sex="female",
         ),
         Patient(
-            id=_id("patient/needs-review"),
+            id=_id("patient/needs-review", namespace=namespace),
             owner_id=owner_id,
             external_id="SYN-P8-004",
             display_name="Synthetic Dev Malik",
@@ -127,20 +129,20 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
             sex=None,
         ),
         Patient(
-            id=_id("patient/type1"),
+            id=_id("patient/type1", namespace=namespace),
             owner_id=owner_id,
             external_id="SYN-P8-005",
             display_name="Synthetic Emi Tanaka",
             date_of_birth=date(1994, 11, 5),
-            sex="Female",
+            sex="female",
         ),
         Patient(
-            id=_id("patient/boundary"),
+            id=_id("patient/boundary", namespace=namespace),
             owner_id=owner_id,
             external_id="SYN-P8-006",
             display_name="Synthetic Finn Osei",
             date_of_birth=date(2008, 7, 16),
-            sex="Male",
+            sex="male",
         ),
     ]
     recent = DEMO_SCREENING_DATE - timedelta(days=7)
@@ -156,6 +158,7 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
                     numeric="7.6",
                     unit="%",
                     effective_date=recent,
+                    namespace=namespace,
                 ),
                 _fact(
                     patient,
@@ -163,6 +166,7 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
                     FactType.condition,
                     "pregnancy",
                     assertion=Assertion.absent,
+                    namespace=namespace,
                 ),
                 _fact(
                     patient,
@@ -172,11 +176,18 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
                     numeric="72",
                     unit="mL/min/1.73m2",
                     effective_date=recent,
+                    namespace=namespace,
                 ),
             ]
         )
         patient.facts.append(
-            _fact(patient, f"{suffix}/type2", FactType.condition, "type2_diabetes")
+            _fact(
+                patient,
+                f"{suffix}/type2",
+                FactType.condition,
+                "type2_diabetes",
+                namespace=namespace,
+            )
         )
 
     records[2].facts = [
@@ -185,7 +196,13 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
         if not (fact.fact_type is FactType.condition and fact.concept == "pregnancy")
     ]
     records[2].facts.append(
-        _fact(records[2], "syn-p8-003/pregnancy-trigger", FactType.condition, "pregnancy")
+        _fact(
+            records[2],
+            "syn-p8-003/pregnancy-trigger",
+            FactType.condition,
+            "pregnancy",
+            namespace=namespace,
+        )
     )
     records[4].facts = [
         fact
@@ -194,7 +211,13 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
     ]
     records[4].facts.extend(
         [
-            _fact(records[4], "syn-p8-005/type1", FactType.condition, "type1_diabetes"),
+            _fact(
+                records[4],
+                "syn-p8-005/type1",
+                FactType.condition,
+                "type1_diabetes",
+                namespace=namespace,
+            ),
             _fact(
                 records[4],
                 "syn-p8-005/egfr-trigger",
@@ -203,6 +226,7 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
                 numeric="28",
                 unit="mL/min/1.73m2",
                 effective_date=recent,
+                namespace=namespace,
             ),
         ]
     )
@@ -211,10 +235,26 @@ def _patients(owner_id: uuid.UUID) -> list[Patient]:
 
 def _admin_patients(owner_id: uuid.UUID) -> list[Patient]:
     names = [
-        "Avery Brooks", "Jordan Chen", "Morgan Diaz", "Riley Evans", "Cameron Foster",
-        "Taylor Grant", "Casey Hall", "Quinn Irving", "Parker James", "Rowan Kelly",
-        "Reese Lawson", "Hayden Moore", "Skyler Nguyen", "Peyton Ortiz", "Devin Patel",
-        "Blair Quinn", "Kendall Ross", "Drew Shah", "Emery Turner", "Logan Vega",
+        "Avery Brooks",
+        "Jordan Chen",
+        "Morgan Diaz",
+        "Riley Evans",
+        "Cameron Foster",
+        "Taylor Grant",
+        "Casey Hall",
+        "Quinn Irving",
+        "Parker James",
+        "Rowan Kelly",
+        "Reese Lawson",
+        "Hayden Moore",
+        "Skyler Nguyen",
+        "Peyton Ortiz",
+        "Devin Patel",
+        "Blair Quinn",
+        "Kendall Ross",
+        "Drew Shah",
+        "Emery Turner",
+        "Logan Vega",
     ]
     records: list[Patient] = []
     for index, name in enumerate(names, 1):
@@ -237,7 +277,7 @@ def _admin_patients(owner_id: uuid.UUID) -> list[Patient]:
                 if cohort == "likely_ineligible"
                 else date(1971 + (index % 31), (index % 12) + 1, (index % 27) + 1)
             ),
-            sex="Female" if index % 2 else "Male",
+            sex="female" if index % 2 else "male",
         )
         label = "Controlled workspace entry"
         observed = DEMO_SCREENING_DATE - timedelta(days=(index % 20) + 1)
@@ -288,7 +328,9 @@ def _admin_patients(owner_id: uuid.UUID) -> list[Patient]:
         patient.facts.extend(
             [
                 _fact(
-                    patient, f"admin-{index}/type2", FactType.condition,
+                    patient,
+                    f"admin-{index}/type2",
+                    FactType.condition,
                     "type2_diabetes",
                     assertion=(
                         Assertion.absent
@@ -300,20 +342,33 @@ def _admin_patients(owner_id: uuid.UUID) -> list[Patient]:
                     source_label=label,
                 ),
                 _fact(
-                    patient, f"admin-{index}/hypertension", FactType.condition,
-                    "hypertension", source_label=label,
+                    patient,
+                    f"admin-{index}/hypertension",
+                    FactType.condition,
+                    "hypertension",
+                    source_label=label,
                 ),
                 _fact(
-                    patient, f"admin-{index}/pregnancy", FactType.condition,
-                    "pregnancy", assertion=Assertion.absent, source_label=label,
+                    patient,
+                    f"admin-{index}/pregnancy",
+                    FactType.condition,
+                    "pregnancy",
+                    assertion=Assertion.absent,
+                    source_label=label,
                 ),
                 _fact(
-                    patient, f"admin-{index}/metformin", FactType.medication,
-                    "metformin", source_label=label,
+                    patient,
+                    f"admin-{index}/metformin",
+                    FactType.medication,
+                    "metformin",
+                    source_label=label,
                 ),
                 _fact(
-                    patient, f"admin-{index}/atorvastatin", FactType.medication,
-                    "atorvastatin", source_label=label,
+                    patient,
+                    f"admin-{index}/atorvastatin",
+                    FactType.medication,
+                    "atorvastatin",
+                    source_label=label,
                 ),
             ]
         )
@@ -375,65 +430,97 @@ def _admin_trials(owner_id: uuid.UUID) -> list[Trial]:
         minimum_egfr = 40 + (index % 3) * 5
         criteria = [
             (
-                CriterionKind.inclusion, "Age 18 to 75 years at screening",
+                CriterionKind.inclusion,
+                "Age 18 to 75 years at screening",
                 {"op": "between", "fact": "demographic.age", "min": 18, "max": 75, "unit": "year"},
             ),
             (
-                CriterionKind.inclusion, "Documented Type 2 diabetes",
+                CriterionKind.inclusion,
+                "Documented Type 2 diabetes",
                 {"op": "present", "fact": "condition.type2_diabetes"},
             ),
             (
                 CriterionKind.inclusion,
                 f"HbA1c between {minimum_hba1c:.1f}% and {maximum_hba1c:.1f}%",
                 {
-                    "op": "between", "fact": "observation.hba1c", "min": minimum_hba1c,
-                    "max": maximum_hba1c, "unit": "%", "selection": "latest",
+                    "op": "between",
+                    "fact": "observation.hba1c",
+                    "min": minimum_hba1c,
+                    "max": maximum_hba1c,
+                    "unit": "%",
+                    "selection": "latest",
                 },
             ),
             (
-                CriterionKind.inclusion, f"eGFR at least {minimum_egfr} mL/min/1.73m2",
+                CriterionKind.inclusion,
+                f"eGFR at least {minimum_egfr} mL/min/1.73m2",
                 {
-                    "op": "gte", "fact": "observation.egfr", "value": minimum_egfr,
-                    "unit": "mL/min/1.73m2", "selection": "latest",
+                    "op": "gte",
+                    "fact": "observation.egfr",
+                    "value": minimum_egfr,
+                    "unit": "mL/min/1.73m2",
+                    "selection": "latest",
                 },
             ),
             (
-                CriterionKind.inclusion, "Body mass index between 20 and 45 kg/m2",
+                CriterionKind.inclusion,
+                "Body mass index between 20 and 45 kg/m2",
                 {
-                    "op": "between", "fact": "observation.bmi", "min": 20, "max": 45,
-                    "unit": "kg/m2", "selection": "latest",
+                    "op": "between",
+                    "fact": "observation.bmi",
+                    "min": 20,
+                    "max": 45,
+                    "unit": "kg/m2",
+                    "selection": "latest",
                 },
             ),
             (
-                CriterionKind.exclusion, "Current pregnancy",
+                CriterionKind.exclusion,
+                "Current pregnancy",
                 {"op": "present", "fact": "condition.pregnancy"},
             ),
             (
-                CriterionKind.exclusion, "eGFR below 30 mL/min/1.73m2",
+                CriterionKind.exclusion,
+                "eGFR below 30 mL/min/1.73m2",
                 {
-                    "op": "lt", "fact": "observation.egfr", "value": 30,
-                    "unit": "mL/min/1.73m2", "selection": "latest",
+                    "op": "lt",
+                    "fact": "observation.egfr",
+                    "value": 30,
+                    "unit": "mL/min/1.73m2",
+                    "selection": "latest",
                 },
             ),
             (
-                CriterionKind.exclusion, "ALT above 120 U/L",
+                CriterionKind.exclusion,
+                "ALT above 120 U/L",
                 {
-                    "op": "gt", "fact": "observation.alt", "value": 120,
-                    "unit": "U/L", "selection": "latest",
+                    "op": "gt",
+                    "fact": "observation.alt",
+                    "value": 120,
+                    "unit": "U/L",
+                    "selection": "latest",
                 },
             ),
             (
-                CriterionKind.exclusion, "Hemoglobin below 10 g/dL",
+                CriterionKind.exclusion,
+                "Hemoglobin below 10 g/dL",
                 {
-                    "op": "lt", "fact": "observation.hemoglobin", "value": 10,
-                    "unit": "g/dL", "selection": "latest",
+                    "op": "lt",
+                    "fact": "observation.hemoglobin",
+                    "value": 10,
+                    "unit": "g/dL",
+                    "selection": "latest",
                 },
             ),
             (
-                CriterionKind.exclusion, "Potassium below 3.2 mmol/L",
+                CriterionKind.exclusion,
+                "Potassium below 3.2 mmol/L",
                 {
-                    "op": "lt", "fact": "observation.potassium", "value": 3.2,
-                    "unit": "mmol/L", "selection": "latest",
+                    "op": "lt",
+                    "fact": "observation.potassium",
+                    "value": 3.2,
+                    "unit": "mmol/L",
+                    "selection": "latest",
                 },
             ),
         ]
@@ -453,9 +540,9 @@ def _admin_trials(owner_id: uuid.UUID) -> list[Trial]:
     return trials
 
 
-def _trials(owner_id: uuid.UUID) -> list[Trial]:
+def _trials(owner_id: uuid.UUID, *, namespace: str | None = None) -> list[Trial]:
     metabolic = Trial(
-        id=_id("trial/metabolic"),
+        id=_id("trial/metabolic", namespace=namespace),
         owner_id=owner_id,
         registry_id="SYN-P8-METABOLIC",
         title="Synthetic metabolic eligibility study",
@@ -463,7 +550,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
         phase="Phase 2",
     )
     metabolic_version = TrialVersion(
-        id=_id("trial-version/metabolic/1"),
+        id=_id("trial-version/metabolic/1", namespace=namespace),
         trial=metabolic,
         version=1,
         status=VersionStatus.approved,
@@ -472,7 +559,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
     metabolic_version.criteria.extend(
         [
             Criterion(
-                id=_id("criterion/metabolic/age"),
+                id=_id("criterion/metabolic/age", namespace=namespace),
                 trial_version_id=metabolic_version.id,
                 kind=CriterionKind.inclusion,
                 order=1,
@@ -487,7 +574,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
                 required=True,
             ),
             Criterion(
-                id=_id("criterion/metabolic/type2"),
+                id=_id("criterion/metabolic/type2", namespace=namespace),
                 trial_version_id=metabolic_version.id,
                 kind=CriterionKind.inclusion,
                 order=2,
@@ -496,7 +583,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
                 required=True,
             ),
             Criterion(
-                id=_id("criterion/metabolic/hba1c"),
+                id=_id("criterion/metabolic/hba1c", namespace=namespace),
                 trial_version_id=metabolic_version.id,
                 kind=CriterionKind.inclusion,
                 order=3,
@@ -512,7 +599,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
                 required=True,
             ),
             Criterion(
-                id=_id("criterion/metabolic/pregnancy"),
+                id=_id("criterion/metabolic/pregnancy", namespace=namespace),
                 trial_version_id=metabolic_version.id,
                 kind=CriterionKind.exclusion,
                 order=4,
@@ -524,7 +611,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
     )
 
     renal = Trial(
-        id=_id("trial/renal"),
+        id=_id("trial/renal", namespace=namespace),
         owner_id=owner_id,
         registry_id="SYN-P8-RENAL",
         title="Synthetic renal safety study",
@@ -532,7 +619,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
         phase="Phase 3",
     )
     renal_version = TrialVersion(
-        id=_id("trial-version/renal/1"),
+        id=_id("trial-version/renal/1", namespace=namespace),
         trial=renal,
         version=1,
         status=VersionStatus.approved,
@@ -541,7 +628,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
     renal_version.criteria.extend(
         [
             Criterion(
-                id=_id("criterion/renal/age"),
+                id=_id("criterion/renal/age", namespace=namespace),
                 trial_version_id=renal_version.id,
                 kind=CriterionKind.inclusion,
                 order=1,
@@ -556,7 +643,7 @@ def _trials(owner_id: uuid.UUID) -> list[Trial]:
                 required=True,
             ),
             Criterion(
-                id=_id("criterion/renal/egfr"),
+                id=_id("criterion/renal/egfr", namespace=namespace),
                 trial_version_id=renal_version.id,
                 kind=CriterionKind.exclusion,
                 order=2,
@@ -599,24 +686,27 @@ async def seed_demo_data(
     *,
     email: str = DEMO_EMAIL,
     password: str = DEMO_PASSWORD,
+    namespace: str | None = None,
 ) -> DemoSeedSummary:
+    """Replace one account with the reproducible synthetic demo workspace."""
     await reset_demo_data(session, email)
+    id_namespace = namespace or (None if email.lower() == DEMO_EMAIL else email.lower())
     user = User(
-        id=_id("user/phase8-demo"),
+        id=_id("user/phase8-demo", namespace=id_namespace),
         email=email.lower(),
         display_name="Demo Coordinator",
         password_hash=hash_password(password),
     )
     session.add(user)
     await session.flush()
-    patients = _patients(user.id)
-    trials = _trials(user.id)
+    patients = _patients(user.id, namespace=id_namespace)
+    trials = _trials(user.id, namespace=id_namespace)
     session.add_all([*patients, *trials])
     await session.flush()
 
     snapshots = [await snapshot_for_patient(session, patient) for patient in patients]
     batch = ScreeningBatch(
-        id=_id("batch/mixed-matrix"),
+        id=_id("batch/mixed-matrix", namespace=id_namespace),
         owner_id=user.id,
         label="Phase 8 mixed-outcome matrix",
         pair_count=len(snapshots) * len(trials),
@@ -735,8 +825,7 @@ async def seed_demo_data(
             screening_id=needs_review.id,
             role="assistant",
             content=(
-                "The screening record does not contain enough information to answer "
-                "that question."
+                "The screening record does not contain enough information to answer that question."
             ),
             answer_state="insufficient_evidence",
             citations_json=[],
@@ -801,8 +890,7 @@ async def seed_admin_workspace(session: AsyncSession) -> AdminWorkspaceSummary:
             )
     await session.flush()
     state_counts = {
-        state: sum(item.overall_state is state for item in screenings)
-        for state in OverallState
+        state: sum(item.overall_state is state for item in screenings) for state in OverallState
     }
     if state_counts != {
         OverallState.potentially_eligible: 120,
@@ -810,8 +898,7 @@ async def seed_admin_workspace(session: AsyncSession) -> AdminWorkspaceSummary:
         OverallState.needs_review: 60,
     }:
         raise RuntimeError(
-            "Admin workspace did not produce the expected distribution: "
-            f"{state_counts}"
+            f"Admin workspace did not produce the expected distribution: {state_counts}"
         )
     return AdminWorkspaceSummary(
         email=admin.email,

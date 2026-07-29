@@ -114,7 +114,7 @@ restore, upgrades, and the required `trialsync.atuls.me` tunnel origin.
 
 1. Register a demo account at `/register` or sign in at `/login`.
 2. Search fictional patients at `/patients` or use **Add patient** for the focused creation flow, then open one to record conditions, medications, observations, and demographics.
-3. Search fictional trials at `/trials` or use **Add trial**, then open one, create a draft version, and add ordered inclusion or exclusion criteria.
+3. Search fictional trials at `/trials` or use **Add trial**, then open one, start a criteria draft, and add guided inclusion or exclusion criteria.
 
 All patient and trial queries are scoped to the authenticated owner. List endpoints are intentionally limited to 100 records for the semester demo. Only synthetic data may be entered.
 
@@ -154,14 +154,21 @@ GET  /api/v1/auth/me
 
 GET|POST           /api/v1/patients
 GET|PATCH|DELETE   /api/v1/patients/{patient_id}
+GET                /api/v1/patient-fact-catalog
 POST               /api/v1/patients/{patient_id}/facts
 PATCH|DELETE       /api/v1/patients/{patient_id}/facts/{fact_id}
+POST               /api/v1/patients/{patient_id}/unsupported-details
+PATCH|DELETE       /api/v1/patients/{patient_id}/unsupported-details/{detail_id}
 
 GET|POST           /api/v1/trials
 GET|PATCH|DELETE   /api/v1/trials/{trial_id}
 POST               /api/v1/trials/{trial_id}/versions
+POST               /api/v1/trials/{trial_id}/versions/draft
 PUT|DELETE         /api/v1/trials/{trial_id}/versions/{version_id}
 POST               /api/v1/trials/{trial_id}/versions/{version_id}/criteria
+POST               /api/v1/trials/{trial_id}/versions/{version_id}/guided-criteria
+PUT                /api/v1/trials/{trial_id}/versions/{version_id}/guided-criteria/{criterion_id}
+POST               /api/v1/trials/{trial_id}/versions/{version_id}/unsupported-criteria
 PUT|DELETE         /api/v1/trials/{trial_id}/versions/{version_id}/criteria/{criterion_id}
 
 POST               /api/v1/screenings
@@ -179,6 +186,22 @@ GET                /api/v1/screenings/{screening_id}/conversation
 POST               /api/v1/screenings/{screening_id}/conversation/messages
 DELETE             /api/v1/screenings/{screening_id}/conversation
 ```
+
+The authenticated patient-fact catalog is the semantic source for routine
+clinical-detail entry. Fact creation accepts a catalog key plus a tagged
+`status`, `pregnancy_status`, or `numeric` value; fact updates accept the tagged
+value and the loaded fact revision. The server derives canonical concept codes,
+fact types, fixed units, and source labels rather than accepting those fields
+from the routine client. Details that are not in the catalog can be retained as
+separate review items, but they are never patient facts or screening evidence.
+
+The trial workspace likewise uses the same backend catalog for guided demographic,
+condition, medication, and observation criteria. The server derives rule JSON,
+fixed units, criterion order, and draft revision numbers. Routine users work only
+with inclusion and exclusion sections; immutable approved revisions remain visible
+in compact protocol history for screening reproducibility. Unsupported criterion
+wording can be saved for mapping review, but blocks approval until it is mapped to
+a supported rule or removed.
 
 ## Saved screening history
 

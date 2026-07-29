@@ -87,12 +87,42 @@ def install_error_handlers(app: FastAPI) -> None:
     async def handle_validation_error(
         request: Request, exception: RequestValidationError
     ) -> JSONResponse:
+        errors = list(exception.errors())
+        for item in errors:
+            location = item.get("loc", ())
+            if location and location[-1] == "sex" and item.get("type") == "enum":
+                return error_response(
+                    request,
+                    status_code=422,
+                    code="PATIENT_SEX_INVALID",
+                    message="Biological sex must be male, female, or null.",
+                    field="sex",
+                    details=errors,
+                )
+            if item.get("type") == "patient_date_of_birth_in_future":
+                return error_response(
+                    request,
+                    status_code=422,
+                    code="PATIENT_DOB_IN_FUTURE",
+                    message="Date of birth cannot be in the future.",
+                    field="date_of_birth",
+                    details=errors,
+                )
+        if "/facts" in request.url.path:
+            return error_response(
+                request,
+                status_code=422,
+                code="PATIENT_FACT_VALUE_INVALID",
+                message="The clinical detail value could not be validated.",
+                field="value",
+                details=errors,
+            )
         return error_response(
             request,
             status_code=422,
             code="REQUEST_VALIDATION_ERROR",
             message="The request could not be validated.",
-            details=list(exception.errors()),
+            details=errors,
         )
 
     @app.exception_handler(StarletteHTTPException)

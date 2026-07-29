@@ -23,6 +23,12 @@ phase. Consult the smallest relevant legacy section only when:
 For research-extension work, the authoritative plan is
 `agent-docs/research-extension-implementation-plan.md`.
 
+For the approved patient data-entry and editing overhaul, the authoritative
+plan is `agent-docs/patient-data-entry-overhaul-plan.md`. Implement one PD phase
+at a time and preserve the immutable-screening and deterministic-eligibility
+invariants in this file. This bounded core-product plan does not change the
+R0–R8 research-extension sequence.
+
 Before changing code:
 
 1. Read the repository bootstrap `AGENTS.md` and this file.

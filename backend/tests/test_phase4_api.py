@@ -196,8 +196,14 @@ async def test_screening_persists_evidence_and_is_immutable_after_edits(
     }
     assert saved["evaluations"][0]["criterion_source_text"] == "Age 18 to 75 years at screening"
 
+    current_patient = await api.get(f"/api/v1/patients/{patient_id}", headers=headers)
     changed = await api.patch(
-        f"/api/v1/patients/{patient_id}", headers=headers, json={"date_of_birth": "2015-07-15"}
+        f"/api/v1/patients/{patient_id}",
+        headers=headers,
+        json={
+            "date_of_birth": "2015-07-15",
+            "expected_updated_at": current_patient.json()["updated_at"],
+        },
     )
     assert changed.status_code == 200
     historical = await api.get(f"/api/v1/screenings/{saved['id']}", headers=headers)
@@ -256,7 +262,7 @@ async def test_patient_profile_sex_is_snapshotted_as_demographic_evidence(
         json={
             "external_id": "SYN-SEX",
             "display_name": "Synthetic demographic case",
-            "sex": "Female",
+            "sex": "female",
         },
     )
     version_id = await approved_sex_trial(api, headers)

@@ -8,6 +8,7 @@ from trialsync.api.errors import install_error_handlers
 from trialsync.api.health import router as health_router
 from trialsync.api.imports import router as imports_router
 from trialsync.api.middleware import TraceIdMiddleware
+from trialsync.api.patient_fact_catalog import router as patient_fact_catalog_router
 from trialsync.api.patients import router as patients_router
 from trialsync.api.screenings import router as screenings_router
 from trialsync.api.trials import router as trials_router
@@ -42,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(patient_fact_catalog_router)
     app.include_router(patients_router)
     app.include_router(trials_router)
     app.include_router(screenings_router)

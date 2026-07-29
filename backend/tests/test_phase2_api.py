@@ -84,7 +84,10 @@ async def test_authentication_and_cross_user_patient_isolation(
     update = await api.patch(
         f"/api/v1/patients/{patient_id}",
         headers=auth(second),
-        json={"display_name": "Not allowed"},
+        json={
+            "display_name": "Not allowed",
+            "expected_updated_at": created.json()["updated_at"],
+        },
     )
     assert update.status_code == 404
     deleted = await api.delete(f"/api/v1/patients/{patient_id}", headers=auth(second))
@@ -102,7 +105,11 @@ async def test_patient_fact_numeric_unit_validation(api: AsyncClient, email_pref
     invalid = await api.post(
         f"/api/v1/patients/{patient_id}/facts",
         headers=auth(account),
-        json={"fact_type": "observation", "concept": "HbA1c", "value_numeric": 7.1},
+        json={
+            "catalog_key": "hba1c",
+            "value": {"input_kind": "numeric", "value_numeric": 7.1},
+            "expected_patient_updated_at": created.json()["updated_at"],
+        },
     )
     assert invalid.status_code == 422
 
@@ -110,15 +117,34 @@ async def test_patient_fact_numeric_unit_validation(api: AsyncClient, email_pref
         f"/api/v1/patients/{patient_id}/facts",
         headers=auth(account),
         json={
-            "fact_type": "observation",
-            "concept": "HbA1c",
-            "value_numeric": 7.1,
-            "unit": "%",
-            "effective_date": "2026-07-01",
+            "catalog_key": "hba1c",
+            "value": {
+                "input_kind": "numeric",
+                "value_numeric": 7.1,
+                "effective_date": "2026-07-01",
+            },
+            "expected_patient_updated_at": created.json()["updated_at"],
         },
     )
     assert valid.status_code == 201
     assert valid.json()["unit"] == "%"
+
+    override = await api.post(
+        f"/api/v1/patients/{patient_id}/facts",
+        headers=auth(account),
+        json={
+            "catalog_key": "creatinine",
+            "unit": "mmol/L",
+            "value": {
+                "input_kind": "numeric",
+                "value_numeric": 1.1,
+                "effective_date": "2026-07-01",
+            },
+            "expected_patient_updated_at": created.json()["updated_at"],
+        },
+    )
+    assert override.status_code == 422
+    assert override.json()["error"]["code"] == "PATIENT_FACT_VALUE_INVALID"
 
 
 async def test_generated_record_ids_and_duplicate_patient_confirmation(

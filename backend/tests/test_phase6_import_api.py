@@ -146,6 +146,7 @@ async def test_patient_text_import_is_reviewed_edited_and_then_approved(
         f"/api/v1/patients/{approved.json()['resource_id']}", headers=headers
     )
     assert patient.json()["display_name"] == "Synthetic Edited Ada"
+    assert patient.json()["sex"] == "female"
     stored_condition = next(
         item for item in patient.json()["facts"] if item["fact_type"] == "condition"
     )

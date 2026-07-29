@@ -22,6 +22,7 @@ from trialsync.db.session import get_session_factory
 from trialsync.demo import (
     ADMIN_EMAIL,
     DEMO_EMAIL,
+    DemoSeedSummary,
     _admin_patients,
     _admin_trials,
     _require_nonproduction,
@@ -102,6 +103,43 @@ async def test_demo_seed_is_reproducible_and_contains_mixed_outcomes() -> None:
         assert await reset_demo_data(session) is False
 
 
+async def test_demo_seed_can_create_an_isolated_workspace_for_another_user() -> None:
+    mentor_email = "mentor-seed-test@trialsync.example"
+    async with get_session_factory()() as session, session.begin():
+        demo = await seed_demo_data(session)
+        mentor = await seed_demo_data(
+            session,
+            email=mentor_email,
+            password="MentorSeed123!",
+        )
+        demo_user = await session.scalar(select(User).where(User.email == DEMO_EMAIL))
+        mentor_user = await session.scalar(select(User).where(User.email == mentor_email))
+
+        assert demo == DemoSeedSummary(
+            email=DEMO_EMAIL,
+            patients=6,
+            trials=2,
+            screenings=12,
+            batches=1,
+            chat_messages=8,
+        )
+        assert mentor == DemoSeedSummary(
+            email=mentor_email,
+            patients=6,
+            trials=2,
+            screenings=12,
+            batches=1,
+            chat_messages=8,
+        )
+        assert demo_user is not None
+        assert mentor_user is not None
+        assert demo_user.id != mentor_user.id
+        assert (
+            await session.scalar(select(Patient.id).where(Patient.owner_id == mentor_user.id))
+            is not None
+        )
+
+
 def test_generated_demo_pdf_is_machine_readable_and_synthetic() -> None:
     extracted = extract_pdf_input(
         build_text_pdf("Patient name: Synthetic PDF Rowan\nDate of birth: 1986-04-18\nHbA1c: 7.8 %")
@@ -125,9 +163,22 @@ def test_controlled_admin_builders_create_complete_non_synthetic_records() -> No
         for patient in patients
     )
     assert {fact.concept for fact in patients[0].facts} >= {
-        "hba1c", "fasting_glucose", "egfr", "creatinine", "alt", "ast",
-        "hemoglobin", "wbc", "platelets", "ldl", "triglycerides", "bmi",
-        "systolic_bp", "diastolic_bp", "potassium", "albumin",
+        "hba1c",
+        "fasting_glucose",
+        "egfr",
+        "creatinine",
+        "alt",
+        "ast",
+        "hemoglobin",
+        "wbc",
+        "platelets",
+        "ldl",
+        "triglycerides",
+        "bmi",
+        "systolic_bp",
+        "diastolic_bp",
+        "potassium",
+        "albumin",
     }
 
     assert len(trials) == 15
@@ -186,9 +237,7 @@ async def test_controlled_admin_workspace_has_expected_history_distribution() ->
             )
         )
         unknown_results = await session.scalars(
-            select(CriterionEvaluation.result).where(
-                CriterionEvaluation.screening_id == unknown_id
-            )
+            select(CriterionEvaluation.result).where(CriterionEvaluation.screening_id == unknown_id)
         )
         assert sum(item is EvaluationResult.fail for item in ineligible_results) >= 5
         assert sum(item is EvaluationResult.unknown for item in unknown_results) >= 5

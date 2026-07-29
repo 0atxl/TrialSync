@@ -2,8 +2,10 @@ import { getApiBaseUrl } from './config'
 
 export type User = { id: string; email: string; display_name: string }
 export type AuthResponse = { access_token: string; token_type: string; user: User }
+export type BiologicalSex = 'male' | 'female'
 export type Fact = {
   id: string
+  patient_id: string
   fact_type: 'condition' | 'medication' | 'observation' | 'demographic'
   concept: string
   value_numeric: string | null
@@ -12,14 +14,72 @@ export type Fact = {
   assertion: 'present' | 'absent' | 'unknown'
   effective_date: string | null
   source_label: string
+  created_at: string
+  updated_at: string
+}
+export type PatientFactGroup = 'conditions' | 'medications' | 'observations'
+export type PatientFactInputKind = 'status' | 'pregnancy_status' | 'numeric'
+export type PatientFactCatalogEntry = {
+  key: string
+  fact_type: Fact['fact_type']
+  concept: string
+  display_label: string
+  group: PatientFactGroup
+  input_kind: PatientFactInputKind
+  allowed_assertions: Fact['assertion'][]
+  fixed_unit: string | null
+  allowed_units: string[]
+  effective_date_required: boolean
+  screening_supported: boolean
+  help_text: string
+  display_order: number
+}
+export type PatientFactCatalog = {
+  version: string
+  entries: PatientFactCatalogEntry[]
+}
+export type ClinicalDetailValue =
+  | {
+      input_kind: 'status'
+      assertion: Fact['assertion']
+      effective_date: string | null
+    }
+  | {
+      input_kind: 'pregnancy_status'
+      assertion: Fact['assertion']
+      effective_date: string
+    }
+  | {
+      input_kind: 'numeric'
+      assertion: 'present' | 'unknown'
+      value_numeric: number | null
+      effective_date: string
+    }
+export type PatientUnsupportedDetailCategory =
+  | 'condition'
+  | 'medication'
+  | 'observation'
+  | 'other'
+export type PatientUnsupportedDetail = {
+  id: string
+  patient_id: string
+  category: PatientUnsupportedDetailCategory
+  label: string
+  context: string | null
+  source_label: string
+  created_at: string
+  updated_at: string
 }
 export type Patient = {
   id: string
   external_id: string
   display_name: string
   date_of_birth: string | null
-  sex: string | null
+  sex: BiologicalSex | null
+  created_at: string
+  updated_at: string
   facts: Fact[]
+  unsupported_details: PatientUnsupportedDetail[]
 }
 export type Criterion = {
   id: string

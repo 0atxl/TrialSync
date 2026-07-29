@@ -5,9 +5,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 from trialsync.db.models import Assertion, CriterionKind, DocumentKind, DocumentSourceType, FactType
+from trialsync.patient_data import BiologicalSex
 
 
 class ImportAnalyzeRequest(BaseModel):
@@ -38,7 +40,24 @@ class SourceReference(BaseModel):
 class PatientProfileCandidate(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
     date_of_birth: date | None = None
-    sex: str | None = Field(default=None, max_length=32)
+    sex: BiologicalSex | None = None
+
+    @field_validator("sex", mode="before")
+    @classmethod
+    def normalize_recognized_legacy_sex(cls, value: object) -> object:
+        if isinstance(value, str) and value.strip().lower() in {"male", "female"}:
+            return value.strip().lower()
+        return value
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def reject_future_date_of_birth(cls, value: date | None) -> date | None:
+        if value is not None and value > date.today():
+            raise PydanticCustomError(
+                "patient_date_of_birth_in_future",
+                "Date of birth cannot be in the future.",
+            )
+        return value
 
 
 class PatientFactCandidate(BaseModel):

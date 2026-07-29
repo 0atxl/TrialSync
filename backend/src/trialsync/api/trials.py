@@ -1,26 +1,173 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 from fastapi import APIRouter, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
-from trialsync.db.models import Criterion, Trial, TrialVersion, VersionStatus
+from trialsync.db.models import Criterion, FactType, Trial, TrialVersion, VersionStatus
+from trialsync.patient_data import PatientFactInputKind
+from trialsync.patient_data.catalog import PATIENT_FACT_CATALOG_BY_KEY
 from trialsync.schemas import (
     CriterionCreate,
     CriterionRead,
+    GuidedCriterionCreate,
     TrialCreate,
     TrialRead,
     TrialUpdate,
+    UnsupportedCriterionCreate,
     VersionCreate,
     VersionRead,
 )
 
 router = APIRouter(prefix="/api/v1/trials", tags=["trials"])
+
+
+def criterion_value_error(message: str, field: str) -> ApplicationError:
+    return ApplicationError(
+        code="TRIAL_CRITERION_VALUE_INVALID",
+        message=message,
+        status_code=422,
+        field=field,
+    )
+
+
+def display_number(value: Decimal) -> str:
+    return format(value, "f").rstrip("0").rstrip(".")
+
+
+def json_number(value: Decimal) -> int | float:
+    return int(value) if value == value.to_integral_value() else float(value)
+
+
+def guided_criterion_values(payload: GuidedCriterionCreate) -> tuple[str, dict[str, object]]:
+    if payload.subject_key == "age":
+        if payload.operator not in {"gte", "lte", "between"}:
+            raise criterion_value_error(
+                "Age supports minimum, maximum, or range criteria.",
+                "operator",
+            )
+        if payload.operator == "between":
+            if (
+                payload.minimum is None
+                or payload.maximum is None
+                or payload.minimum > payload.maximum
+            ):
+                raise criterion_value_error(
+                    "Enter an age range with the minimum at or below the maximum.",
+                    "minimum",
+                )
+            minimum = display_number(payload.minimum)
+            maximum = display_number(payload.maximum)
+            return (
+                f"Age between {minimum} and {maximum} years",
+                {
+                    "op": "between",
+                    "fact": "demographic.age",
+                    "min": json_number(payload.minimum),
+                    "max": json_number(payload.maximum),
+                    "unit": "year",
+                },
+            )
+        if payload.value is None:
+            raise criterion_value_error("Enter an age value.", "value")
+        value = display_number(payload.value)
+        label = "at least" if payload.operator == "gte" else "at most"
+        return (
+            f"Age {label} {value} years",
+            {
+                "op": payload.operator,
+                "fact": "demographic.age",
+                "value": json_number(payload.value),
+                "unit": "year",
+            },
+        )
+
+    if payload.subject_key == "biological_sex":
+        if payload.operator != "is" or payload.biological_sex is None:
+            raise criterion_value_error(
+                "Choose Male or Female for the biological-sex criterion.",
+                "biological_sex",
+            )
+        label = payload.biological_sex.value.capitalize()
+        return (
+            f"Biological sex is {label}",
+            {
+                "op": "concept_is",
+                "fact_type": "demographic",
+                "concept": payload.biological_sex.value,
+            },
+        )
+
+    entry = PATIENT_FACT_CATALOG_BY_KEY.get(payload.subject_key)
+    if entry is None:
+        raise criterion_value_error(
+            "Choose a supported criterion from the catalog.",
+            "subject_key",
+        )
+    fact = f"{entry.fact_type.value}.{entry.concept}"
+    if entry.input_kind is not PatientFactInputKind.numeric:
+        if payload.operator not in {"present", "absent"}:
+            raise criterion_value_error(
+                f"{entry.display_label} supports present or absent criteria.",
+                "operator",
+            )
+        wording = "is present" if payload.operator == "present" else "is absent"
+        return (
+            f"{entry.display_label} {wording}",
+            {"op": payload.operator, "fact": fact},
+        )
+
+    if entry.fact_type is not FactType.observation:
+        raise criterion_value_error("Numeric criteria must use an observation.", "subject_key")
+    if payload.operator not in {"gte", "lte", "between"}:
+        raise criterion_value_error(
+            f"{entry.display_label} supports minimum, maximum, or range criteria.",
+            "operator",
+        )
+    unit = entry.fixed_unit or entry.allowed_units[0]
+    if payload.operator == "between":
+        if (
+            payload.minimum is None
+            or payload.maximum is None
+            or payload.minimum > payload.maximum
+        ):
+            raise criterion_value_error(
+                "Enter a range with the minimum at or below the maximum.",
+                "minimum",
+            )
+        minimum = display_number(payload.minimum)
+        maximum = display_number(payload.maximum)
+        return (
+            f"{entry.display_label} between {minimum} and {maximum} {unit}",
+            {
+                "op": "between",
+                "fact": fact,
+                "min": json_number(payload.minimum),
+                "max": json_number(payload.maximum),
+                "unit": unit,
+                "selection": "latest",
+            },
+        )
+    if payload.value is None:
+        raise criterion_value_error("Enter a numeric threshold.", "value")
+    value = display_number(payload.value)
+    label = "at least" if payload.operator == "gte" else "at most"
+    return (
+        f"{entry.display_label} {label} {value} {unit}",
+        {
+            "op": payload.operator,
+            "fact": fact,
+            "value": json_number(payload.value),
+            "unit": unit,
+            "selection": "latest",
+        },
+    )
 
 
 def trial_options():
@@ -181,6 +328,53 @@ async def create_version(
     return await owned_version(session, user, trial_id, version.id)
 
 
+@router.post(
+    "/{trial_id}/versions/draft",
+    response_model=VersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_guided_draft(
+    trial_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> TrialVersion:
+    trial = await owned_trial(session, user, trial_id)
+    existing_draft = next(
+        (version for version in trial.versions if version.status is VersionStatus.draft),
+        None,
+    )
+    if existing_draft is not None:
+        raise ApplicationError(
+            code="TRIAL_DRAFT_EXISTS",
+            message="This trial already has an editable draft.",
+            status_code=409,
+            details=[{"version_id": str(existing_draft.id)}],
+        )
+    latest = trial.versions[-1] if trial.versions else None
+    version = TrialVersion(
+        trial_id=trial_id,
+        version=(latest.version + 1) if latest else 1,
+        status=VersionStatus.draft,
+        source_text=latest.source_text if latest else None,
+    )
+    session.add(version)
+    await session.flush()
+    if latest is not None:
+        for criterion in latest.criteria:
+            session.add(
+                Criterion(
+                    trial_version_id=version.id,
+                    kind=criterion.kind,
+                    order=criterion.order,
+                    source_text=criterion.source_text,
+                    normalized_rule=criterion.normalized_rule,
+                    required=criterion.required,
+                )
+            )
+    await session.commit()
+    return await owned_version(session, user, trial_id, version.id)
+
+
 @router.put("/{trial_id}/versions/{version_id}", response_model=VersionRead)
 async def update_version(
     payload: VersionCreate,
@@ -252,6 +446,69 @@ async def create_criterion(
     return criterion
 
 
+@router.post(
+    "/{trial_id}/versions/{version_id}/guided-criteria",
+    response_model=CriterionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_guided_criterion(
+    payload: GuidedCriterionCreate,
+    trial_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> Criterion:
+    version = await owned_version(session, user, trial_id, version_id)
+    require_draft(version)
+    source_text, normalized_rule = guided_criterion_values(payload)
+    last_order = await session.scalar(
+        select(func.max(Criterion.order)).where(Criterion.trial_version_id == version_id)
+    )
+    criterion = Criterion(
+        trial_version_id=version_id,
+        kind=payload.kind,
+        order=(last_order or 0) + 1,
+        source_text=source_text,
+        normalized_rule=normalized_rule,
+        required=True,
+    )
+    session.add(criterion)
+    await session.commit()
+    await session.refresh(criterion)
+    return criterion
+
+
+@router.post(
+    "/{trial_id}/versions/{version_id}/unsupported-criteria",
+    response_model=CriterionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_unsupported_criterion(
+    payload: UnsupportedCriterionCreate,
+    trial_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> Criterion:
+    version = await owned_version(session, user, trial_id, version_id)
+    require_draft(version)
+    last_order = await session.scalar(
+        select(func.max(Criterion.order)).where(Criterion.trial_version_id == version_id)
+    )
+    criterion = Criterion(
+        trial_version_id=version_id,
+        kind=payload.kind,
+        order=(last_order or 0) + 1,
+        source_text=payload.source_text,
+        normalized_rule=None,
+        required=True,
+    )
+    session.add(criterion)
+    await session.commit()
+    await session.refresh(criterion)
+    return criterion
+
+
 @router.put(
     "/{trial_id}/versions/{version_id}/criteria/{criterion_id}", response_model=CriterionRead
 )
@@ -286,6 +543,42 @@ async def update_criterion(
             status_code=409,
             field="order",
         ) from exception
+    await session.refresh(criterion)
+    return criterion
+
+
+@router.put(
+    "/{trial_id}/versions/{version_id}/guided-criteria/{criterion_id}",
+    response_model=CriterionRead,
+)
+async def update_guided_criterion(
+    payload: GuidedCriterionCreate,
+    trial_id: uuid.UUID,
+    version_id: uuid.UUID,
+    criterion_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> Criterion:
+    version = await owned_version(session, user, trial_id, version_id)
+    require_draft(version)
+    criterion = await session.scalar(
+        select(Criterion).where(
+            Criterion.id == criterion_id,
+            Criterion.trial_version_id == version_id,
+        )
+    )
+    if criterion is None:
+        raise ApplicationError(
+            code="CRITERION_NOT_FOUND",
+            message="Criterion was not found.",
+            status_code=404,
+        )
+    source_text, normalized_rule = guided_criterion_values(payload)
+    criterion.kind = payload.kind
+    criterion.source_text = source_text
+    criterion.normalized_rule = normalized_rule
+    criterion.required = True
+    await session.commit()
     await session.refresh(criterion)
     return criterion
 

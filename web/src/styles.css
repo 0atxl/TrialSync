@@ -1799,6 +1799,7 @@ textarea:focus {
 .state-likely_ineligible, .state-fail { color: #942d34; background: #fae8e9; }
 .state-needs_review, .state-unknown { color: #70520d; background: #f9f0d9; }
 .result-hero { padding: 22px 24px; }
+.result-actions { display: grid; gap: 14px; justify-items: end; }
 .result-title.state-potentially_eligible { color: #14633a; }
 .result-title.state-likely_ineligible { color: #942d34; }
 .result-title.state-needs_review { color: #70520d; }
@@ -1888,6 +1889,7 @@ textarea:focus {
 
 @media (max-width: 760px) {
   .page-heading, .result-hero { flex-direction: column; align-items: start; }
+  .result-actions { width: 100%; justify-items: start; }
   .sidebar { overflow-x: visible; }
   .sidebar nav { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
   .nav-link { padding-inline: 8px; text-align: center; }

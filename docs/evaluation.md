@@ -15,9 +15,11 @@ Run the reproducible offline evaluation with `make evaluate`; detailed fixture m
 
 The held-out fixture checks candidate precision/recall, exact structure, source-quote validity, supported-conversation citation validity, refusal behavior, and deterministic parser latency. The six-workflow browser suite covers registration/history, needs-review evidence, batch screening, reviewed import, conversation persistence/refusal, and responsive chatbot interaction. Backend tests cover the rule engine, ownership, persistence, provider failures, and OCR fallback/provenance.
 
-The latest local verification gate reports 95 backend tests, 38 frontend tests,
+The 2026-08-02 local verification gate reports 151 backend tests, 69 frontend tests,
 6 browser end-to-end workflows, a successful frontend production build, Ruff,
-mypy, ESLint, TypeScript, migrations, and the held-out synthetic evaluation.
+mypy, ESLint, TypeScript, migrations, the canonical screening-report API/UI tests,
+and the held-out synthetic evaluation. The R1 visual review covered desktop and
+narrow screening details plus a three-page generated PDF.
 These counts are software verification results, not clinical performance claims.
 
 These are software and fixture checks, not a clinical validation or trained-model evaluation. Live Groq measurements require a separately documented run with only synthetic data. OCR output is evaluated as reviewable source text, not as eligibility evidence or confidence.

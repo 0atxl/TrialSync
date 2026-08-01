@@ -8,6 +8,7 @@ reviewed text/PDF -> deterministic text extraction -> optional local Tesseract O
                          -> human review/approval -> structured records
 structured records -> immutable patient snapshot + approved trial version
                    -> deterministic rule engine -> stored criterion evidence/result
+stored screening + authoritative evidence -> canonical PDF report
 stored screening + authoritative evidence -> bounded explanation conversation
 ```
 
@@ -19,7 +20,7 @@ future adapter; a row-level benchmark runs only if participant data becomes legi
 accessible and never becomes a runtime dependency.
 Those future research outputs will remain separate from the deterministic eligibility outcome.
 
-The FastAPI application owns authentication, owner-scoped persistence, document review, and immutable screening history. PostgreSQL schema changes are versioned with Alembic. The React/Vite client consumes only the versioned HTTP API.
+The FastAPI application owns authentication, owner-scoped persistence, document review, immutable screening history, and provider-free canonical PDF assembly. PostgreSQL schema changes are versioned with Alembic. The React/Vite client consumes only the versioned HTTP API.
 
 The domain engine is deliberately isolated from FastAPI, SQLAlchemy, provider clients, system time, and OCR. It evaluates typed facts and approved rule JSON only. Missing, stale, conflicting, unsupported, and unit-incompatible information stays `unknown`; a provider cannot approve data or change the final state.
 
@@ -48,6 +49,10 @@ reviewable import candidates or provide an AI explanation of a stored result,
 but it cannot approve candidates, create evidence, change a criterion result, or
 access another record. Provider-disabled, timeout, rate-limit, invalid-output,
 and refusal paths use canonical server explanations or safe refusal responses.
+The saved-screening `report.pdf` endpoint assembles only the authorized immutable
+screening, snapshot, approved trial version, stored evaluations, and version
+metadata; it never calls a provider or recalculates eligibility. The browser keeps
+the same evidence visible alongside the download action.
 Operational chat metrics contain provider/model, prompt version, latency,
 validation outcome, answer state, and citation count; they exclude questions,
 documents, raw payloads, and secrets.

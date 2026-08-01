@@ -2,15 +2,30 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from io import BytesIO
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
+from pypdf import PdfReader
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import selectinload
 
 import trialsync.api.screenings as screening_api
 from trialsync.db.models import PatientSnapshot, Screening, ScreeningBatch, User
 from trialsync.db.session import get_session_factory
+from trialsync.reports import (
+    ScreeningReportCounts,
+    ScreeningReportCriterion,
+    ScreeningReportDocument,
+    ScreeningReportEvidence,
+    ScreeningReportMissingInformation,
+    ScreeningReportPatientSnapshot,
+    ScreeningReportTrial,
+    assemble_screening_report,
+    render_screening_report_pdf,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -553,5 +568,178 @@ async def test_screening_routes_are_in_openapi(app: FastAPI) -> None:
     paths = response.json()["paths"]
     assert "/api/v1/screenings" in paths
     assert "/api/v1/screenings/{screening_id}" in paths
+    assert "/api/v1/screenings/{screening_id}/report.pdf" in paths
     assert "/api/v1/screening-batches" in paths
     assert "/api/v1/screening-batches/{batch_id}" in paths
+
+
+async def test_canonical_screening_report_is_owner_scoped_and_contains_stored_evidence(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    first = await register(api, f"{email_prefix}-report-a@example.com")
+    second = await register(api, f"{email_prefix}-report-b@example.com")
+    headers = auth(first)
+    patient_id = await patient(api, headers, 1)
+    version_id = await approved_trial(api, headers)
+    saved = await screen(api, headers, patient_id, version_id)
+
+    report = await api.get(f"/api/v1/screenings/{saved['id']}/report.pdf", headers=headers)
+
+    assert report.status_code == 200, report.text
+    assert report.headers["content-type"] == "application/pdf"
+    assert report.headers["content-disposition"] == (
+        f'attachment; filename="trialsync-screening-{saved["id"]}.pdf"'
+    )
+    assert report.content.startswith(b"%PDF-")
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(report.content)).pages)
+    assert "Canonical screening report" in text
+    assert "Synthetic 1" in text
+    assert "Age 18 to 75 years at screening" in text
+    assert "EVALUATED_TRUE" in text
+    assert str(saved["patient_snapshot_id"]) in text
+    assert str(saved["trial_version_id"]) in text
+
+    unauthenticated = await api.get(f"/api/v1/screenings/{saved['id']}/report.pdf")
+    assert unauthenticated.status_code == 401
+
+    hidden = await api.get(
+        f"/api/v1/screenings/{saved['id']}/report.pdf", headers=auth(second)
+    )
+    assert hidden.status_code == 404
+
+
+def test_report_renderer_wraps_unicode_and_long_criteria_across_pages() -> None:
+    generated_at = datetime(2026, 7, 15, 12, 30, tzinfo=UTC)
+    long_source = "UNKNOWN-CRITERION-UNIQUE: " + (
+        "Participants must have an observation ≥ 7.0 mL/min/1.73m² and a reviewed source label. "
+        * 80
+    )
+    report = ScreeningReportDocument(
+        schema_version="r1-report-v1",
+        template_version="r1-pdf-template-v1",
+        generated_at=generated_at,
+        screening_id="00000000-0000-0000-0000-000000000001",
+        created_at=generated_at,
+        screening_date="2026-07-15",
+        overall_state="needs_review",
+        patient_snapshot=ScreeningReportPatientSnapshot(
+            id="00000000-0000-0000-0000-000000000002",
+            external_id="SYN-LONG",
+            display_name="Synthetic Unicode Ada",
+            date_of_birth=None,
+            sex=None,
+            snapshot_version="pd0-snapshot-v1",
+            content_hash="a" * 64,
+            as_of_date="2026-07-15",
+        ),
+        trial=ScreeningReportTrial(
+            id="00000000-0000-0000-0000-000000000003",
+            registry_id="SYN-LONG-TRIAL",
+            title="A long synthetic protocol",
+            version=1,
+        ),
+        engine_version="0.1.0",
+        dsl_version="1.0",
+        terminology_version="catalog-v1",
+        unit_version="units-v1",
+        counts=ScreeningReportCounts(pass_count=1, fail_count=1, unknown_count=1),
+        criteria=[
+            ScreeningReportCriterion(
+                id="00000000-0000-0000-0000-000000000004",
+                criterion_id="00000000-0000-0000-0000-000000000005",
+                order=1,
+                kind="inclusion",
+                source_text=long_source,
+                result="unknown",
+                truth="unknown",
+                reason_code="MISSING_FACT",
+                canonical_explanation="The required evidence is not recorded.",
+                missing_information=[
+                    ScreeningReportMissingInformation(
+                        fact="observation.egfr",
+                        reason="MISSING_FACT",
+                        detail="Add the measured value and effective date.",
+                    )
+                ],
+                evidence=[
+                    ScreeningReportEvidence(
+                        fact_id="fact-1",
+                        value="≥ 7.0",
+                        unit="mL/min/1.73m²",
+                        effective_date="2026-07-01",
+                        source_label="Synthetic laboratory import",
+                    )
+                ],
+                rejected_evidence=[
+                    ScreeningReportEvidence(
+                        fact_id="stale-fact-1",
+                        value="6.1",
+                        unit="mL/min/1.73m²",
+                        effective_date="2020-01-01",
+                        source_label="STALE-SOURCE-LABEL " * 25,
+                    )
+                ],
+            ),
+            ScreeningReportCriterion(
+                id="00000000-0000-0000-0000-000000000006",
+                criterion_id="00000000-0000-0000-0000-000000000007",
+                order=2,
+                kind="inclusion",
+                source_text="PASS-CRITERION-UNIQUE",
+                result="pass",
+                truth="true",
+                reason_code="EVALUATED_TRUE",
+                canonical_explanation="The recorded evidence proves this inclusion criterion.",
+            ),
+            ScreeningReportCriterion(
+                id="00000000-0000-0000-0000-000000000008",
+                criterion_id="00000000-0000-0000-0000-000000000009",
+                order=3,
+                kind="exclusion",
+                source_text="FAIL-CRITERION-UNIQUE",
+                result="fail",
+                truth="true",
+                reason_code="EVALUATED_TRUE",
+                canonical_explanation="The recorded evidence proves this exclusion criterion.",
+            )
+        ],
+    )
+
+    first = render_screening_report_pdf(report)
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(first)).pages)
+
+    assert first.startswith(b"%PDF-")
+    assert len(PdfReader(BytesIO(first)).pages) > 1
+    assert "mL/min/1.73m" in text
+    assert "observation.egfr" in text
+    assert "MISSING_FACT" in text
+    assert "Add the measured value and effective date." in text
+    assert "STALE-SOURCE-LABEL" in text
+    assert text.count("UNKNOWN-CRITERION-UNIQUE") == 1
+    assert text.count("PASS-CRITERION-UNIQUE") == 1
+    assert text.count("FAIL-CRITERION-UNIQUE") == 1
+
+
+async def test_report_assembly_is_deterministic_for_a_stored_screening(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}-report-determinism@example.com")
+    headers = auth(account)
+    patient_id = await patient(api, headers, 1)
+    version_id = await approved_trial(api, headers)
+    saved = await screen(api, headers, patient_id, version_id)
+
+    async with get_session_factory()() as session:
+        stored = await session.scalar(
+            select(Screening)
+            .options(
+                selectinload(Screening.patient_snapshot),
+                selectinload(Screening.evaluations),
+            )
+            .where(Screening.id == saved["id"])
+        )
+        assert stored is not None
+        generated_at = datetime(2026, 7, 15, 12, 30, tzinfo=UTC)
+        assert assemble_screening_report(stored, generated_at=generated_at) == (
+            assemble_screening_report(stored, generated_at=generated_at)
+        )

@@ -326,6 +326,16 @@ export class ApiError extends Error {
   }
 }
 
+async function responseError(response: Response, fallback: string): Promise<ApiError> {
+  const body = await response.json().catch(() => null)
+  return new ApiError(
+    body?.error?.message ?? fallback,
+    response.status,
+    body?.error?.code ?? 'API_ERROR',
+    body?.error?.details,
+  )
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
@@ -336,14 +346,21 @@ export async function apiRequest<T>(
   if (token) headers.set('Authorization', `Bearer ${token}`)
   const response = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers })
   if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new ApiError(
-      body?.error?.message ?? 'The API request failed.',
-      response.status,
-      body?.error?.code ?? 'API_ERROR',
-      body?.error?.details,
-    )
+    throw await responseError(response, 'The API request failed.')
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+export async function apiDownload(
+  path: string,
+  token?: string | null,
+): Promise<Blob> {
+  const headers = new Headers()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(`${getApiBaseUrl()}${path}`, { headers })
+  if (!response.ok) {
+    throw await responseError(response, 'The download could not be prepared.')
+  }
+  return response.blob()
 }

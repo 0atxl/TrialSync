@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-26
 **Status:** R0 decision brief revised and re-approved on 2026-07-26; dropout-data strategy
-clarified on 2026-08-01; R1 is the next implementation phase
+clarified on 2026-08-01; R1 canonical reporting completed on 2026-08-02; R2 remains the next
+approved but unimplemented phase
 **Purpose:** Record the practical feasibility audit, an intentionally blunt academic
 assessment, and the local-versus-hosted LLM recommendation before the research extension
 is implemented.
@@ -866,8 +867,9 @@ method or evidence that produced it.
 R0 has re-locked the condition portfolio, day-30/day-90 task, approximate prevalence, cohort
 sizes, Scenario Lab direction, patient-fact and screening-profile representations, seeded PCA
 display, linked Trial Recruitment Overview, LangChain/Gemini RAG, provider-resilience approach,
-and GitHub Actions CI/CD contract. Begin R1 only: generate a canonical screening PDF
-from stored evidence and verify its populated, `unknown`, long-text, and pagination states.
+and GitHub Actions CI/CD contract. R1 is complete: the canonical screening PDF is generated
+from stored evidence and verified in populated, `unknown`, long-text, and pagination states.
+The approved next step is R2 CI/CD; no later research phase is being started in this checkpoint.
 
 Phase-specific details such as the exact synthetic event taxonomy, bounded generator regimes,
 and concrete provider timeout values are implementation parameters to freeze and test inside

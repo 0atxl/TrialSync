@@ -3,7 +3,7 @@
 **Date:** 2026-07-24
 **Status:** R0 revised and re-locked on 2026-07-26 after alignment with the supplied
 LangChain/Gemini RAG and GitHub Actions CI/CD brief; the R3 data strategy was clarified on
-2026-08-01; R1 remains the next authorized implementation phase
+2026-08-01; R1 completed on 2026-08-02; R2 remains approved but is not yet implemented.
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
@@ -380,6 +380,49 @@ Generate a reproducible, downloadable PDF from one stored screening without aski
 - It works with Groq disabled.
 - It contains no invented eligibility reasoning.
 - Backend tests, frontend tests, production build, and visual review pass.
+
+### Status
+
+Complete on 2026-08-02. TrialSync now assembles a provider-free
+`ScreeningReportDocument` from one owner-authorized stored screening, renders a
+multi-page Unicode-safe PDF, exposes it at the authenticated `report.pdf` endpoint,
+and provides a saved-screening-only **Download report** action. The report records
+the immutable patient snapshot, approved trial version, engine/DSL versions, all
+persisted criterion evaluations, evidence, missing information, rejected/stale
+evidence, and report schema/template metadata. No migration was required.
+
+R1 verification: focused backend report/ownership/long-text/determinism tests,
+focused frontend download success/failure tests, production frontend build, full
+backend/frontend verification, and desktop/narrow report-page visual review.
+
+### R1 implementation handoff
+
+Phase completed: R1 — Canonical screening report PDF
+
+Outcome: Saved screenings can be downloaded as provider-free, multi-page PDFs that
+agree with the browser evidence and preserve cautious result semantics.
+
+Files changed: `backend/src/trialsync/reports/`, the screening API, frontend client/
+detail page/styles/tests, pinned PDF dependencies and container fonts, README,
+architecture/evaluation docs, and this phase plan.
+
+Behavior/API/data changes: Added owner-scoped `GET /api/v1/screenings/{screening_id}/report.pdf`;
+no database migration or stored-report column was added.
+
+Tests and builds run: `make verify` (151 backend tests, 69 frontend tests, migration,
+Ruff, mypy, evaluation, and production build), focused report tests, backend dependency
+audit, and production backend image/font smoke check.
+
+Visual states inspected: Desktop and narrow saved-screening detail pages, readable
+three-page PDF metadata/evidence pages, long/Unicode pagination fixtures.
+
+Known limitations: `npm audit` still reports existing high advisories in
+`brace-expansion` and `react-router`; they are outside R1 and were not auto-upgraded.
+
+Exit criteria not yet satisfied: None for R1.
+
+Recommended next task: Review and authorize R2 GitHub Actions CI/CD before starting
+any dropout, cohort, or RAG implementation phase.
 
 ## 8. Phase R2 — GitHub Actions CI/CD
 
@@ -1556,7 +1599,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | Phase | Status | Approval evidence | Exit evidence |
 |---|---|---|---|
 | R0. Scope lock | Complete | Revised scope re-locked by user after final consistency audit, 2026-07-26 | This document |
-| R1. Canonical report PDF | Approved | User selected evidence-backed reporting, 2026-07-26 | |
+| R1. Canonical report PDF | Complete | User selected evidence-backed reporting, 2026-07-26 | Provider-free typed report assembler, owner-scoped PDF endpoint, complete evidence/missing-information/stale-evidence/ownership/long-text/determinism tests, frontend download states, production build, and visual review, 2026-08-02 |
 | R2. GitHub Actions CI/CD | Approved | Corrected to the supplied delivery brief, 2026-07-26 | |
 | R3. Synthetic dropout protocol/dataset | Approved | User selected dropout-risk modeling on 2026-07-26 and clarified hybrid NVIDIA generation plus separate NCT02054715-D1 validation on 2026-08-01 | |
 | R4. Dropout models/MLflow/SHAP | Approved | User selected dropout-risk modeling, 2026-07-26 | |

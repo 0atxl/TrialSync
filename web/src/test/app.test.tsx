@@ -358,6 +358,59 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByRole('heading', { name: 'Patient facts at screening' })).toBeInTheDocument()
   })
 
+  it('downloads the canonical report with loading and success feedback', async () => {
+    authenticate()
+    let resolveReport!: (response: Response) => void
+    const reportResponse = new Promise<Response>((resolve) => { resolveReport = resolve })
+    const fetchMock = vi.fn((input: string) => {
+      if (input.endsWith('/report.pdf')) return reportResponse
+      if (input.endsWith('/conversation')) return Promise.resolve(json(conversation))
+      return Promise.resolve(json(screening))
+    })
+    const createObjectURL = vi.fn(() => 'blob:screening-report')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    renderRoute('/screenings/screen-1')
+
+    await screen.findByRole('heading', { name: 'Age 18 to 75 years' })
+    const button = screen.getByRole('button', { name: 'Download report' })
+    await userEvent.click(button)
+    expect(screen.getByRole('button', { name: 'Preparing report…' })).toBeDisabled()
+
+    resolveReport(new Response(new Blob(['%PDF-1.4 synthetic report']), {
+      status: 200,
+      headers: { 'Content-Type': 'application/pdf' },
+    }))
+    expect(await screen.findByText('The canonical screening report was downloaded.')).toBeInTheDocument()
+    expect(createObjectURL).toHaveBeenCalled()
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:screening-report'))
+    expect(fetchMock.mock.calls.some(([input]) => input.endsWith('/screenings/screen-1/report.pdf'))).toBe(true)
+  })
+
+  it('keeps browser evidence visible when report generation fails', async () => {
+    authenticate()
+    const fetchMock = vi.fn((input: string) => {
+      if (input.endsWith('/report.pdf')) {
+        return Promise.resolve(json({
+          error: { code: 'REPORT_RENDER_FAILED', message: 'Report failed' },
+        }, 503))
+      }
+      if (input.endsWith('/conversation')) return Promise.resolve(json(conversation))
+      return Promise.resolve(json(screening))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/screenings/screen-1')
+
+    await screen.findByRole('heading', { name: 'Age 18 to 75 years' })
+    await userEvent.click(screen.getByRole('button', { name: 'Download report' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('canonical report could not be prepared')
+    expect(screen.getByRole('heading', { name: 'Age 18 to 75 years' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download report' })).toBeEnabled()
+  })
+
   it('restores persisted explanation messages and focuses cited criterion evidence', async () => {
     authenticate()
     vi.stubGlobal('fetch', vi.fn((input: string) => Promise.resolve(

@@ -23,6 +23,7 @@ from trialsync.nlp.chat import (
     validate_answer,
 )
 from trialsync.nlp.groq import ProviderCallError
+from trialsync.reports import assemble_screening_report, render_screening_report_pdf
 from trialsync.schemas import (
     BatchCreate,
     BatchPairRead,
@@ -231,6 +232,21 @@ async def get_screening(
     screening_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> ScreeningRead:
     return _screening_read(await _owned_screening(session, user.id, screening_id))
+
+
+@router.get("/api/v1/screenings/{screening_id}/report.pdf")
+async def download_screening_report(
+    screening_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> Response:
+    screening = await _owned_screening(session, user.id, screening_id)
+    report = assemble_screening_report(screening, generated_at=datetime.now(UTC))
+    content = render_screening_report_pdf(report)
+    filename = f"trialsync-screening-{screening.id}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _chat_context(screening: Screening) -> ScreeningChatContext:

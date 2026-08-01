@@ -10,7 +10,7 @@ WORKDIR /app
 
 # OCR and PDF rendering are required by the document-import workflow.
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y tesseract-ocr poppler-utils \
+    && apt-get install --no-install-recommends -y fonts-liberation tesseract-ocr poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system trialsync \
     && useradd --system --gid trialsync --create-home --home-dir /app trialsync

@@ -90,6 +90,8 @@ The current workspace supports the evidence-backed matching workflow:
 - Identify missing facts that block a confident match and preserve immutable screening evidence.
 - Review imported synthetic text or PDFs before approving structured facts and criteria.
 - Ask evidence-grounded questions about one stored screening without changing its outcome.
+- Download a canonical, provider-free PDF report for any saved screening; it is assembled from
+  the stored snapshot, approved trial version, and persisted criterion evaluations.
 
 ## Planned research extension
 
@@ -188,6 +190,7 @@ PUT|DELETE         /api/v1/trials/{trial_id}/versions/{version_id}/criteria/{cri
 POST               /api/v1/screenings
 GET                /api/v1/screenings
 GET                /api/v1/screenings/{screening_id}
+GET                /api/v1/screenings/{screening_id}/report.pdf
 POST               /api/v1/screening-batches
 GET                /api/v1/screening-batches
 GET                /api/v1/screening-batches/{batch_id}
@@ -256,7 +259,10 @@ After creating structured synthetic patients and approving a trial version, use 
 workspace dashboard to run a single screening. The result page shows the immutable
 patient snapshot, approved trial version, every criterion's stored source text,
 canonical explanation, supporting evidence, and missing information. Unknown
-criteria are shown first.
+criteria are shown first. **Download report** produces a canonical PDF from that
+same saved screening; it does not call an LLM or recalculate eligibility. The PDF
+includes report schema/template versions and a generation timestamp, so the source
+screening remains the authority while the downloaded artifact is easy to identify.
 
 `/screenings` provides searchable, filterable history. `/batches/new` lists all
 current patients and all trials, clearly disabling trials that have no approved

@@ -336,8 +336,8 @@ screening matrix:
 make seed-demo
 ```
 
-Sign in with `demo@trialsync.example` / `SyntheticDemo123!`. In development, the
-login page can fill these values with **Use seeded synthetic demo**. The seed is
+Sign in with `demo@trialsync.example` / `SyntheticDemo123!`. The login page can
+fill these public synthetic credentials with **Use demo account**. The seed is
 idempotent: it replaces only that demo account and creates six fictional patients,
 two approved trials, 12 linked screenings with a balanced 4/4/4 state distribution,
 and supported/refused/insufficient conversation history. It refuses to run in the

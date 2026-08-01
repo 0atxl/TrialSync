@@ -202,11 +202,12 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
-  it('fills development-only seeded demo credentials on request', async () => {
+  it('fills the public synthetic demo credentials on request', async () => {
     renderRoute('/login')
     await userEvent.click(screen.getByRole('button', { name: /Use demo account/ }))
     expect(screen.getByRole('textbox', { name: 'Email' })).toHaveValue('demo@trialsync.example')
     expect(screen.getByLabelText('Password')).toHaveValue('SyntheticDemo123!')
+    expect(screen.getByText('Fills synthetic demonstration credentials')).toBeInTheDocument()
   })
 
   it('reveals and hides the login password without changing its value', async () => {

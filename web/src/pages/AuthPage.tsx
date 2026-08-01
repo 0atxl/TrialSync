@@ -79,7 +79,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           ) : (
             <label>Password<input required minLength={10} type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           )}
-          {mode === 'login' && import.meta.env.DEV && (
+          {mode === 'login' && (
             <button
               className="sample-data-button"
               type="button"
@@ -89,7 +89,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               }}
             >
               Use demo account
-              <small>Fills local development credentials</small>
+              <small>Fills synthetic demonstration credentials</small>
             </button>
           )}
           <button className="primary-button" disabled={busy} type="submit">{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>

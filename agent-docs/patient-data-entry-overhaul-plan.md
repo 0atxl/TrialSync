@@ -844,7 +844,9 @@ For every phase:
 
 - Recreating Epic, Oracle Health, or another proprietary EHR.
 - Supporting unrestricted medical terminology.
-- SNOMED CT, LOINC, or medication-dictionary integration.
+- Unrestricted terminology auto-coding or SNOMED CT integration; the bounded
+  RxNorm/LOINC suggestions are advisory only and never automatically persist
+  terminology mappings.
 - Real-world gender/sex clinical decision support.
 - Encounter, practitioner, order, prescription, or results-review workflows.
 - Automatically correcting data based on another field.

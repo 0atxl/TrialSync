@@ -8,8 +8,9 @@
 
 Record every patient fact concept currently produced by checked-in seeds,
 recognized deterministically from pasted text, or exercised by the screening
-domain tests. This inventory is the input to the backend-owned catalog planned
-for PD3.
+domain tests. This historical PD0 baseline was the input to the backend-owned
+catalog implemented in PD3; current runtime behavior is documented in
+`clinical-catalog-management.md`.
 
 ## 2. Seed inventory
 

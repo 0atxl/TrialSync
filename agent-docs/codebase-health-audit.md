@@ -1,8 +1,8 @@
 # TrialSync Codebase Health Audit
 
-**Date:** 2026-08-01
-**Status:** Repository-health snapshot after the clinical-catalog cleanup; this is
-supporting guidance, not an implementation phase or replacement for the active
+**Date:** 2026-08-02
+**Status:** Repository-health snapshot after PD6, the R1 report, and R2 CI; this
+is supporting guidance, not an implementation phase or replacement for the active
 research and patient-data plans.
 
 ## Scope and measurements
@@ -12,11 +12,15 @@ Physical line counts after removing proven stale code are:
 
 | Area | Lines |
 | --- | ---: |
-| Backend runtime | 8,137 |
-| Frontend runtime, including CSS | 7,441 |
-| Alembic migrations | 1,039 |
-| Backend, frontend, and browser tests | 6,612 |
-| Total code and tests | 23,229 |
+| Backend runtime | 9,415 |
+| Frontend runtime, including CSS (tests excluded) | 7,589 |
+| Alembic migrations | 1,123 |
+| Backend, frontend, and browser tests | 7,082 |
+| Total application code and tests | 25,209 |
+
+For context, all tracked repository text is approximately 40,178 lines when
+Markdown documentation and JSON/lock/configuration files are included. These
+counts exclude dependencies, generated builds, caches, and local artifacts.
 
 The repository is compact for its implemented scope. Raw line count is not the
 primary risk; the important issue is concentration in a few large change
@@ -24,17 +28,27 @@ surfaces.
 
 ## Evidence collected
 
-- The full backend suite contains 144 tests. The audit coverage run measured
+- The full backend suite contains 151 tests. The audit coverage run measured
   90% statement coverage across backend runtime modules.
-- The frontend suite contains 66 tests, with browser coverage for the principal
-  synthetic-data workflow.
-- Static import analysis found no backend or frontend dependency cycles.
-- After cleanup, no orphaned backend or frontend source modules remain.
+- The frontend suite contains 69 unit/component tests, and the repository keeps
+  a separate browser workflow for the principal synthetic-data path. The
+  browser workflow was not rerun here because `make test-e2e` reseeds the demo
+  workspace; the existing frontend gate was kept non-destructive while the
+  user is exploring the running demo.
+- Static import, lint, type-check, and route scans found no backend or frontend
+  dependency cycles or orphaned runtime source modules.
 - Exact cross-file duplication is limited mainly to the patient/trial catalog
   editors and their catalog-loading paths.
 - Advisory complexity findings are concentrated in guided trial-criterion
   compilation, the deterministic rule engine, PDF/OCR parsing, and bounded
   provider clients rather than spread throughout the repository.
+- `pip-audit --local` is clean. The transitive `brace-expansion` advisories
+  reported by the initial JavaScript audit are resolved in the lockfile. npm
+  still reports [the React Router RSC advisory](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
+  for the current 7.x DOM package;
+  this SPA does not use the unstable RSC APIs, and the patched 8.3 release is
+  available for `react-router` but not yet for `react-router-dom`. Keep this as
+  a tracked dependency-migration item rather than forcing a failing CI gate.
 
 ## Cleanup completed at this checkpoint
 
@@ -73,11 +87,13 @@ logic.
 
 No code-graph MCP, hosted reviewer, or new dependency is required at the current
 repository size. Existing compiler, linter, coverage, browser, and local import
-graph checks provide sufficient evidence for this checkpoint. A focused
-CodeRabbit or equivalent diff review may be useful for a future large
-structural refactor, while tools such as `knip`, `vulture`, `jscpd`, or an import
-boundary checker should be added only if their checks will become maintained
-quality gates.
+graph checks provide sufficient evidence for this checkpoint. Function-level
+dead-code detection is not mechanically proven because `knip`, `vulture`,
+`jscpd`, and an import-boundary checker are not maintained project gates; the
+CSS and copy cleanup above is limited to confirmed unreferenced selectors and
+stale wording. Add one of those tools only when its check can be maintained as a
+quality gate. npm audit remains a manual review until the React Router DOM v8
+package/migration path is available.
 
 Repeat this audit when a runtime page or API module exceeds roughly 1,000 lines,
 when a new dependency layer is introduced, or after the research-extension

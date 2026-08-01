@@ -1629,7 +1629,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R0 is complete. Begin R1 only and preserve every later stop point.
+R1 and R2 are complete. Begin R3 only and preserve every later stop point.
 
 ## 22. Implementation handoff format
 

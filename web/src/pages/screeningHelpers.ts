@@ -12,13 +12,16 @@ const reasonLabels: Record<string, string> = {
   INVALID_RULE: 'This rule is invalid and requires manual correction.',
 }
 export const reasonLabel = (reason: string) => reasonLabels[reason] ?? 'This criterion requires review of its recorded evidence.'
-export const screeningTrialLabel = (screening: { trial_version?: { registry_id: string; title: string; version: number }; trial_version_id: string }, trials: Trial[] = []) => screening.trial_version ? `${screening.trial_version.registry_id} · ${screening.trial_version.title} · v${screening.trial_version.version}` : versionLabel(trials, screening.trial_version_id)
+export const screeningTrialLabel = (screening: { trial_version?: { registry_id: string; title: string; version: number }; trial_version_id: string }, trials: Trial[] = []) => screening.trial_version ? `${screening.trial_version.registry_id} · ${screening.trial_version.title}` : versionLabel(trials, screening.trial_version_id)
 export const versionLabel = (trials: Trial[], id: string) => {
   for (const trial of trials) {
     const version = trial.versions.find((item) => item.id === id)
-    if (version) return `${trial.registry_id} · v${version.version}`
+    if (version) return `${trial.registry_id} · ${trial.title}`
   }
-  return `Version ${id.slice(0, 8)}`
+  return `Protocol ${id.slice(0, 8)}`
 }
 export const approvedVersions = (trials: Trial[]): Array<{ trial: Trial; version: TrialVersion }> =>
-  trials.flatMap((trial) => trial.versions.filter((version) => version.status === 'approved').map((version) => ({ trial, version })))
+  trials.flatMap((trial) => {
+    const version = trial.versions.filter((item) => item.status === 'approved').at(-1)
+    return version ? [{ trial, version }] : []
+  })

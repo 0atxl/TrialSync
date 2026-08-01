@@ -9,8 +9,9 @@ from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
-from trialsync.db.models import Patient, PatientFact, PatientUnsupportedDetail
+from trialsync.db.models import Assertion, FactType, Patient, PatientFact, PatientUnsupportedDetail
 from trialsync.patient_data import (
+    BiologicalSex,
     ConditionMedicationValue,
     NumericObservationValue,
     PatientFactCatalogEntry,
@@ -20,8 +21,8 @@ from trialsync.patient_data import (
     PregnancyStatusValue,
 )
 from trialsync.patient_data.catalog import (
-    PATIENT_FACT_CATALOG_BY_CONCEPT,
-    PATIENT_FACT_CATALOG_BY_KEY,
+    active_catalog_entry_by_fact,
+    active_catalog_entry_by_key,
 )
 from trialsync.schemas import (
     FactRead,
@@ -34,6 +35,52 @@ from trialsync.schemas import (
 )
 
 router = APIRouter(prefix="/api/v1/patients", tags=["patients"])
+
+
+def pregnancy_present_fact(patient: Patient) -> PatientFact | None:
+    return next(
+        (
+            fact
+            for fact in patient.facts
+            if fact.fact_type is FactType.condition
+            and fact.concept == "pregnancy"
+            and fact.assertion is Assertion.present
+        ),
+        None,
+    )
+
+
+def pregnancy_sex_conflict(
+    *,
+    field: str,
+    fact: PatientFact | None = None,
+) -> ApplicationError:
+    details = [{"fact_id": str(fact.id)}] if fact is not None else None
+    return ApplicationError(
+        code="PATIENT_PREGNANCY_SEX_CONFLICT",
+        message=(
+            "Pregnancy cannot be recorded as Pregnant when biological sex "
+            "is Male. Reconcile the pregnancy status or biological sex first."
+        ),
+        status_code=409,
+        field=field,
+        details=details,
+    )
+
+
+def validate_pregnancy_value_for_patient(
+    patient: Patient,
+    entry: PatientFactCatalogEntry,
+    value: ConditionMedicationValue | PregnancyStatusValue | NumericObservationValue,
+    *,
+    fact: PatientFact | None = None,
+) -> None:
+    if (
+        entry.input_kind is PatientFactInputKind.pregnancy_status
+        and value.assertion is Assertion.present
+        and patient.sex == BiologicalSex.male.value
+    ):
+        raise pregnancy_sex_conflict(field="value.assertion", fact=fact)
 
 
 def catalog_fact_values(
@@ -177,6 +224,14 @@ async def update_patient(
                 }
             ],
         )
+    if (
+        "sex" in payload.model_fields_set
+        and payload.sex is BiologicalSex.male
+        and patient.sex != BiologicalSex.male.value
+    ):
+        conflicting_fact = pregnancy_present_fact(patient)
+        if conflicting_fact is not None:
+            raise pregnancy_sex_conflict(field="sex", fact=conflicting_fact)
     values = payload.model_dump(exclude={"expected_updated_at"}, exclude_unset=True)
     if payload.sex is not None:
         values["sex"] = payload.sex.value
@@ -238,7 +293,7 @@ async def create_fact(
             ),
             status_code=409,
         )
-    entry = PATIENT_FACT_CATALOG_BY_KEY.get(payload.catalog_key)
+    entry = await active_catalog_entry_by_key(session, payload.catalog_key)
     if entry is None:
         raise ApplicationError(
             code="PATIENT_FACT_UNSUPPORTED",
@@ -247,6 +302,7 @@ async def create_fact(
             field="catalog_key",
         )
     values = catalog_fact_values(entry, payload.value, payload.source_label)
+    validate_pregnancy_value_for_patient(patient, entry, payload.value)
     duplicate_query = select(PatientFact).where(
         PatientFact.patient_id == patient_id,
         PatientFact.fact_type == entry.fact_type,
@@ -274,7 +330,7 @@ async def update_fact(
     session: SessionDep,
     user: CurrentUser,
 ) -> PatientFact:
-    await owned_patient(session, user, patient_id)
+    patient = await owned_patient(session, user, patient_id)
     fact = await session.scalar(
         select(PatientFact).where(PatientFact.id == fact_id, PatientFact.patient_id == patient_id)
     )
@@ -282,7 +338,7 @@ async def update_fact(
         raise ApplicationError(
             code="FACT_NOT_FOUND", message="Patient fact was not found.", status_code=404
         )
-    entry = PATIENT_FACT_CATALOG_BY_CONCEPT.get((fact.fact_type, fact.concept))
+    entry = await active_catalog_entry_by_fact(session, fact.fact_type, fact.concept)
     if entry is None:
         raise ApplicationError(
             code="PATIENT_FACT_UNSUPPORTED",
@@ -297,6 +353,7 @@ async def update_fact(
             status_code=409,
         )
     values = catalog_fact_values(entry, payload.value, payload.source_label)
+    validate_pregnancy_value_for_patient(patient, entry, payload.value, fact=fact)
     result = await session.execute(
         update(PatientFact)
         .where(

@@ -686,6 +686,36 @@ textarea:focus {
   font-size: 11px;
   line-height: 1.5;
 }
+.patient-consistency-panel {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  margin: -8px 0 28px;
+  padding: 20px 22px;
+  border: 1px solid #ddc980;
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  background: #fffaf0;
+  box-shadow: var(--shadow-soft);
+}
+.patient-consistency-panel.consistency-conflict {
+  border-color: #d99ba0;
+  background: #fff7f6;
+}
+.patient-consistency-panel h2 { margin: 4px 0 6px; font-size: 18px; }
+.patient-consistency-panel p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.patient-consistency-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 9px;
+}
 .sex-field {
   min-width: 0;
   margin: 0;
@@ -1210,6 +1240,32 @@ textarea:focus {
   box-shadow: inset 0 0 0 1px var(--brand);
 }
 .detail-status-field input { width: 15px; height: 15px; margin: 0; }
+.detail-status-field label:has(input:disabled) {
+  border-style: dashed;
+  color: #8c9698;
+  background: #f4f6f5;
+  cursor: not-allowed;
+}
+.detail-status-field label:has(input:disabled:checked) {
+  border-color: #d99ba0;
+  color: var(--danger);
+  background: #fff7f6;
+  box-shadow: none;
+}
+.detail-consistency-hint,
+.detail-consistency-warning {
+  margin: -6px 0 18px;
+  padding: 11px 13px;
+  border-left: 3px solid var(--brand);
+  color: var(--muted);
+  background: var(--surface-tint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.detail-consistency-warning {
+  border-left-color: #bd8b24;
+  background: #fffaf0;
+}
 .numeric-detail-input { display: block; margin-bottom: 16px; }
 .numeric-detail-input > span {
   display: grid;
@@ -2127,12 +2183,83 @@ textarea:focus {
   line-height: 1;
 }
 .toast-dismiss:hover { color: var(--ink); background: var(--surface-tint); }
+
+.catalog-management-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr);
+  gap: 20px;
+  align-items: start;
+}
+.catalog-create-panel,
+.catalog-list-panel {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.catalog-create-panel h2,
+.catalog-list-panel h2 { margin: 3px 0 5px; font-size: 20px; }
+.catalog-create-panel p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.catalog-create-panel > label { display: grid; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 750; }
+.catalog-checkbox {
+  display: flex !important;
+  gap: 10px !important;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-tint);
+}
+.catalog-checkbox input,
+.catalog-retired-toggle input { width: auto; margin-top: 2px; accent-color: var(--brand); }
+.catalog-checkbox span { display: grid; gap: 3px; }
+.catalog-checkbox small { color: var(--muted); font-size: 11px; font-weight: 500; line-height: 1.45; }
+.terminology-lookup { display: grid; gap: 8px; }
+.terminology-lookup > small,
+.terminology-lookup > p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.terminology-lookup > p { color: var(--brand-dark); }
+.terminology-suggestions { display: grid; gap: 6px; max-height: 220px; overflow: auto; }
+.terminology-suggestions button {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface-tint);
+  text-align: left;
+}
+.terminology-suggestions button:hover { border-color: var(--brand); background: var(--surface); }
+.terminology-suggestions strong { font-size: 12px; }
+.terminology-suggestions span { color: var(--brand-dark); font-size: 10px; font-weight: 700; }
+.terminology-suggestions small { color: var(--muted); font-size: 10px; }
+.catalog-list-heading { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+.catalog-retired-toggle { display: flex; flex: 0 0 auto; gap: 7px; align-items: center; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.catalog-list-panel > .search-field { max-width: none; }
+.catalog-concept-list { display: grid; border-top: 1px solid var(--line); }
+.catalog-concept-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+.catalog-concept-row > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.catalog-concept-row strong { font-size: 14px; }
+.catalog-concept-row small { color: var(--brand-dark); font-size: 11px; font-weight: 700; }
+.catalog-concept-row span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.catalog-concept-row.retired { opacity: .62; }
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 900px) {
+  .catalog-management-grid { grid-template-columns: 1fr; }
   .record-table-head { display: none; }
   .record-table-row { grid-template-columns: minmax(0, 1fr) auto; gap: 7px 16px; padding-block: 14px; }
   .record-table-row > span:first-of-type { grid-column: 1; }
@@ -2141,6 +2268,11 @@ textarea:focus {
 }
 
 @media (max-width: 760px) {
+  .catalog-create-panel,
+  .catalog-list-panel { padding: 20px; }
+  .catalog-list-heading { align-items: stretch; flex-direction: column; }
+  .catalog-concept-row { grid-template-columns: 1fr; gap: 10px; }
+  .catalog-concept-row .record-actions { width: 100%; grid-auto-flow: column; justify-content: start; justify-items: start; }
   .demographics-heading { align-items: stretch; flex-direction: column; }
   .demographics-summary,
   .demographics-form-grid { grid-template-columns: 1fr; }
@@ -2149,6 +2281,10 @@ textarea:focus {
   .demographics-actions { align-items: stretch; flex-direction: column-reverse; }
   .demographics-actions > * { width: 100%; }
   .demographics-error { align-items: start; flex-direction: column; }
+  .patient-consistency-panel { align-items: stretch; flex-direction: column; }
+  .patient-consistency-actions { flex-direction: column; }
+  .patient-consistency-actions > *,
+  .patient-consistency-panel > .secondary-button { width: 100%; }
   .sex-options { grid-template-columns: 1fr 1fr; }
   .not-recorded-button { grid-column: 1 / -1; }
   .toast-viewport {

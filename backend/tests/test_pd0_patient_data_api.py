@@ -370,7 +370,6 @@ async def test_pd2_rejects_future_date_of_birth_during_profile_update(
     assert response.json()["error"]["code"] == PatientDataErrorCode.date_of_birth_in_future
 
 
-@pytest.mark.xfail(strict=True, reason="PD4 will enforce the sex/pregnancy consistency rule.")
 async def test_contract_rejects_pregnancy_present_for_male_patient(
     api: AsyncClient, email_prefix: str
 ) -> None:

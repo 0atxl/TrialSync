@@ -93,6 +93,7 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True)
     display_name: Mapped[str] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(255))
+    is_catalog_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class Patient(TimestampMixin, Base):
@@ -170,6 +171,41 @@ class PatientUnsupportedDetail(TimestampMixin, Base):
     context: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_label: Mapped[str] = mapped_column(String(120), default="Manual review item")
     patient: Mapped[Patient] = relationship(back_populates="unsupported_details")
+
+
+class ClinicalConcept(TimestampMixin, Base):
+    """A database-owned concept available to patient and protocol entry."""
+
+    __tablename__ = "clinical_concepts"
+    __table_args__ = (
+        CheckConstraint(
+            "concept_group IN ('conditions', 'medications', 'observations')",
+            name="ck_clinical_concepts_group",
+        ),
+        CheckConstraint(
+            "input_kind IN ('status', 'pregnancy_status', 'numeric')",
+            name="ck_clinical_concepts_input_kind",
+        ),
+        UniqueConstraint("key"),
+        UniqueConstraint("fact_type", "concept"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    key: Mapped[str] = mapped_column(String(80), index=True)
+    fact_type: Mapped[FactType] = mapped_column(Enum(FactType, name="fact_type"))
+    concept: Mapped[str] = mapped_column(String(160))
+    display_label: Mapped[str] = mapped_column(String(120))
+    concept_group: Mapped[str] = mapped_column(String(24))
+    input_kind: Mapped[str] = mapped_column(String(24))
+    allowed_assertions_json: Mapped[list[str]] = mapped_column(JSON)
+    fixed_unit: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    effective_date_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    screening_supported: Mapped[bool] = mapped_column(Boolean, default=True)
+    help_text: Mapped[str] = mapped_column(String(300))
+    terminology_system: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    terminology_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    display_order: Mapped[int] = mapped_column(Integer)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
 
 class Trial(TimestampMixin, Base):

@@ -1,7 +1,7 @@
 # TrialSync Patient Data Entry and Editing Overhaul
 
 **Date:** 2026-07-29  
-**Status:** PD3 complete on 2026-07-29; PD4 is the next phase and has not started  
+**Status:** PD4 complete on 2026-07-29; PD5 is the next phase and has not started
 **Relationship to the research plan:** This is a bounded core-product quality
 improvement. It does not change deterministic screening semantics, immutable saved
 screenings, or the R0–R8 research-extension sequence.
@@ -611,13 +611,13 @@ Pre-PD4 workflow alignment:
   separate review-only collection. They are explicitly excluded from screening
   evidence rather than becoming unrestricted facts.
 - Trial authoring now presents guided inclusion and exclusion sections backed by
-  the same controlled concept catalog. The server derives normalized rules,
-  fixed units, order, and draft revision numbers.
+  the same controlled concept catalog. The server derives normalized rules and
+  fixed units; routine users edit and save one current protocol.
 - Unsupported trial wording can be retained as a mapping-review item, but cannot
   be approved or used for screening until mapped or removed.
-- Approved protocol revisions remain stored and visible only as compact history
-  because immutable screenings and the planned research extensions require
-  reproducible version links.
+- Immutable protocol copies remain internal because saved screenings and the
+  planned research extensions require reproducible links. Drafts, revisions,
+  ordering, and protocol history are not routine-user controls.
 
 ### Phase PD4 — Pregnancy constraints and reconciliation
 
@@ -657,6 +657,30 @@ Exit criteria:
 - A new male/pregnancy-present conflict cannot be stored.
 - Existing conflicts are visible and resolvable.
 - No evidence is changed automatically.
+
+Status:
+
+- Complete on 2026-07-29.
+- Added authoritative API validation for pregnancy create/update and demographic
+  changes. Direct requests cannot store a new Male and Pregnant combination, and
+  rejected requests leave both profile and fact values unchanged.
+- Added stable `PATIENT_PREGNANCY_SEX_CONFLICT` responses with the conflicting
+  fact identifier and patient-read `consistency_issues` using the reserved
+  `PATIENT_SEX_NOT_RECORDED_FOR_PREGNANCY` warning code.
+- Disabled Pregnant for known male records with an explanation while keeping
+  Not pregnant and Unknown available as explicit evidence. No status is inferred
+  from biological sex.
+- Added a non-blocking profile-completeness warning for Pregnant with biological
+  sex not recorded, plus a reconciliation panel for preserved legacy conflicts.
+- Linked blocked demographic changes and legacy warnings directly to the
+  Pregnancy status editor; correction updates only the user-selected field and
+  leaves saved screening snapshots unchanged.
+- Verification: 138 backend tests and 64 frontend tests passed; Ruff, MyPy,
+  ESLint, TypeScript, the production build, API readiness, and
+  `git diff --check` passed.
+- Browser review covered blocked pregnancy editing, blocked sex editing, missing
+  biological-sex warning, legacy reconciliation, corrected success with toast,
+  desktop, 390px narrow layout, focus return, and reduced motion.
 
 ### Phase PD5 — Void, restore, activity, and screening impact
 
@@ -791,6 +815,6 @@ For every phase:
 
 ## 13. Recommended next phase
 
-Begin **PD4 only**. Add the approved pregnancy/biological-sex consistency matrix,
-stable conflicts, missing-sex warning, and legacy reconciliation without
-silently changing evidence. Keep void/restore and activity history in PD5.
+Begin **PD5 only**. Replace destructive fact removal with void/restore, require a
+removal reason, add bounded Undo and immutable patient activity, and preserve all
+saved screening snapshots.

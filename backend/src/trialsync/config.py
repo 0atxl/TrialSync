@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     screening_chat_message_max_chars: int = Field(default=1_000, ge=100, le=4_000)
     screening_chat_max_messages: int = Field(default=10, ge=2, le=20, multiple_of=2)
     screening_chat_max_answer_chars: int = Field(default=2_000, ge=200, le=4_000)
+    terminology_suggestions_enabled: bool = True
+    terminology_timeout_seconds: float = Field(default=5.0, ge=1.0, le=10.0)
+    terminology_max_results: int = Field(default=5, ge=1, le=10)
+    loinc_username: SecretStr = Field(default=SecretStr(""))
+    loinc_password: SecretStr = Field(default=SecretStr(""))
 
     @field_validator("database_url")
     @classmethod

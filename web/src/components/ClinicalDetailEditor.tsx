@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 
 import type {
+  BiologicalSex,
   ClinicalDetailValue,
   Fact,
   PatientFactCatalogEntry,
@@ -28,6 +29,7 @@ type ClinicalDetailEditorProps = {
   notice: string
   saving: boolean
   hasUnsavedChanges: boolean
+  biologicalSex: BiologicalSex | null
   onCancel: () => void
   onDirtyChange: (dirty: boolean) => void
   onReload: () => void
@@ -73,6 +75,7 @@ export function ClinicalDetailEditor({
   notice,
   saving,
   hasUnsavedChanges,
+  biologicalSex,
   onCancel,
   onDirtyChange,
   onReload,
@@ -106,7 +109,9 @@ export function ClinicalDetailEditor({
       else dialog.setAttribute('open', '')
       window.requestAnimationFrame(() => {
         dialog
-          .querySelector<HTMLElement>('[autofocus], input, select, textarea')
+          .querySelector<HTMLElement>(
+            '[autofocus]:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)',
+          )
           ?.focus()
       })
     }
@@ -163,12 +168,16 @@ export function ClinicalDetailEditor({
 
   const selectEntry = (entry: PatientFactCatalogEntry) => {
     const initial = initialFields(entry, null)
+    const initialAssertion =
+      entry.input_kind === 'pregnancy_status' && biologicalSex === 'male'
+        ? 'unknown'
+        : initial.assertion
     setSelectedKey(entry.key)
-    setAssertion(initial.assertion)
+    setAssertion(initialAssertion)
     setNumericValue(initial.numericValue)
     setEffectiveDate(initial.effectiveDate)
     setFieldError('')
-    updateDirty(initial.assertion, initial.numericValue, initial.effectiveDate, entry.key)
+    updateDirty(initialAssertion, initial.numericValue, initial.effectiveDate, entry.key)
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -240,6 +249,12 @@ export function ClinicalDetailEditor({
   const visibleStatusOptions = statusOptions.filter(([value]) =>
     selectedEntry?.allowed_assertions.includes(value),
   )
+  const pregnancyForMale =
+    selectedEntry?.input_kind === 'pregnancy_status' && biologicalSex === 'male'
+  const pregnancyWithoutSex =
+    selectedEntry?.input_kind === 'pregnancy_status' &&
+    biologicalSex === null &&
+    assertion === 'present'
 
   return (
     <dialog
@@ -438,6 +453,7 @@ export function ClinicalDetailEditor({
                   <label key={value}>
                     <input
                       checked={assertion === value}
+                      disabled={pregnancyForMale && value === 'present'}
                       name="detail-status"
                       type="radio"
                       value={value}
@@ -452,6 +468,18 @@ export function ClinicalDetailEditor({
                 ))}
               </div>
             </fieldset>
+            {pregnancyForMale ? (
+              <div className="detail-consistency-hint" role="note">
+                Pregnant is unavailable because biological sex is recorded as Male.
+                Not pregnant and Unknown remain explicit evidence choices.
+              </div>
+            ) : null}
+            {pregnancyWithoutSex ? (
+              <div className="detail-consistency-warning" role="status">
+                Biological sex is not recorded. You can save Pregnant, but the
+                demographic profile will be flagged for review.
+              </div>
+            ) : null}
             {selectedEntry.input_kind === 'numeric' && assertion !== 'unknown' ? (
               <label className="numeric-detail-input">
                 Result

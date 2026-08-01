@@ -195,7 +195,7 @@ export function TrialCriterionEditor({
         help: 'Choose Male or Female for screening.',
         unit: null,
       },
-      ...entries.map((entry) => ({
+      ...entries.filter((entry) => entry.screening_supported).map((entry) => ({
         key: entry.key,
         label: entry.display_label,
         group: entry.group,
@@ -319,7 +319,7 @@ export function TrialCriterionEditor({
                 <strong>Unsupported criterion</strong>
               </div>
               <p>
-                Preserve the protocol wording for review. The draft cannot be approved
+                Preserve the protocol wording for review. The protocol cannot be saved
                 until this criterion is mapped or removed.
               </p>
             </div>

@@ -22,6 +22,7 @@ const patient = {
   updated_at: '2026-07-29T10:00:00Z',
   facts: [],
   unsupported_details: [],
+  consistency_issues: [],
 }
 const patientFact = {
   id: 'f1',
@@ -166,9 +167,9 @@ function renderRoute(initialPath = '/') {
   )
 }
 
-function authenticate() {
+function authenticate(isCatalogAdmin = false) {
   sessionStorage.setItem('trialsync_access_token', 'test-token')
-  sessionStorage.setItem('trialsync_user', JSON.stringify({ id: 'user-1', email: 'demo@example.com', display_name: 'Demo User' }))
+  sessionStorage.setItem('trialsync_user', JSON.stringify({ id: 'user-1', email: 'demo@example.com', display_name: 'Demo User', is_catalog_admin: isCatalogAdmin }))
 }
 
 function withPatientCatalog(
@@ -256,6 +257,64 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByText(/Enter sends a question/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open API docs' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('lets a catalog administrator add a local clinical detail', async () => {
+    authenticate(true)
+    const created = {
+      id: 'concept-crp', key: 'c_reactive_protein', fact_type: 'observation', concept: 'c_reactive_protein',
+      display_label: 'C-reactive protein', concept_group: 'observations', input_kind: 'numeric',
+      allowed_assertions_json: ['present', 'unknown'], fixed_unit: 'mg/L', effective_date_required: true,
+      screening_supported: true, help_text: 'Record the measured C-reactive protein result.',
+      display_order: 170, active: true, created_at: '2026-07-30T00:00:00Z', updated_at: '2026-07-30T00:00:00Z',
+    }
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/clinical-concepts') && options?.method === 'POST') return Promise.resolve(json(created, 201))
+      if (input.endsWith('/clinical-concepts')) return Promise.resolve(json([]))
+      return Promise.resolve(json({}))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/catalog')
+    expect(await screen.findByRole('heading', { name: 'Clinical catalog' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Catalog' })).toHaveAttribute('aria-current', 'page')
+    await userEvent.type(screen.getByLabelText('Display name'), 'C-reactive protein')
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'observation')
+    await userEvent.type(screen.getByLabelText('Fixed unit'), 'mg/L')
+    await userEvent.click(screen.getByRole('button', { name: 'Add clinical detail' }))
+    expect(await screen.findByText('Clinical detail added')).toBeInTheDocument()
+    const request = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      display_label: 'C-reactive protein', fact_type: 'observation', fixed_unit: 'mg/L',
+    })
+  })
+
+  it('requires an administrator to select a terminology suggestion before saving it locally', async () => {
+    authenticate(true)
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.includes('/clinical-concepts/suggestions')) return Promise.resolve(json({
+        query: 'metformin', unavailable_sources: [], suggestions: [{
+          source: 'rxnorm', code: '6809', display_label: 'metformin', detail: 'RXNORM', fixed_unit: null, score: 100,
+        }],
+      }))
+      if (input.endsWith('/clinical-concepts') && options?.method === 'POST') return Promise.resolve(json({
+        id: 'concept-metformin', key: 'metformin_custom', fact_type: 'medication', concept: 'metformin_custom', display_label: 'metformin', concept_group: 'medications', input_kind: 'status', allowed_assertions_json: ['present', 'absent', 'unknown'], fixed_unit: null, effective_date_required: false, screening_supported: true, help_text: 'Record whether metformin is present.', terminology_system: 'rxnorm', terminology_code: '6809', display_order: 50, active: true, created_at: '2026-07-30T00:00:00Z', updated_at: '2026-07-30T00:00:00Z',
+      }, 201))
+      if (input.endsWith('/clinical-concepts')) return Promise.resolve(json([]))
+      return Promise.resolve(json({}))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/catalog')
+    await screen.findByRole('heading', { name: 'Clinical catalog' })
+    await userEvent.type(screen.getByLabelText('Display name'), 'metformin')
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'medication')
+    await userEvent.click(screen.getByRole('button', { name: 'Find RxNorm suggestion' }))
+    await userEvent.click(await screen.findByRole('button', { name: /metformin.*RxNorm.*6809/i }))
+    expect(screen.getByText(/RxNorm code 6809 selected/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Add clinical detail' }))
+    const request = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      terminology_system: 'rxnorm', terminology_code: '6809',
+    })
   })
 
   it('loads approved inputs and submits a patient/trial pair', async () => {
@@ -775,6 +834,156 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
   })
 
+  it('disables Pregnant for a male patient while keeping explicit alternatives', async () => {
+    authenticate()
+    const malePatient = { ...patient, sex: 'male' as const }
+    const fetchMock = withPatientCatalog(() => Promise.resolve(json(malePatient)))
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/p1')
+
+    await screen.findByRole('heading', { name: 'Synthetic Ada' })
+    await userEvent.click(screen.getByRole('button', { name: 'Add clinical detail' }))
+    await userEvent.click(screen.getByRole('button', { name: /Pregnancy status/i }))
+
+    expect(screen.getByRole('radio', { name: 'Pregnant' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Not pregnant' })).toBeEnabled()
+    expect(screen.getByRole('radio', { name: 'Unknown' })).toBeEnabled()
+    expect(screen.getByRole('radio', { name: 'Unknown' })).toBeChecked()
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Pregnant is unavailable because biological sex is recorded as Male',
+    )
+  })
+
+  it('allows Pregnant with missing sex and then shows a profile-completeness warning', async () => {
+    authenticate()
+    const presentPregnancy = {
+      ...patientFact,
+      assertion: 'present' as const,
+      effective_date: '2026-07-29',
+    }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (options?.method === 'POST') return Promise.resolve(json(presentPregnancy, 201))
+      return Promise.resolve(json(patient))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/p1')
+
+    await screen.findByRole('heading', { name: 'Synthetic Ada' })
+    await userEvent.click(screen.getByRole('button', { name: 'Add clinical detail' }))
+    await userEvent.click(screen.getByRole('button', { name: /Pregnancy status/i }))
+
+    expect(screen.getByRole('radio', { name: 'Pregnant' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Biological sex is not recorded. You can save Pregnant',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Add detail' }))
+
+    expect(await screen.findByRole('heading', {
+      name: 'Biological sex is not recorded',
+    })).toBeInTheDocument()
+    expect(screen.getByText(/demographic profile should be completed/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Complete demographics' })).toBeInTheDocument()
+  })
+
+  it('shows and resolves a preserved legacy male and Pregnant conflict', async () => {
+    authenticate()
+    const presentPregnancy = {
+      ...patientFact,
+      assertion: 'present' as const,
+      effective_date: '2026-07-29',
+    }
+    const legacyPatient = {
+      ...patient,
+      sex: 'male' as const,
+      facts: [presentPregnancy],
+      consistency_issues: [{
+        code: 'PATIENT_PREGNANCY_SEX_CONFLICT' as const,
+        severity: 'conflict' as const,
+        message: 'Legacy conflict',
+        field: 'pregnancy' as const,
+        fact_id: presentPregnancy.id,
+      }],
+    }
+    const reconciled = {
+      ...presentPregnancy,
+      assertion: 'unknown' as const,
+      updated_at: '2026-07-29T10:05:00Z',
+    }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (options?.method === 'PATCH') return Promise.resolve(json(reconciled))
+      return Promise.resolve(json(legacyPatient))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/p1')
+
+    expect(await screen.findByRole('heading', {
+      name: 'Reconcile biological sex and pregnancy',
+    })).toBeInTheDocument()
+    expect(screen.getByText(/will not change either one automatically/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Review pregnancy status' }))
+
+    expect(screen.getByRole('dialog', {
+      name: 'Edit Pregnancy status',
+    })).toBeInTheDocument()
+    expect(screen.getByText(/No value was changed automatically/i)).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Pregnant' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Pregnant' })).toBeChecked()
+    await userEvent.click(screen.getByRole('radio', { name: 'Unknown' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText(
+      'Pregnancy status changed from Pregnant to Unknown.',
+    )).toBeInTheDocument()
+    expect(screen.queryByRole('heading', {
+      name: 'Reconcile biological sex and pregnancy',
+    })).not.toBeInTheDocument()
+  })
+
+  it('links a blocked sex change to the conflicting pregnancy editor', async () => {
+    authenticate()
+    const presentPregnancy = {
+      ...patientFact,
+      assertion: 'present' as const,
+      effective_date: '2026-07-29',
+    }
+    const femalePatient = {
+      ...patient,
+      sex: 'female' as const,
+      facts: [presentPregnancy],
+    }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (options?.method === 'PATCH') {
+        return Promise.resolve(json({
+          error: {
+            code: 'PATIENT_PREGNANCY_SEX_CONFLICT',
+            message: 'Conflict',
+            field: 'sex',
+            details: [{ fact_id: presentPregnancy.id }],
+          },
+        }, 409))
+      }
+      return Promise.resolve(json(femalePatient))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/p1')
+
+    await screen.findByRole('heading', { name: 'Synthetic Ada' })
+    await userEvent.click(screen.getByRole('button', { name: 'Edit demographics' }))
+    await userEvent.click(screen.getByRole('radio', { name: 'Male' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'cannot be changed to Male while Pregnancy status is Pregnant',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Review pregnancy status' }))
+    expect(screen.getByRole('dialog', {
+      name: 'Edit Pregnancy status',
+    })).toBeInTheDocument()
+    expect(screen.getByText(/Review Pregnancy status before changing biological sex/i))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Male' })).not.toBeInTheDocument()
+  })
+
   it('groups current details with catalog labels and hides internal entry fields', async () => {
     authenticate()
     const populated = {
@@ -1215,7 +1424,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
-  it('provides an explicit approval action for imported draft trial versions', async () => {
+  it('saves imported criteria through the simple protocol workflow', async () => {
     authenticate()
     const criterion = {
       id: 'c-age',
@@ -1246,12 +1455,12 @@ describe('TrialSync Phase 5 screening workflow', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/trials/t1')
-    await screen.findByRole('button', { name: 'Approve protocol' })
-    await userEvent.click(screen.getByRole('button', { name: 'Approve protocol' }))
+    await screen.findByRole('button', { name: 'Save protocol' })
+    await userEvent.click(screen.getByRole('button', { name: 'Save protocol' }))
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Approve protocol' }))
+      expect(screen.queryByRole('button', { name: 'Save protocol' }))
         .not.toBeInTheDocument())
-    expect(screen.getByText('Protocol approved')).toBeInTheDocument()
+    expect(screen.getByText('Protocol saved')).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(true)
   })
 

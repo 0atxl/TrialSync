@@ -115,6 +115,7 @@ export function PatientDetailPage() {
   const [demographicsDraft, setDemographicsDraft] = useState<DemographicsDraft | null>(null)
   const [profileError, setProfileError] = useState('')
   const [profileStale, setProfileStale] = useState(false)
+  const [profileConflictFactId, setProfileConflictFactId] = useState<string | null>(null)
   const [savedProfileChanges, setSavedProfileChanges] = useState<string[]>([])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -140,6 +141,7 @@ export function PatientDetailPage() {
       setError('')
       setProfileError('')
       setProfileStale(false)
+      setProfileConflictFactId(null)
       setEditingDemographics(false)
       setDemographicsDraft(null)
       resetProfileMutation()
@@ -185,6 +187,7 @@ export function PatientDetailPage() {
     })
     setProfileError('')
     setProfileStale(false)
+    setProfileConflictFactId(null)
     setSavedProfileChanges([])
     profileMutation.reset()
     setEditingDemographics(true)
@@ -207,6 +210,7 @@ export function PatientDetailPage() {
     })
     setProfileError('')
     setProfileStale(false)
+    setProfileConflictFactId(null)
   }
 
   const cancelDemographicsEdit = () => {
@@ -214,6 +218,7 @@ export function PatientDetailPage() {
     setDemographicsDraft(null)
     setProfileError('')
     setProfileStale(false)
+    setProfileConflictFactId(null)
     profileMutation.reset()
   }
 
@@ -250,19 +255,29 @@ export function PatientDetailPage() {
       })
       setPatient(updated)
       setSavedProfileChanges(changes)
+      setProfileConflictFactId(null)
       setEditingDemographics(false)
       setDemographicsDraft(null)
       profileMutation.succeed()
     } catch (exception) {
       const stale =
         exception instanceof ApiError && exception.code === 'PATIENT_RECORD_STALE'
+      const pregnancyConflict =
+        exception instanceof ApiError &&
+        exception.code === 'PATIENT_PREGNANCY_SEX_CONFLICT'
+      const conflictFactId = pregnancyConflict
+        ? String(exception.details?.[0]?.fact_id ?? '')
+        : ''
       const message = stale
         ? 'This profile changed in another session. Reload the latest values before saving.'
+        : pregnancyConflict
+          ? 'Biological sex cannot be changed to Male while Pregnancy status is Pregnant. Review pregnancy status first.'
         : exception instanceof ApiError && exception.code === 'PATIENT_DOB_IN_FUTURE'
           ? 'Date of birth cannot be in the future.'
           : 'Patient profile could not be updated. Your entered values are still here.'
       profileMutation.fail()
       setProfileStale(stale)
+      setProfileConflictFactId(conflictFactId || null)
       setProfileError(message)
       showToast({ variant: 'error', title: 'Profile not saved', message, announce: false })
     }
@@ -295,6 +310,19 @@ export function PatientDetailPage() {
   const reloadFromDetailEditor = () => {
     closeDetailEditor()
     void load()
+  }
+
+  const reviewPregnancyConflict = (factId: string) => {
+    const fact = patient?.facts.find((item) => item.id === factId)
+    if (!fact) {
+      void load()
+      return
+    }
+    cancelDemographicsEdit()
+    openEditDetail(
+      fact,
+      'Review Pregnancy status before changing biological sex to Male. No value was changed automatically.',
+    )
   }
 
   const saveClinicalDetail = async ({
@@ -376,6 +404,9 @@ export function PatientDetailPage() {
       const message =
         exception instanceof ApiError && exception.code === 'PATIENT_RECORD_STALE'
           ? 'This clinical detail changed after you opened it. Reload before saving.'
+          : exception instanceof ApiError &&
+              exception.code === 'PATIENT_PREGNANCY_SEX_CONFLICT'
+            ? 'Pregnancy cannot be changed to Pregnant while biological sex is Male. Review the demographic profile or choose another explicit status.'
           : 'The clinical detail could not be saved. Your entered values are still here.'
       factMutation.fail()
       setDetailError(message)
@@ -558,6 +589,16 @@ export function PatientDetailPage() {
 
   if (error && !patient) return <div className="form-error" role="alert">{error}</div>
   if (!patient) return <div className="loading-state">Loading patient record…</div>
+  const pregnancyPresent = patient.facts.find(
+    (fact) =>
+      fact.fact_type === 'condition' &&
+      fact.concept === 'pregnancy' &&
+      fact.assertion === 'present',
+  )
+  const pregnancySexConflict =
+    patient.sex === 'male' ? pregnancyPresent : undefined
+  const pregnancySexWarning =
+    patient.sex === null ? pregnancyPresent : undefined
 
   return (
     <section className="route-entry workspace-page">
@@ -617,6 +658,14 @@ export function PatientDetailPage() {
                   <button className="text-button" type="button" onClick={() => void load()}>
                     Reload latest profile
                   </button>
+                ) : profileConflictFactId ? (
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => reviewPregnancyConflict(profileConflictFactId)}
+                  >
+                    Review pregnancy status
+                  </button>
                 ) : null}
               </div>
             ) : null}
@@ -666,6 +715,61 @@ export function PatientDetailPage() {
           Existing saved screenings remain unchanged. Future screenings use these current values.
         </p>
       </section>
+      {pregnancySexConflict ? (
+        <section
+          className="patient-consistency-panel consistency-conflict"
+          aria-labelledby="pregnancy-conflict-heading"
+          role="alert"
+        >
+          <div>
+            <p className="eyebrow">Data consistency needs review</p>
+            <h2 id="pregnancy-conflict-heading">Reconcile biological sex and pregnancy</h2>
+            <p>
+              Biological sex is Male while Pregnancy status is Pregnant. TrialSync
+              preserved both legacy values for review and will not change either one
+              automatically.
+            </p>
+          </div>
+          <div className="patient-consistency-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => reviewPregnancyConflict(pregnancySexConflict.id)}
+            >
+              Review pregnancy status
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={beginDemographicsEdit}
+            >
+              Edit demographics
+            </button>
+          </div>
+        </section>
+      ) : pregnancySexWarning ? (
+        <section
+          className="patient-consistency-panel consistency-warning"
+          aria-labelledby="pregnancy-warning-heading"
+          role="status"
+        >
+          <div>
+            <p className="eyebrow">Profile completeness</p>
+            <h2 id="pregnancy-warning-heading">Biological sex is not recorded</h2>
+            <p>
+              Pregnancy status is Pregnant. This evidence is saved, but the demographic
+              profile should be completed before screening review.
+            </p>
+          </div>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={beginDemographicsEdit}
+          >
+            Complete demographics
+          </button>
+        </section>
+      ) : null}
       {error && <div className="form-error" role="alert">{error}</div>}
       <section className="clinical-details-panel" aria-labelledby="clinical-details-heading">
         <div className="clinical-details-heading">
@@ -802,6 +906,7 @@ export function PatientDetailPage() {
         notice={detailNotice}
         saving={factMutation.isSaving}
         hasUnsavedChanges={factMutation.hasUnsavedChanges}
+        biologicalSex={patient.sex}
         onCancel={closeDetailEditor}
         onDirtyChange={factMutation.setDirty}
         onReload={reloadFromDetailEditor}

@@ -80,10 +80,11 @@ export function TrialDetailPage() {
     () => trial?.versions.find((version) => version.status === 'draft') ?? null,
     [trial?.versions],
   )
-  const approvedVersions = useMemo(
-    () => trial?.versions.filter((version) => version.status === 'approved') ?? [],
-    [trial?.versions],
+  const currentProtocol = useMemo(
+    () => activeDraft ?? trial?.versions.filter((version) => version.status === 'approved').at(-1) ?? null,
+    [activeDraft, trial?.versions],
   )
+  const editingCriteria = activeDraft !== null
 
   const beginProfileEdit = () => {
     if (!trial) return
@@ -132,12 +133,12 @@ export function TrialDetailPage() {
     }
   }
 
-  const createDraft = async () => {
+  const startEditingCriteria = async () => {
     if (saving) return
     setSaving(true)
     setError('')
     try {
-      const draft = await apiRequest<TrialVersion>(
+      await apiRequest<TrialVersion>(
         `/trials/${trialId}/versions/draft`,
         { method: 'POST' },
         token,
@@ -145,18 +146,16 @@ export function TrialDetailPage() {
       await load()
       showToast({
         variant: 'success',
-        title: approvedVersions.length ? 'Draft revision created' : 'Criteria draft created',
-        message: approvedVersions.length
-          ? `Revision ${draft.version} copied the latest approved criteria for safe editing.`
-          : 'Add inclusion and exclusion criteria using the guided catalog.',
+        title: 'Criteria ready to edit',
+        message: 'Add, change, or remove inclusion and exclusion criteria, then save the protocol.',
       })
     } catch (exception) {
       const message =
         exception instanceof ApiError && exception.code === 'TRIAL_DRAFT_EXISTS'
-          ? 'This trial already has an editable draft.'
-          : 'A criteria draft could not be created.'
+          ? 'Criteria are already open for editing.'
+          : 'Criteria could not be opened for editing.'
       setError(message)
-      showToast({ variant: 'error', title: 'Draft not created', message, announce: false })
+      showToast({ variant: 'error', title: 'Editing not started', message, announce: false })
     } finally {
       setSaving(false)
     }
@@ -207,7 +206,7 @@ export function TrialDetailPage() {
         title: wasEditing ? 'Criterion updated' : 'Criterion added',
         message: wasEditing
           ? 'The structured screening rule was updated.'
-          : `The ${submission.kind} criterion was added to the current draft.`,
+          : `The ${submission.kind} criterion was added to the protocol.`,
       })
     } catch (exception) {
       const message =
@@ -246,7 +245,7 @@ export function TrialDetailPage() {
       showToast({
         variant: 'warning',
         title: 'Criterion saved for review',
-        message: 'The draft cannot be approved until this criterion is mapped or removed.',
+        message: 'Map or remove this criterion before saving the protocol.',
       })
     } catch {
       const message = 'The unsupported criterion could not be saved. Its wording is still here.'
@@ -282,19 +281,19 @@ export function TrialDetailPage() {
       await load()
       showToast({
         variant: 'success',
-        title: 'Protocol approved',
-        message: `Revision ${activeDraft.version} is locked and available for screening.`,
+        title: 'Protocol saved',
+        message: 'The current criteria are ready for screening. Earlier screenings remain unchanged.',
       })
     } catch (exception) {
       const message =
         exception instanceof ApiError &&
         exception.code === 'TRIAL_VERSION_REVIEW_INCOMPLETE'
           ? 'Resolve every review-only criterion and add at least one structured criterion.'
-          : 'The protocol could not be approved.'
+          : 'The protocol could not be saved.'
       setError(message)
       showToast({
         variant: 'error',
-        title: 'Protocol not approved',
+        title: 'Protocol not saved',
         message,
         announce: false,
       })
@@ -316,7 +315,7 @@ export function TrialDetailPage() {
       showToast({
         variant: 'success',
         title: 'Criterion removed',
-        message: `${criterion.source_text} was removed from the current draft.`,
+        message: `${criterion.source_text} was removed from the protocol.`,
       })
     } catch {
       const message = 'The criterion could not be removed. No changes were made.'
@@ -349,8 +348,8 @@ export function TrialDetailPage() {
   if (!trial) return <div className="loading-state">Loading trial…</div>
 
   const criteriaByKind: Record<Criterion['kind'], Criterion[]> = {
-    inclusion: activeDraft?.criteria.filter((criterion) => criterion.kind === 'inclusion') ?? [],
-    exclusion: activeDraft?.criteria.filter((criterion) => criterion.kind === 'exclusion') ?? [],
+    inclusion: currentProtocol?.criteria.filter((criterion) => criterion.kind === 'inclusion') ?? [],
+    exclusion: currentProtocol?.criteria.filter((criterion) => criterion.kind === 'exclusion') ?? [],
   }
 
   return (
@@ -460,42 +459,38 @@ export function TrialDetailPage() {
               clinical catalog used by patient records.
             </p>
           </div>
-          {activeDraft ? (
+          {editingCriteria ? (
             <button
               className="primary-button"
-              disabled={saving || activeDraft.criteria.length === 0}
+              disabled={saving || !activeDraft || activeDraft.criteria.length === 0}
               type="button"
               onClick={() => void approveVersion()}
             >
-              {saving ? 'Saving…' : 'Approve protocol'}
+              {saving ? 'Saving…' : 'Save protocol'}
             </button>
           ) : (
             <button
               className="primary-button"
               disabled={saving}
               type="button"
-              onClick={() => void createDraft()}
+              onClick={() => void startEditingCriteria()}
             >
-              {saving
-                ? 'Creating…'
-                : approvedVersions.length
-                  ? 'Create draft revision'
-                  : 'Start criteria draft'}
+              {saving ? 'Opening…' : 'Edit criteria'}
             </button>
           )}
         </div>
 
-        {activeDraft ? (
+        {currentProtocol ? (
           <>
             <div className="draft-banner" role="status">
               <div>
-                <strong>Current draft</strong>
+                <strong>{editingCriteria ? 'Editing criteria' : 'Current protocol'}</strong>
                 <span>
-                  Changes affect only this draft. Approved revisions and saved screenings
-                  remain unchanged.
+                  {editingCriteria
+                    ? 'Save when you are finished. Saved screenings remain unchanged.'
+                    : 'Select Edit criteria to make changes. Saved screenings remain unchanged.'}
                 </span>
               </div>
-              <small>Revision {activeDraft.version}</small>
             </div>
             <div className="trial-criteria-groups">
               {(['inclusion', 'exclusion'] as const).map((kind) => (
@@ -509,7 +504,7 @@ export function TrialDetailPage() {
                     </div>
                     <button
                       className="secondary-button"
-                      disabled={Boolean(catalogError)}
+                      disabled={!editingCriteria || Boolean(catalogError)}
                       type="button"
                       onClick={() => openAddCriterion(kind)}
                     >
@@ -518,7 +513,7 @@ export function TrialDetailPage() {
                   </header>
                   {criteriaByKind[kind].length === 0 ? (
                     <div className="trial-criterion-empty">
-                      No {kind} criteria in this draft.
+                      No {kind} criteria have been added.
                     </div>
                   ) : (
                     <div className="trial-criterion-rows">
@@ -538,7 +533,7 @@ export function TrialDetailPage() {
                               </span>
                             </div>
                             <div className="record-actions">
-                              {supported ? (
+                              {editingCriteria && supported ? (
                                 <button
                                   className="text-button"
                                   type="button"
@@ -546,17 +541,19 @@ export function TrialDetailPage() {
                                 >
                                   Edit
                                 </button>
-                              ) : (
+                              ) : !supported ? (
                                 <span className="unsupported-detail">Needs mapping</span>
-                              )}
-                              <button
-                                className="text-button danger"
-                                disabled={saving}
-                                type="button"
-                                onClick={() => void deleteCriterion(criterion)}
-                              >
-                                Remove
-                              </button>
+                              ) : null}
+                              {editingCriteria ? (
+                                <button
+                                  className="text-button danger"
+                                  disabled={saving}
+                                  type="button"
+                                  onClick={() => void deleteCriterion(criterion)}
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
                             </div>
                           </article>
                         )
@@ -569,35 +566,12 @@ export function TrialDetailPage() {
           </>
         ) : (
           <div className="trial-draft-empty">
-            <strong>
-              {approvedVersions.length
-                ? 'The approved protocol is protected.'
-                : 'No criteria draft yet.'}
-            </strong>
+            <strong>No eligibility criteria yet.</strong>
             <p>
-              {approvedVersions.length
-                ? 'Create a draft revision to copy and safely edit the latest approved criteria.'
-                : 'Start a draft, then add criteria without entering codes, units, order numbers, or version numbers.'}
+              Select Edit criteria to add inclusion and exclusion rules using the clinical catalog.
             </p>
           </div>
         )}
-
-        <section className="protocol-history" aria-labelledby="protocol-history-heading">
-          <div>
-            <p className="eyebrow">Reproducibility</p>
-            <h3 id="protocol-history-heading">Protocol history</h3>
-          </div>
-          <div>
-            {trial.versions.length ? trial.versions.map((version) => (
-              <span className={`protocol-history-item ${version.status}`} key={version.id}>
-                <strong>
-                  {version.status === 'draft' ? 'Current draft' : 'Approved'}
-                </strong>
-                <small>Revision {version.version} · {version.criteria.length} criteria</small>
-              </span>
-            )) : <span className="protocol-history-empty">No revisions created.</span>}
-          </div>
-        </section>
       </section>
 
       <TrialCriterionEditor
@@ -622,8 +596,8 @@ export function TrialDetailPage() {
         onConfirm={() => void deleteTrial()}
       >
         <p>
-          <strong>{trial.title}</strong> and its draft protocol data will be removed.
-          Approved protocols referenced by saved screening history remain protected.
+          <strong>{trial.title}</strong> and its protocol data will be removed.
+          Protocols referenced by saved screening history remain protected.
         </p>
       </ConfirmationDialog>
     </section>

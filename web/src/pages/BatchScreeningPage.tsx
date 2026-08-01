@@ -45,7 +45,7 @@ export function BatchScreeningPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (blocked) {
-      setError('Select at least one patient and approved trial version within the configured limits.')
+      setError('Select at least one patient and trial within the configured limits.')
       return
     }
     setSaving(true)
@@ -84,28 +84,28 @@ export function BatchScreeningPage() {
             )) : <div className="empty-state"><p>Add a patient before running a batch.</p></div>}
           </fieldset>
           <fieldset>
-            <legend>Trial versions</legend>
+            <legend>Trials</legend>
             {trials.length ? trials.flatMap((trial) => {
-              const approved = trial.versions.filter((version) => version.status === 'approved')
-              if (!approved.length) return [(
+              const current = trial.versions.filter((version) => version.status === 'approved').at(-1)
+              if (!current) return [(
                 <label className="check-row check-row-disabled" key={trial.id}>
                   <input type="checkbox" disabled />
-                  <span><strong>{trial.title}</strong><small>{trial.registry_id} · approve a version to enable screening</small></span>
+                  <span><strong>{trial.title}</strong><small>{trial.registry_id} · save criteria to enable screening</small></span>
                 </label>
               )]
-              return approved.map((version) => (
-                <label className="check-row" key={version.id}>
-                  <input type="checkbox" checked={versionIds.includes(version.id)} onChange={() => toggle(version.id, versionIds, setVersionIds)} />
-                  <span><strong>{trial.title}</strong><small>{trial.registry_id} · approved version {version.version}</small></span>
+              return [(
+                <label className="check-row" key={current.id}>
+                  <input type="checkbox" checked={versionIds.includes(current.id)} onChange={() => toggle(current.id, versionIds, setVersionIds)} />
+                  <span><strong>{trial.title}</strong><small>{trial.registry_id} · current protocol</small></span>
                 </label>
-              ))
-            }) : <div className="empty-state"><p>Add a trial and approve a version before running a batch.</p></div>}
+              )]
+            }) : <div className="empty-state"><p>Add a trial and save its criteria before running a batch.</p></div>}
           </fieldset>
         </div>
-        <p className="batch-guidance">All current patients are shown. Trials without an approved version remain visible but unavailable because deterministic screening requires an immutable approved protocol.</p>
+        <p className="batch-guidance">All current patients are shown. Trials without saved criteria remain visible but unavailable for screening.</p>
         <div className={`pair-preview ${pairCount > PAIR_LIMIT ? 'pair-warning' : ''}`}>
           <strong>{pairCount} screening pair{pairCount === 1 ? '' : 's'}</strong>
-          <span>Limit: {PATIENT_LIMIT} patients × {TRIAL_LIMIT} versions, up to {PAIR_LIMIT} pairs.</span>
+          <span>Limit: {PATIENT_LIMIT} patients × {TRIAL_LIMIT} trials, up to {PAIR_LIMIT} pairs.</span>
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
         <button className="primary-button" disabled={blocked || saving} type="submit">{saving ? 'Running batch…' : 'Run batch screening'}</button>

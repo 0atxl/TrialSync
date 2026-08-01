@@ -59,7 +59,7 @@ export function AppLayout() {
               <span className="menu-icon" aria-hidden="true"><i /><i /><i /></span>
             </button>
             <nav>
-              {navItems.map((item) => (
+              {[...navItems, ...(user?.is_catalog_admin ? [{ to: '/catalog', label: 'Catalog', glyph: 'C' }] : [])].map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}

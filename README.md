@@ -114,7 +114,7 @@ restore, upgrades, and the required `trialsync.atuls.me` tunnel origin.
 
 1. Register a demo account at `/register` or sign in at `/login`.
 2. Search fictional patients at `/patients` or use **Add patient** for the focused creation flow, then open one to record conditions, medications, observations, and demographics.
-3. Search fictional trials at `/trials` or use **Add trial**, then open one, start a criteria draft, and add guided inclusion or exclusion criteria.
+3. Search fictional trials at `/trials` or use **Add trial**, then open one, choose **Edit criteria**, and save the current inclusion and exclusion criteria.
 
 All patient and trial queries are scoped to the authenticated owner. List endpoints are intentionally limited to 100 records for the semester demo. Only synthetic data may be entered.
 
@@ -155,6 +155,11 @@ GET  /api/v1/auth/me
 GET|POST           /api/v1/patients
 GET|PATCH|DELETE   /api/v1/patients/{patient_id}
 GET                /api/v1/patient-fact-catalog
+GET|POST           /api/v1/clinical-concepts
+GET                /api/v1/clinical-concepts/suggestions
+PATCH              /api/v1/clinical-concepts/{concept_id}
+POST               /api/v1/clinical-concepts/{concept_id}/retire
+POST               /api/v1/clinical-concepts/{concept_id}/restore
 POST               /api/v1/patients/{patient_id}/facts
 PATCH|DELETE       /api/v1/patients/{patient_id}/facts/{fact_id}
 POST               /api/v1/patients/{patient_id}/unsupported-details
@@ -187,21 +192,32 @@ POST               /api/v1/screenings/{screening_id}/conversation/messages
 DELETE             /api/v1/screenings/{screening_id}/conversation
 ```
 
-The authenticated patient-fact catalog is the semantic source for routine
-clinical-detail entry. Fact creation accepts a catalog key plus a tagged
+The authenticated patient-fact catalog is a PostgreSQL-backed semantic source for
+routine clinical-detail and trial-criterion entry. It is seeded with the demo
+catalog during migration and returned to the client for searchable, dynamic
+controls rather than being hard-coded into either form. Fact creation accepts a catalog key plus a tagged
 `status`, `pregnancy_status`, or `numeric` value; fact updates accept the tagged
 value and the loaded fact revision. The server derives canonical concept codes,
 fact types, fixed units, and source labels rather than accepting those fields
 from the routine client. Details that are not in the catalog can be retained as
 separate review items, but they are never patient facts or screening evidence.
+Pregnancy status is also checked against the recorded biological sex: a Male and
+Pregnant combination is blocked by the API, while Pregnant with biological sex
+not recorded is allowed with a review warning. Patient reads expose stable
+`consistency_issues` so legacy conflicts remain visible and resolvable; TrialSync
+never infers pregnancy absence or rewrites either value automatically.
 
-The trial workspace likewise uses the same backend catalog for guided demographic,
-condition, medication, and observation criteria. The server derives rule JSON,
-fixed units, criterion order, and draft revision numbers. Routine users work only
-with inclusion and exclusion sections; immutable approved revisions remain visible
-in compact protocol history for screening reproducibility. Unsupported criterion
-wording can be saved for mapping review, but blocks approval until it is mapped to
-a supported rule or removed.
+See [Clinical Catalog Management](agent-docs/clinical-catalog-management.md) for
+the database schema, administrator lifecycle, optional RxNorm/LOINC suggestions,
+configuration, safety boundaries, and the staged follow-up plan.
+
+The trial workspace likewise uses the same catalog for guided demographic,
+condition, medication, and observation criteria. Routine users work with one
+current protocol: **Edit criteria**, make the changes, then **Save protocol**.
+The implementation retains immutable internal copies so saved screenings stay
+reproducible, but it does not expose draft, revision, ordering, or protocol-history
+controls in routine UI. Unsupported criterion wording can be saved for mapping
+review, but blocks saving until it is mapped to a supported rule or removed.
 
 ## Saved screening history
 
@@ -255,8 +271,8 @@ Deterministic parsing proposes profile fields, patient facts, trial criteria, an
 small supported subset of rule structures. Every candidate remains editable and
 unapproved, with page and character-span provenance, until the authenticated owner
 explicitly approves the review. Patient approval creates current structured facts.
-Trial approval creates a draft version so its criteria can receive the existing
-separate approval step. Unsupported criterion prose stays visible for manual review
+Trial approval opens the current criteria for editing and then saves the protocol
+through the same simple workflow used by manual authoring. Unsupported criterion prose stays visible for manual review
 and is never silently converted into an eligibility rule. No hosted NLP provider is
 used in this phase.
 
@@ -300,6 +316,17 @@ or `disabled`. Never send real patient data. The held-out synthetic evaluation a
 its live-provider limitations are documented in
 `backend/evaluation/PHASE7_EVALUATION.md`.
 
+Catalog administrators can optionally ask for terminology suggestions while adding
+a local detail. Medication suggestions use RxNav's active approximate-match API;
+observation suggestions use LOINC's Search API when
+`TRIALSYNC_LOINC_USERNAME` and `TRIALSYNC_LOINC_PASSWORD` are configured. LOINC
+uses Basic Authentication and its API is beta, so the app treats both sources as
+best-effort lookup only. A suggestion never creates, changes, or screens a concept
+on its own: the administrator must select it, review the populated fields, and
+save the local concept. Selected RxNorm/LOINC code provenance is stored on that
+local concept. Set `TRIALSYNC_TERMINOLOGY_SUGGESTIONS_ENABLED=false` to disable
+external lookup entirely.
+
 ## Reproducible demo and evaluation
 
 Create or restore the fixed synthetic development account and its deterministic
@@ -336,6 +363,10 @@ backend/.venv/bin/python -m trialsync.demo seed-admin
 ```
 
 Sign in as `admin@trialsync.example` with `AdminWorkspace2026!`.
+That account also receives the **Catalog** navigation item. It can add local
+conditions, medications, and fixed-unit observations, choose whether they are
+available for trial criteria, and retire or restore them. Retiring a concept only
+stops new entry; it never rewrites saved facts, criteria, or screening evidence.
 
 The `/help` route summarizes the supported workflow, data boundary, and keyboard
 shortcuts. Reproduce the machine-readable measurements with `make evaluate`; the

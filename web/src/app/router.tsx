@@ -20,6 +20,7 @@ import { NewScreeningPage } from '../pages/NewScreeningPage'
 import { ScreeningDetailPage } from '../pages/ScreeningDetailPage'
 import { ScreeningHistoryPage } from '../pages/ScreeningHistoryPage'
 import { RouteErrorPage } from '../pages/RouteErrorPage'
+import { CatalogManagementPage } from '../pages/CatalogManagementPage'
 
 export const routes = [
   { path: '/login', element: <AuthPage mode="login" />, errorElement: <RouteErrorPage /> },
@@ -47,6 +48,7 @@ export const routes = [
           { path: 'screenings/:screeningId', element: <ScreeningDetailPage /> },
           { path: 'batches/new', element: <BatchScreeningPage /> },
           { path: 'batches/:batchId', element: <BatchDetailPage /> },
+          { path: 'catalog', element: <CatalogManagementPage /> },
           { path: 'help', element: <HelpPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],

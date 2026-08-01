@@ -31,7 +31,97 @@ class UserRead(ORMModel):
     id: uuid.UUID
     email: EmailStr
     display_name: str
+    is_catalog_admin: bool
     created_at: datetime
+
+
+CatalogFactType = Literal[FactType.condition, FactType.medication, FactType.observation]
+
+
+class ClinicalConceptCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_label: str = Field(min_length=1, max_length=120)
+    fact_type: CatalogFactType
+    fixed_unit: str | None = Field(default=None, max_length=40)
+    screening_supported: bool = True
+    help_text: str | None = Field(default=None, max_length=300)
+    terminology_system: Literal["rxnorm", "loinc"] | None = None
+    terminology_code: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @field_validator("display_label", "fixed_unit", "help_text", mode="before")
+    @classmethod
+    def normalize_catalog_text(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = " ".join(value.split())
+        return normalized or None
+
+    @model_validator(mode="after")
+    def validate_input_shape(self) -> ClinicalConceptCreate:
+        if self.fact_type is FactType.observation and not self.fixed_unit:
+            raise ValueError("Observations require a fixed unit.")
+        if self.fact_type is not FactType.observation and self.fixed_unit:
+            raise ValueError("Conditions and medications do not use a unit.")
+        if (self.terminology_system is None) != (self.terminology_code is None):
+            raise ValueError("A terminology system and code must be supplied together.")
+        if self.terminology_system == "rxnorm" and self.fact_type is not FactType.medication:
+            raise ValueError("RxNorm suggestions may be used only for medications.")
+        if self.terminology_system == "loinc" and self.fact_type is not FactType.observation:
+            raise ValueError("LOINC suggestions may be used only for observations.")
+        return self
+
+
+class ClinicalConceptUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_label: str | None = Field(default=None, min_length=1, max_length=120)
+    screening_supported: bool | None = None
+    help_text: str | None = Field(default=None, min_length=1, max_length=300)
+
+    @field_validator("display_label", "help_text", mode="before")
+    @classmethod
+    def normalize_catalog_text(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = " ".join(value.split())
+        return normalized or None
+
+
+class ClinicalConceptRead(ORMModel):
+    id: uuid.UUID
+    key: str
+    fact_type: FactType
+    concept: str
+    display_label: str
+    concept_group: str
+    input_kind: str
+    allowed_assertions_json: list[str]
+    fixed_unit: str | None
+    effective_date_required: bool
+    screening_supported: bool
+    help_text: str
+    terminology_system: str | None
+    terminology_code: str | None
+    display_order: int
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class TerminologySuggestionRead(BaseModel):
+    source: Literal["rxnorm", "loinc"]
+    code: str = Field(min_length=1, max_length=80)
+    display_label: str = Field(min_length=1, max_length=240)
+    detail: str | None = Field(default=None, max_length=500)
+    fixed_unit: str | None = Field(default=None, max_length=40)
+    score: float | None = None
+
+
+class TerminologySuggestionResponse(BaseModel):
+    query: str
+    suggestions: list[TerminologySuggestionRead] = Field(default_factory=list)
+    unavailable_sources: list[str] = Field(default_factory=list)
 
 
 class TokenResponse(BaseModel):
@@ -144,16 +234,72 @@ class UnsupportedDetailRead(UnsupportedDetailCreate, ORMModel):
     updated_at: datetime
 
 
+class PatientConsistencyIssue(BaseModel):
+    code: Literal[
+        "PATIENT_PREGNANCY_SEX_CONFLICT",
+        "PATIENT_SEX_NOT_RECORDED_FOR_PREGNANCY",
+    ]
+    severity: Literal["conflict", "warning"]
+    message: str
+    field: Literal["sex", "pregnancy"]
+    fact_id: uuid.UUID
+
+
 class PatientRead(ORMModel):
     id: uuid.UUID
     external_id: str
     display_name: str
     date_of_birth: date | None
-    sex: str | None
+    sex: BiologicalSex | None
     created_at: datetime
     updated_at: datetime
     facts: list[FactRead] = Field(default_factory=list)
     unsupported_details: list[UnsupportedDetailRead] = Field(default_factory=list)
+    consistency_issues: list[PatientConsistencyIssue] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def add_pregnancy_consistency_issues(self) -> PatientRead:
+        if self.consistency_issues:
+            return self
+        pregnancy = next(
+            (
+                fact
+                for fact in self.facts
+                if fact.fact_type is FactType.condition
+                and fact.concept == "pregnancy"
+                and fact.assertion is Assertion.present
+            ),
+            None,
+        )
+        if pregnancy is None:
+            return self
+        if self.sex is BiologicalSex.male:
+            self.consistency_issues = [
+                PatientConsistencyIssue(
+                    code="PATIENT_PREGNANCY_SEX_CONFLICT",
+                    severity="conflict",
+                    message=(
+                        "Pregnancy is recorded as Pregnant for a patient whose "
+                        "biological sex is Male."
+                    ),
+                    field="pregnancy",
+                    fact_id=pregnancy.id,
+                )
+            ]
+        elif self.sex is None:
+            self.consistency_issues = [
+                PatientConsistencyIssue(
+                    code="PATIENT_SEX_NOT_RECORDED_FOR_PREGNANCY",
+                    severity="warning",
+                    message=(
+                        "Pregnancy is recorded as Pregnant, but biological sex "
+                        "is not recorded."
+                    ),
+                    field="sex",
+                    fact_id=pregnancy.id,
+                )
+            ]
+        return self
 
 
 class TrialCreate(BaseModel):

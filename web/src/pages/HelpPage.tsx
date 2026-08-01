@@ -28,8 +28,8 @@ export function HelpPage() {
         <p>Use the seeded workspace to walk through the complete evidence-backed flow.</p>
         <ol className="help-steps">
           <li><strong>Review records.</strong> Open a synthetic patient and inspect structured facts, or use the review-first import flow.</li>
-          <li><strong>Approve a trial.</strong> Create or import a trial version, review every candidate criterion, then approve the version.</li>
-          <li><strong>Run screening.</strong> Compare one patient snapshot with one approved trial version, or run a bounded synchronous batch.</li>
+          <li><strong>Save a trial.</strong> Create or import a trial, review its criteria, then save the protocol.</li>
+          <li><strong>Run screening.</strong> Compare one patient snapshot with one saved trial protocol, or run a bounded synchronous batch.</li>
           <li><strong>Explain the result.</strong> Open a saved screening to inspect each criterion, evidence source, missing information, and the grounded assistant.</li>
         </ol>
         <p className="help-note">Seeded login: <code>demo@trialsync.example</code> / <code>SyntheticDemo123!</code></p>
@@ -44,7 +44,7 @@ export function HelpPage() {
           <div><span className="state state-likely_ineligible">Likely ineligible</span><p>At least one required criterion failed.</p></div>
           <div><span className="state state-needs_review">Needs review</span><p>The saved evidence is incomplete or unresolved.</p></div>
         </div>
-        <p className="help-note">Every saved result includes the immutable patient snapshot, approved trial version, criterion explanation, evidence or missing-information requirement, and engine metadata.</p>
+        <p className="help-note">Every saved result includes the immutable patient snapshot, saved trial protocol, criterion explanation, evidence or missing-information requirement, and engine metadata.</p>
       </section>
 
       <section className="help-section" id="result-assistant">

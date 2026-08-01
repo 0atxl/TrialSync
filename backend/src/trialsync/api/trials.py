@@ -12,7 +12,7 @@ from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
 from trialsync.db.models import Criterion, FactType, Trial, TrialVersion, VersionStatus
 from trialsync.patient_data import PatientFactInputKind
-from trialsync.patient_data.catalog import PATIENT_FACT_CATALOG_BY_KEY
+from trialsync.patient_data.catalog import active_catalog_entry_by_key
 from trialsync.schemas import (
     CriterionCreate,
     CriterionRead,
@@ -45,7 +45,10 @@ def json_number(value: Decimal) -> int | float:
     return int(value) if value == value.to_integral_value() else float(value)
 
 
-def guided_criterion_values(payload: GuidedCriterionCreate) -> tuple[str, dict[str, object]]:
+async def guided_criterion_values(
+    session: SessionDep,
+    payload: GuidedCriterionCreate,
+) -> tuple[str, dict[str, object]]:
     if payload.subject_key == "age":
         if payload.operator not in {"gte", "lte", "between"}:
             raise criterion_value_error(
@@ -104,10 +107,15 @@ def guided_criterion_values(payload: GuidedCriterionCreate) -> tuple[str, dict[s
             },
         )
 
-    entry = PATIENT_FACT_CATALOG_BY_KEY.get(payload.subject_key)
+    entry = await active_catalog_entry_by_key(session, payload.subject_key)
     if entry is None:
         raise criterion_value_error(
             "Choose a supported criterion from the catalog.",
+            "subject_key",
+        )
+    if not entry.screening_supported:
+        raise criterion_value_error(
+            f"{entry.display_label} is available for patient records but not trial screening.",
             "subject_key",
         )
     fact = f"{entry.fact_type.value}.{entry.concept}"
@@ -460,7 +468,7 @@ async def create_guided_criterion(
 ) -> Criterion:
     version = await owned_version(session, user, trial_id, version_id)
     require_draft(version)
-    source_text, normalized_rule = guided_criterion_values(payload)
+    source_text, normalized_rule = await guided_criterion_values(session, payload)
     last_order = await session.scalar(
         select(func.max(Criterion.order)).where(Criterion.trial_version_id == version_id)
     )
@@ -573,7 +581,7 @@ async def update_guided_criterion(
             message="Criterion was not found.",
             status_code=404,
         )
-    source_text, normalized_rule = guided_criterion_values(payload)
+    source_text, normalized_rule = await guided_criterion_values(session, payload)
     criterion.kind = payload.kind
     criterion.source_text = source_text
     criterion.normalized_rule = normalized_rule

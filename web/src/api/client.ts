@@ -1,6 +1,6 @@
 import { getApiBaseUrl } from './config'
 
-export type User = { id: string; email: string; display_name: string }
+export type User = { id: string; email: string; display_name: string; is_catalog_admin: boolean }
 export type AuthResponse = { access_token: string; token_type: string; user: User }
 export type BiologicalSex = 'male' | 'female'
 export type Fact = {
@@ -32,11 +32,44 @@ export type PatientFactCatalogEntry = {
   effective_date_required: boolean
   screening_supported: boolean
   help_text: string
+  terminology_system: string | null
+  terminology_code: string | null
   display_order: number
+}
+export type TerminologySuggestion = {
+  source: 'rxnorm' | 'loinc'
+  code: string
+  display_label: string
+  detail: string | null
+  fixed_unit: string | null
+  score: number | null
+}
+export type TerminologySuggestionResponse = {
+  query: string
+  suggestions: TerminologySuggestion[]
+  unavailable_sources: string[]
 }
 export type PatientFactCatalog = {
   version: string
   entries: PatientFactCatalogEntry[]
+}
+export type ClinicalConcept = {
+  id: string
+  key: string
+  fact_type: 'condition' | 'medication' | 'observation'
+  concept: string
+  display_label: string
+  concept_group: PatientFactGroup
+  input_kind: PatientFactInputKind
+  allowed_assertions_json: Fact['assertion'][]
+  fixed_unit: string | null
+  effective_date_required: boolean
+  screening_supported: boolean
+  help_text: string
+  display_order: number
+  active: boolean
+  created_at: string
+  updated_at: string
 }
 export type ClinicalDetailValue =
   | {
@@ -70,6 +103,15 @@ export type PatientUnsupportedDetail = {
   created_at: string
   updated_at: string
 }
+export type PatientConsistencyIssue = {
+  code:
+    | 'PATIENT_PREGNANCY_SEX_CONFLICT'
+    | 'PATIENT_SEX_NOT_RECORDED_FOR_PREGNANCY'
+  severity: 'conflict' | 'warning'
+  message: string
+  field: 'sex' | 'pregnancy'
+  fact_id: string
+}
 export type Patient = {
   id: string
   external_id: string
@@ -80,6 +122,7 @@ export type Patient = {
   updated_at: string
   facts: Fact[]
   unsupported_details: PatientUnsupportedDetail[]
+  consistency_issues: PatientConsistencyIssue[]
 }
 export type Criterion = {
   id: string

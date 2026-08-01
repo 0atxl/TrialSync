@@ -859,6 +859,7 @@ async def seed_admin_workspace(session: AsyncSession) -> AdminWorkspaceSummary:
         email=ADMIN_EMAIL,
         display_name="Admin Research Coordinator",
         password_hash=hash_password(ADMIN_PASSWORD),
+        is_catalog_admin=True,
     )
     session.add(admin)
     await session.flush()

@@ -119,6 +119,10 @@ Compose, and only `127.0.0.1:8081` is published for Cloudflare Tunnel. See
 [`agent-docs/DEPLOYMENT.md`](agent-docs/DEPLOYMENT.md) for first deployment, migrations, backup,
 restore, upgrades, and the required `trialsync.atuls.me` tunnel origin.
 
+GitHub Actions CI is defined in `.github/workflows/ci.yml` and runs the same backend/frontend
+verification gate plus credential-free container builds. Automated CD is intentionally deferred;
+manual deployment remains `git pull --ff-only` followed by the health-checked Compose rollout.
+
 ## Core workflow
 
 1. Register a demo account at `/register` or sign in at `/login`.

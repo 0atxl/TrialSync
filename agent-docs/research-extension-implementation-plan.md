@@ -2,8 +2,9 @@
 
 **Date:** 2026-07-24
 **Status:** R0 revised and re-locked on 2026-07-26 after alignment with the supplied
-LangChain/Gemini RAG and GitHub Actions CI/CD brief; the R3 data strategy was clarified on
-2026-08-01; R1 completed on 2026-08-02; R2 remains approved but is not yet implemented.
+LangChain/Gemini RAG and GitHub Actions brief; the R3 data strategy was clarified on
+2026-08-01; R1 completed on 2026-08-02; R2 CI completed on 2026-08-02; automated CD is
+deferred until the deployment target and release frequency justify it.
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
@@ -15,7 +16,7 @@ the trusted matching core.
 
 The approved extension contains:
 
-1. Canonical evidence-backed PDF reporting and GitHub Actions CI/CD.
+1. Canonical evidence-backed PDF reporting and GitHub Actions CI, with automated CD deferred.
 2. A separate, auditable longitudinal enrollment generator for dropout-risk research, with
    optional NVIDIA NeMo Data Designer orchestration and a future external benchmark adapter if
    suitable row-level data becomes legitimately accessible.
@@ -68,8 +69,8 @@ The following capabilities already exist and should not be rebuilt:
 
 Known extension gaps:
 
-- No downloadable canonical screening-result PDF.
-- No GitHub Actions CI/CD workflow.
+- GitHub Actions CI is implemented; automated CD is deferred and manual Compose deployment
+  remains the current delivery path.
 - No hybrid longitudinal enrollment generator or frozen dropout-research dataset.
 - No screening-derived patient cohort/reference-trial matrix.
 - No dropout-risk model, model registry, calibration report, or SHAP explanation.
@@ -159,7 +160,8 @@ Disallowed claims:
 Approved for inclusion:
 
 - Canonical evidence-backed screening PDF reports.
-- GitHub Actions continuous integration and health-gated deployment to the configured target.
+- GitHub Actions continuous integration; manual health-checked deployment to the configured
+  target for now. Automated CD is deferred until it is needed.
 - A versioned synthetic longitudinal participant dataset.
 - An optional, separately versioned NCT02054715-D1 adapter and evaluation report if participant
   rows become legitimately accessible; the public application remains reproducible without it.
@@ -210,7 +212,7 @@ R0 Scope lock
  |
  +--> R1 Canonical screening report
  |
- +--> R2 GitHub Actions CI/CD
+ +--> R2 GitHub Actions CI (CD deferred)
  |
  +--> R3 Synthetic longitudinal dropout protocol and dataset
        -> R4 Dropout model experiments
@@ -258,7 +260,7 @@ Record the approved extension boundaries and prevent later phases from silently 
 | RAG generation | Gemini API structured eligibility summary with validated criterion citations |
 | Provider resilience | Gemini/Groq cooldown, caching, concurrency control, bounded retry, and deterministic fallback |
 | Local models | Not in the default TrialSync path |
-| Delivery | GitHub Actions CI/CD with protected, health-gated deployment of the tested commit to the configured target |
+| Delivery | GitHub Actions CI for every candidate commit; manual health-checked Compose deployment until CD is needed |
 | BioBERT | Deferred |
 
 ### Deliverables
@@ -279,10 +281,10 @@ Record the approved extension boundaries and prevent later phases from silently 
 
 Complete and re-locked on 2026-07-26 after correcting R7 to the supplied LangChain/Gemini brief,
 adding the trial-to-enrollment linkage required by the recruitment overview, and including
-health-gated GitHub Actions deployment. On 2026-08-01 the user approved clarification of R3's
+GitHub Actions CI with a documented manual deployment path. On 2026-08-01 the user approved clarification of R3's
 hybrid NVIDIA/statistical generation boundary and the separate controlled-access
-NCT02054715-D1 benchmark. Begin R1 only; later phase approval does not authorize combining
-phases.
+NCT02054715-D1 benchmark. R1 and R2 CI are complete; begin R3 only and preserve the later
+phase stop points. Later phase approval does not authorize combining phases.
 
 ### Claims matrix
 
@@ -297,7 +299,7 @@ phases.
 | RAG trial matching | LangChain retrieval over approved criteria plus a Gemini structured eligibility summary |
 | LLM eligibility | Rejected; the deterministic engine remains authoritative |
 | PDF report | Generated from canonical stored screening evidence |
-| CI/CD | GitHub Actions verifies the commit, then deploys that tested commit through a protected production environment with health checks and rollback |
+| Delivery | GitHub Actions verifies the commit; manual Compose deployment applies migrations and health checks until CD is needed |
 | Production clinical platform | Corrected to research-grade academic prototype using synthetic participant data |
 
 ## 7. Phase R1 — Canonical screening report PDF
@@ -421,15 +423,16 @@ Known limitations: `npm audit` still reports existing high advisories in
 
 Exit criteria not yet satisfied: None for R1.
 
-Recommended next task: Review and authorize R2 GitHub Actions CI/CD before starting
-any dropout, cohort, or RAG implementation phase.
+Recommended next task: Begin R3 dataset schema and seeded synthetic longitudinal generator work;
+automated CD remains deferred.
 
-## 8. Phase R2 — GitHub Actions CI/CD
+## 8. Phase R2 — GitHub Actions CI (CD deferred)
 
 ### Objective
 
-Run the repository's quality gates on pushes and pull requests, then deploy an approved,
-tested commit to the configured TrialSync target through GitHub Actions.
+Run the repository's quality gates on pushes and pull requests. Deployment remains a documented
+manual `git pull` plus health-checked Docker Compose rollout until automated CD is genuinely
+needed.
 
 ### Steps
 
@@ -447,48 +450,60 @@ tested commit to the configured TrialSync target through GitHub Actions.
    - secret scanning or the existing safe audit subset;
    - optional container builds.
 6. Cache only safe dependency directories; never cache `.env`, uploads, database files, model artifacts, or MLflow stores.
-7. Ensure CI requires neither a Gemini nor Groq key. The deployment job may inject configured
-   provider keys from the protected production environment without exposing them to build or test jobs.
-8. Keep live provider evaluation manual and separately labelled.
-9. Add job timeouts and concurrency cancellation for superseded branch runs.
-10. Add a deployment job that:
-    - runs only after CI succeeds for the selected main-branch commit;
-    - uses a protected GitHub `production` environment and repository secrets;
-    - deploys the exact tested commit to the existing Docker Compose target;
-    - applies migrations before application health is declared;
-    - verifies live and ready health endpoints;
-    - records the previous deployed commit and restores it if the health gate fails.
-11. Support an explicit `workflow_dispatch` release while the production environment requires
-    approval; do not deploy pull-request code.
-12. Constrain the deployment credential to the TrialSync host and deployment directory.
+7. Ensure CI requires neither a Gemini nor Groq key. Live provider evaluation remains manual
+   and separately labelled.
+8. Add job timeouts and concurrency cancellation for superseded branch runs.
 
-### CI/CD contract
+### CI contract
 
-CI verifies every candidate commit. CD deploys only the exact commit that passed CI, through the
-protected production environment. Environment approval may remain manual, but build, migration,
-Compose rollout, health verification, and rollback are executed by GitHub Actions and retained in
-the workflow history.
+CI verifies every candidate commit without deployment, provider, or database secrets. The manual
+deployment procedure must be run from the exact commit that passed CI, apply migrations through
+the Compose `migrate` service, and verify live/ready health before the demo is used.
 
 ### Tests
 
 - Reproduce every workflow command locally.
 - Verify migrations against an empty database.
 - Verify tests use deterministic providers.
-- Verify CI requires no deployment or provider secret, and deployment secrets are available only
-  to the protected production job.
+- Verify CI requires no deployment or provider secret.
 - Verify a deliberate test failure fails the job during development of the workflow.
-- Verify pull requests cannot invoke the production deployment job.
-- Verify a failed readiness check invokes the documented rollback path.
-- Verify the deployed commit matches the CI-tested SHA.
+- Verify the container images build without provider credentials.
 
 ### Exit criteria
 
-- The full required gate passes in GitHub Actions.
-- A protected workflow deploys the tested commit and passes the production health gate.
-- A forced failed-health fixture proves the rollback path without affecting the live target.
+- The full repository verification gate passes in GitHub Actions.
+- Backend and frontend container images build without provider credentials.
 - Local and CI commands are documented.
 - Workflow logs contain no secrets or synthetic document contents.
-- README badges, if added, link to the actual workflow.
+- Automated CD, protected deployment environments, and automated rollback are explicitly deferred.
+
+### Status
+
+Complete on 2026-08-02 for the CI scope. `.github/workflows/ci.yml` runs the repository
+verification gate against PostgreSQL, audits Python dependencies, and builds both application
+images without provider or deployment credentials. Automated CD is intentionally deferred; the
+manual Alsomine Compose procedure remains the supported deployment path.
+
+### Implementation handoff
+
+Phase completed: R2 — GitHub Actions CI
+
+Outcome: Every push, pull request, and manual workflow dispatch can run the same backend/frontend
+quality gate used locally, followed by credential-free container builds.
+
+Files changed: `.github/workflows/ci.yml`, this plan, the deployment guide, the feasibility note,
+and evaluation documentation.
+
+Behavior/API/data changes: No application, API, schema, or data behavior changed. CD and automated
+rollback were not implemented.
+
+Tests and builds run: Local `make verify`, Python dependency audit, and production Docker image
+builds remain the corresponding local checks; GitHub Actions executes their clean-runner versions.
+
+Known limitations: The workflow does not deploy to Alsomine or run browser E2E tests. Those remain
+manual until a later delivery phase requires them.
+
+Recommended next task: Begin R3 dataset schema and seeded synthetic longitudinal generator work.
 
 ## 9. Phase R3 — Synthetic longitudinal dropout protocol
 
@@ -1407,7 +1422,8 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 13. Both FAISS exact-neighbor verifications and Cohort Atlas projection evidence.
 14. LangChain criteria-retrieval, complete-criteria expansion, and Gemini grounded-generation metrics.
 15. Gemini/Groq cooldown, cache, retry, and degraded-mode behavior.
-16. CI/CD deployed-commit, health-gate, and rollback evidence.
+16. GitHub Actions CI evidence plus the manual deployed-commit and health-check record; automated
+    CD/rollback evidence only if that later scope is enabled.
 17. Security, dependency, restricted-data, and secret checks.
 
 ### Final demonstration script
@@ -1428,7 +1444,7 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 12. Upload a patient record, retrieve relevant trial criteria with LangChain, show the
     citation-validated Gemini summary, and run the selected deterministic screening.
 13. Show that neither risk, cluster, similarity, retrieval, nor LLM output changes eligibility.
-14. Show CI/CD evidence, the deployed commit, the production health gate, and the offline fallback.
+14. Show CI evidence, the manually deployed commit, the production health gate, and the offline fallback.
 
 ### Documentation updates
 
@@ -1453,7 +1469,8 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 - Frontend formatting, linting, type checks, tests, build.
 - Browser end-to-end workflows.
 - Docker/Compose validation.
-- GitHub Actions CI/CD success plus protected deployment, health-gate, and rollback evidence.
+- GitHub Actions CI success plus manual deployment and health-gate evidence. Automated CD and
+  rollback are deferred unless the project later needs them.
 - Dependency and secret audit.
 - No generated research artifact or restricted data accidentally tracked.
 - No local language model is required by the clean setup or live demonstration.
@@ -1560,7 +1577,7 @@ One possible history:
 ```text
 docs: approve TrialSync research extension plan
 feat: add canonical screening PDF reports
-ci: add verification and health-gated deployment workflows
+ci: add repository verification workflow
 feat: add reproducible hybrid synthetic participant generator
 feat: add dropout model experiments and MLflow tracking
 feat: add versioned synthetic risk inference
@@ -1590,7 +1607,9 @@ Commits are phase checkpoints, not permission to combine several phases into one
 - [x] The Cohort Atlas supports patient-fact and screening-profile representations.
 - [x] Eligibility RAG uses LangChain candidate retrieval, complete-criteria expansion, and Gemini structured summaries.
 - [x] Gemini/Groq rate-limit handling uses cooldown/cache/concurrency/fallback instead of local models.
-- [x] GitHub Actions CI/CD deploys only a tested commit through a protected, health-gated environment with rollback.
+- [x] GitHub Actions CI verifies the tested repository without provider or deployment secrets.
+- [ ] Automated CD, protected deployment, and rollback are deferred until the deployment target
+  and release frequency justify them.
 - [x] Trial-grouped risk counts resolve through versioned research-enrollment linkages.
 - [x] Every research output remains separate from deterministic eligibility.
 
@@ -1600,7 +1619,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 |---|---|---|---|
 | R0. Scope lock | Complete | Revised scope re-locked by user after final consistency audit, 2026-07-26 | This document |
 | R1. Canonical report PDF | Complete | User selected evidence-backed reporting, 2026-07-26 | Provider-free typed report assembler, owner-scoped PDF endpoint, complete evidence/missing-information/stale-evidence/ownership/long-text/determinism tests, frontend download states, production build, and visual review, 2026-08-02 |
-| R2. GitHub Actions CI/CD | Approved | Corrected to the supplied delivery brief, 2026-07-26 | |
+| R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
 | R3. Synthetic dropout protocol/dataset | Approved | User selected dropout-risk modeling on 2026-07-26 and clarified hybrid NVIDIA generation plus separate NCT02054715-D1 validation on 2026-08-01 | |
 | R4. Dropout models/MLflow/SHAP | Approved | User selected dropout-risk modeling, 2026-07-26 | |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |

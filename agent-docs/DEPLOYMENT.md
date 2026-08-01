@@ -6,21 +6,15 @@ network. Only Nginx is published to the host at `127.0.0.1:8081`; PostgreSQL
 has no host port. Configure Cloudflare Tunnel with origin
 `http://127.0.0.1:8081` and public hostname `trialsync.atuls.me`.
 
-## GitHub Actions CI/CD contract
+## GitHub Actions CI and manual deployment
 
-Phase R2 will automate this existing Docker Compose deployment through a protected GitHub
-`production` environment. The deployment job must:
+R2 currently implements GitHub Actions CI only. The workflow in
+`.github/workflows/ci.yml` runs the repository verification gate against PostgreSQL, audits Python
+dependencies, and builds both application images without provider or deployment credentials.
 
-1. run only for the exact main-branch commit that passed every CI gate;
-2. use repository/environment secrets for the constrained SSH deployment credential;
-3. record the currently deployed commit before rollout;
-4. deploy the tested commit, run migrations, and wait for Compose health checks;
-5. verify the public live and ready endpoints; and
-6. restore the prior commit and rerun the health gate when rollout fails.
-
-Environment approval may remain manual, but deployment commands, health verification, rollback,
-and workflow evidence are automated. Until R2 is implemented and tested, use the manual procedure
-below.
+Automated CD is intentionally deferred. Until it is needed, deploy the exact commit that passed
+CI with the manual Compose procedure below. This keeps the controlled academic deployment simple
+while still applying migrations and checking application health.
 
 ## First deployment
 
@@ -82,14 +76,26 @@ Inspect service logs:
 docker compose --env-file .env.production -f compose.prod.yaml logs --follow frontend backend migrate db
 ```
 
-To upgrade from Git, review the changes, rebuild images, and rerun the same
-health-gated deployment command. The migration job is idempotent when already
-at the Alembic head revision.
+To upgrade from Git, review the changes, confirm the commit passed CI, rebuild images, and rerun
+the same health-gated deployment command. The migration job is idempotent when already at the
+Alembic head revision.
 
 ```bash
 git pull --ff-only
 docker compose --env-file .env.production -f compose.prod.yaml up -d --build --wait
 ```
+
+Record the deployed revision and verify the application before using the demo:
+
+```bash
+git rev-parse --short HEAD
+curl --fail http://127.0.0.1:8081/health/live
+curl --fail http://127.0.0.1:8081/health/ready
+docker compose --env-file .env.production -f compose.prod.yaml ps
+```
+
+Do not delete the PostgreSQL volume during a routine deployment. For a migration-changing
+release, create a backup before the rollout and inspect the `migrate` service if readiness fails.
 
 ## Database backup and restore
 

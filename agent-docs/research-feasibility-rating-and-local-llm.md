@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-26
 **Status:** R0 decision brief revised and re-approved on 2026-07-26; dropout-data strategy
-clarified on 2026-08-01; R1 canonical reporting completed on 2026-08-02; R2 remains the next
-approved but unimplemented phase
+clarified on 2026-08-01; R1 canonical reporting and R2 GitHub Actions CI completed on 2026-08-02;
+automated CD is deferred until needed
 **Purpose:** Record the practical feasibility audit, an intentionally blunt academic
 assessment, and the local-versus-hosted LLM recommendation before the research extension
 is implemented.
@@ -528,9 +528,9 @@ CI is valuable academic evidence even though it is not a visible product feature
 
 ### 8.3 Continuous deployment
 
-CD would automatically deploy a commit after CI succeeds. A responsible TrialSync CD workflow
-would need deployment credentials, a database backup policy, migration handling, health gates,
-and rollback behavior.
+Automated CD is intentionally deferred. It would automatically deploy a commit after CI succeeds,
+but a responsible TrialSync CD workflow would need deployment credentials, a database backup
+policy, migration handling, health gates, and rollback behavior.
 
 The current manual `alsomine` workflow is safer while the research schema is changing:
 
@@ -538,16 +538,18 @@ The current manual `alsomine` workflow is safer while the research schema is cha
 push -> inspect -> SSH -> fast-forward pull -> Compose rebuild -> migration -> health checks
 ```
 
-Recommendation: implement CI and a protected GitHub Actions deployment workflow. Environment
-approval may remain manual, but the workflow must deploy the exact tested commit, apply
-migrations, verify health, and restore the prior commit when the health gate fails.
+Current decision: implement GitHub Actions CI now and continue using the documented manual
+Alsomine workflow (`git pull --ff-only`, Compose rebuild/migration, and health checks). Add
+protected automated CD only when the project needs frequent releases or the deployment evidence
+becomes part of the final assessment.
 
 ## 9. Practicality by phase
 
 | Phase | Practicality | Main risk | Honest effort for one student |
 |---|---|---|---|
 | R1 canonical PDF | High | deterministic pagination and long text | 3–5 focused days |
-| R2 GitHub Actions CI/CD | High | PostgreSQL, deployment secrets, health gates, and rollback | 4–6 focused days |
+| R2 GitHub Actions CI | High | PostgreSQL service configuration and clean-runner dependency setup | 1–2 focused days |
+| Future CD | High | Deployment secrets, migration safety, health gates, and rollback | Deferred until needed |
 | R3 hybrid longitudinal protocol/dataset | Medium–high | invalid/trivially learnable generator, optional-provider drift, or conflating controlled and synthetic evidence | 2–3 weeks |
 | R4 models, MLflow, SHAP | Medium–high | leakage, calibration, dependency weight | 2–3 weeks |
 | R5 risk API and Scenario Lab | Medium–high | feature parity and non-causal wording | 1.5–2.5 weeks |
@@ -833,7 +835,7 @@ method or evidence that produced it.
 ### Go
 
 - canonical PDF;
-- GitHub Actions CI/CD with a protected, health-gated deployment and rollback;
+- GitHub Actions CI with manual health-checked deployment; protected automated CD and rollback are deferred;
 - separate multi-condition synthetic longitudinal dropout cohort;
 - optional NeMo Data Designer orchestration with an offline audited generator as the source of labels;
 - a separate NCT02054715-D1 benchmark only if participant rows become legitimately accessible;
@@ -867,9 +869,10 @@ method or evidence that produced it.
 R0 has re-locked the condition portfolio, day-30/day-90 task, approximate prevalence, cohort
 sizes, Scenario Lab direction, patient-fact and screening-profile representations, seeded PCA
 display, linked Trial Recruitment Overview, LangChain/Gemini RAG, provider-resilience approach,
-and GitHub Actions CI/CD contract. R1 is complete: the canonical screening PDF is generated
+and GitHub Actions CI contract. R1 and R2 CI are complete: the canonical screening PDF is generated
 from stored evidence and verified in populated, `unknown`, long-text, and pagination states.
-The approved next step is R2 CI/CD; no later research phase is being started in this checkpoint.
+The approved next step is R3 dataset schema and generator work; automated CD is deferred and
+will be revisited only when the deployment target or release frequency justifies it.
 
 Phase-specific details such as the exact synthetic event taxonomy, bounded generator regimes,
 and concrete provider timeout values are implementation parameters to freeze and test inside

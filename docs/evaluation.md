@@ -4,7 +4,8 @@ TrialSync evaluates both the reliability of its evidence-backed patient–trial 
 
 The extension gate will also reconcile trial-grouped screening totals with versioned enrollment
 links and risk predictions, verify complete-criteria expansion before every Gemini summary, and
-retain GitHub Actions evidence for the tested commit, deployment health gate, and rollback path.
+retain GitHub Actions CI evidence for the tested commit. Deployment remains a manual,
+health-checked Compose procedure until automated CD is needed.
 The dropout gate will verify generator provenance, offline reproducibility without NVIDIA
 credentials, label independence from LLM-generated fields, and leakage-safe day-30/day-90 splits.
 If NCT02054715-D1 participant rows become legitimately accessible, they receive a separate
@@ -21,5 +22,9 @@ mypy, ESLint, TypeScript, migrations, the canonical screening-report API/UI test
 and the held-out synthetic evaluation. The R1 visual review covered desktop and
 narrow screening details plus a three-page generated PDF.
 These counts are software verification results, not clinical performance claims.
+
+R2 adds `.github/workflows/ci.yml`, which reproduces the verification gate on a clean GitHub
+Actions runner with PostgreSQL and builds both application images without provider credentials.
+Automated deployment and rollback are intentionally outside the current CI scope.
 
 These are software and fixture checks, not a clinical validation or trained-model evaluation. Live Groq measurements require a separately documented run with only synthetic data. OCR output is evaluated as reviewable source text, not as eligibility evidence or confidence.

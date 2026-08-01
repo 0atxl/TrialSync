@@ -20,7 +20,8 @@ The strongest incremental direction is:
 2. Reuse the existing deterministic, evidence-backed screening engine.
 3. Add reproducible synthetic dropout-risk experiments with logistic regression, XGBoost, LightGBM, SHAP, and MLflow.
 4. Add research-only cohort embeddings, DBSCAN clustering, and FAISS patient similarity.
-5. Add canonical PDF reporting, a separate research UI/API, GitHub Actions CI/CD, and final evaluation.
+5. Add canonical PDF reporting, a separate research UI/API, GitHub Actions CI, and final evaluation;
+   keep automated CD as a future operational option.
 
 BioBERT is deferred from the selected implementation scope. It remains a possible future experiment only after one supervised task and a suitable labelled dataset are approved.
 
@@ -117,7 +118,7 @@ Therefore, “predict patient trial dropout” remains blocked for the originall
 | RAG over trial criteria | Strong fit | Implement and evaluate retrieval separately, then supply versioned retrieved context to a bounded citation-validated generator |
 | Gemini eligibility summary | Strong fit | Generate a schema-validated summary from only the patient context and criteria returned by LangChain |
 | LangChain | Required by brief | Use it as the explicit retrieval orchestration layer over versioned approved criteria |
-| Docker and GitHub Actions | Feasible | Run CI and deploy the tested commit through a protected environment with migrations, health gates, and rollback |
+| Docker and GitHub Actions | Feasible | Run CI now; deploy manually with migrations and health checks, adding protected CD only if needed |
 | PDF eligibility report | Strong fit | Generate from stored canonical screening JSON; LLM prose is supplementary |
 
 ## A. Dropout or retention-risk prediction
@@ -278,7 +279,7 @@ Research outputs should be visibly labeled as research analytics and should not 
 ## Selected implementation sequence
 
 The phase order is intentionally maintained only in
-[`research-extension-implementation-plan.md`](research-extension-implementation-plan.md) so findings cannot drift into a second competing plan. In summary: canonical PDF reporting and GitHub Actions CI/CD come first, followed by the synthetic longitudinal dropout protocol, MLflow-tracked models, screening-derived cohorts and similarity, LangChain/Gemini eligibility RAG, and final hardening/evaluation.
+[`research-extension-implementation-plan.md`](research-extension-implementation-plan.md) so findings cannot drift into a second competing plan. In summary: canonical PDF reporting and GitHub Actions CI come first, followed by the synthetic longitudinal dropout protocol, MLflow-tracked models, screening-derived cohorts and similarity, LangChain/Gemini eligibility RAG, and final hardening/evaluation. Automated CD remains deferred.
 
 ## Claims to avoid
 
@@ -296,7 +297,8 @@ Proceed with the selected scope: **LangChain candidate retrieval + complete appr
 expansion + Gemini structured eligibility summaries + deterministic screening + grounded
 reporting** as the product centerpiece, with **linked hybrid synthetic dropout modeling, MLflow, SHAP,
 trial-grouped retention views, DBSCAN cohorts, and FAISS similarity** as the research analytics
-layer. GitHub Actions provides CI/CD to the configured target. BioBERT is deferred.
+layer. GitHub Actions provides CI; manual Compose deployment remains the configured delivery path
+until automated CD is needed. BioBERT is deferred.
 NCT02054715-D1 work is a separate optional future external benchmark and is not a runtime, build,
 test, public-demo, or clean-reproduction dependency. It becomes active only if participant rows
 become legitimately accessible and a study-specific protocol is recorded.

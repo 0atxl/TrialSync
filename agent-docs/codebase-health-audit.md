@@ -46,9 +46,13 @@ surfaces.
   reported by the initial JavaScript audit are resolved in the lockfile. npm
   still reports [the React Router RSC advisory](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
   for the current 7.x DOM package;
-  this SPA does not use the unstable RSC APIs, and the patched 8.3 release is
-  available for `react-router` but not yet for `react-router-dom`. Keep this as
-  a tracked dependency-migration item rather than forcing a failing CI gate.
+  this SPA does not use the unstable RSC APIs. React Router v8.3 is the patched
+  line, and [the v8 upgrade guide](https://reactrouter.com/upgrading/v7)
+  documents that v8 intentionally removes the `react-router-dom` re-export package;
+  the eventual migration must move ordinary imports to `react-router`,
+  DOM-specific imports such as `RouterProvider` to `react-router/dom`, and raise
+  React/React DOM to the v8 minimum. Keep this as a tracked migration item
+  rather than forcing a failing CI gate.
 
 ## Cleanup completed at this checkpoint
 
@@ -92,8 +96,8 @@ dead-code detection is not mechanically proven because `knip`, `vulture`,
 `jscpd`, and an import-boundary checker are not maintained project gates; the
 CSS and copy cleanup above is limited to confirmed unreferenced selectors and
 stale wording. Add one of those tools only when its check can be maintained as a
-quality gate. npm audit remains a manual review until the React Router DOM v8
-package/migration path is available.
+quality gate. npm audit remains a manual review until the React Router v8 import
+migration is scheduled and completed.
 
 Repeat this audit when a runtime page or API module exceeds roughly 1,000 lines,
 when a new dependency layer is introduced, or after the research-extension

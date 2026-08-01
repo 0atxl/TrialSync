@@ -271,7 +271,6 @@ class PatientRead(ORMModel):
     facts: list[FactRead] = Field(default_factory=list)
     unsupported_details: list[UnsupportedDetailRead] = Field(default_factory=list)
     consistency_issues: list[PatientConsistencyIssue] = Field(default_factory=list)
-    activity: list[PatientChangeEventRead] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def add_pregnancy_consistency_issues(self) -> PatientRead:

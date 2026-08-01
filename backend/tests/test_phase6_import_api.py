@@ -164,13 +164,51 @@ async def test_patient_text_import_is_reviewed_edited_and_then_approved(
         if item["label"] == "Synthetic edited condition"
     )
     assert "active clinical catalog" in unsupported["context"]
-    activity_types = [item["event_type"] for item in patient.json()["activity"]]
+    activity = await api.get(
+        f"/api/v1/patients/{patient.json()['id']}/activity", headers=headers
+    )
+    assert activity.status_code == 200
+    activity_types = [item["event_type"] for item in activity.json()]
     assert "patient_created" in activity_types
     assert "fact_created" in activity_types
     immutable = await api.put(
         f"/api/v1/imports/{review['id']}", headers=headers, json={"candidates": candidates}
     )
     assert immutable.status_code == 409
+
+
+async def test_patient_import_replaces_catalog_warnings_after_a_reviewer_fix(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}-warning-fix@example.com")
+    headers = auth(account)
+    analyzed = await api.post(
+        "/api/v1/imports",
+        headers=headers,
+        json={
+            "kind": "patient",
+            "source_type": "text",
+            "text": (
+                "Patient name: Synthetic Warning Ada\n"
+                "Date of birth: 1985-05-14\n"
+                "Condition: Unmapped synthetic condition"
+            ),
+        },
+    )
+    assert analyzed.status_code == 201, analyzed.text
+    review = analyzed.json()
+    original_fact = review["candidates"]["facts"][0]
+    assert any("active clinical catalog" in warning for warning in original_fact["warnings"])
+
+    candidates = review["candidates"]
+    candidates["facts"][0]["concept"] = "Hypertension"
+    saved = await api.put(
+        f"/api/v1/imports/{review['id']}", headers=headers, json={"candidates": candidates}
+    )
+    assert saved.status_code == 200, saved.text
+    saved_fact = saved.json()["candidates"]["facts"][0]
+    assert not any("active clinical catalog" in warning for warning in saved_fact["warnings"])
+    assert not any(warning.startswith("Catalog review:") for warning in saved.json()["warnings"])
 
 
 async def test_patient_import_maps_common_catalog_aliases(

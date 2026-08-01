@@ -210,6 +210,20 @@ def _catalog_issues(
     return list(dict.fromkeys(issues))
 
 
+def _is_catalog_warning(warning: str) -> bool:
+    return (
+        warning.startswith("This concept is not in the active clinical catalog;")
+        or warning == "A present numeric observation needs a measured value."
+        or warning.startswith("The catalog requires the unit ")
+        or warning in {
+            "Add an effective date before approving this observation.",
+            "Add an effective date before approving this detail.",
+            "Numeric values are not accepted for this status detail.",
+            "The selected assertion is not supported by this catalog entry.",
+        }
+    )
+
+
 async def _annotate_patient_candidates(
     session: SessionDep,
     candidates: dict[str, object],
@@ -224,7 +238,11 @@ async def _annotate_patient_candidates(
     for fact, raw_fact in zip(parsed.facts, normalized.get("facts", []), strict=True):
         entry = _matched_catalog_entry(fact.fact_type.value, fact.concept, index)
         issues = _catalog_issues(fact, entry)
-        raw_warnings = list(raw_fact.get("warnings", []))
+        raw_warnings = [
+            warning
+            for warning in raw_fact.get("warnings", [])
+            if isinstance(warning, str) and not _is_catalog_warning(warning)
+        ]
         for issue in issues:
             if issue not in raw_warnings:
                 raw_warnings.append(issue)

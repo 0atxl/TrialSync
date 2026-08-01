@@ -141,7 +141,11 @@ export function PatientDetailPage() {
 
   const load = useCallback(async () => {
     try {
-      setPatient(await apiRequest<Patient>(`/patients/${patientId}`, {}, token))
+      const [record, activity] = await Promise.all([
+        apiRequest<Patient>(`/patients/${patientId}`, {}, token),
+        apiRequest<unknown>(`/patients/${patientId}/activity`, {}, token),
+      ])
+      setPatient({ ...record, activity: Array.isArray(activity) ? activity : [] })
       setError('')
       setProfileError('')
       setProfileStale(false)

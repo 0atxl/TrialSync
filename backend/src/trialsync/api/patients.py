@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import desc, func, select, update
@@ -143,6 +144,26 @@ def duplicate_fact_error(entry: PatientFactCatalogEntry, fact: PatientFact) -> A
     )
 
 
+def active_duplicate_fact_query(
+    *,
+    patient_id: uuid.UUID,
+    entry: PatientFactCatalogEntry,
+    effective_date: date | None,
+    exclude_fact_id: uuid.UUID | None = None,
+):
+    query = select(PatientFact).where(
+        PatientFact.patient_id == patient_id,
+        PatientFact.fact_type == entry.fact_type,
+        PatientFact.concept == entry.concept,
+        PatientFact.voided_at.is_(None),
+    )
+    if entry.input_kind is PatientFactInputKind.numeric:
+        query = query.where(PatientFact.effective_date == effective_date)
+    if exclude_fact_id is not None:
+        query = query.where(PatientFact.id != exclude_fact_id)
+    return query.order_by(PatientFact.created_at.desc())
+
+
 def profile_event_payload(patient: Patient) -> dict[str, object]:
     return {
         "display_name": patient.display_name,
@@ -193,16 +214,20 @@ def record_change(
     )
 
 
-async def owned_patient(session: SessionDep, user: CurrentUser, patient_id: uuid.UUID) -> Patient:
-    patient = await session.scalar(
-        select(Patient)
-        .options(
+async def owned_patient(
+    session: SessionDep,
+    user: CurrentUser,
+    patient_id: uuid.UUID,
+    *,
+    include_details: bool = True,
+) -> Patient:
+    query = select(Patient).where(Patient.id == patient_id, Patient.owner_id == user.id)
+    if include_details:
+        query = query.options(
             selectinload(Patient.facts),
             selectinload(Patient.unsupported_details),
-            selectinload(Patient.activity),
         )
-        .where(Patient.id == patient_id, Patient.owner_id == user.id)
-    )
+    patient = await session.scalar(query)
     if patient is None:
         raise ApplicationError(
             code="PATIENT_NOT_FOUND", message="Patient was not found.", status_code=404
@@ -217,7 +242,6 @@ async def list_patients(session: SessionDep, user: CurrentUser) -> list[Patient]
         .options(
             selectinload(Patient.facts),
             selectinload(Patient.unsupported_details),
-            selectinload(Patient.activity),
         )
         .where(Patient.owner_id == user.id)
         .order_by(Patient.updated_at.desc())
@@ -289,7 +313,7 @@ async def get_patient_activity(
 ) -> list[PatientChangeEvent]:
     """Return the bounded immutable change history for one owned patient."""
 
-    await owned_patient(session, user, patient_id)
+    await owned_patient(session, user, patient_id, include_details=False)
     result = await session.scalars(
         select(PatientChangeEvent)
         .where(PatientChangeEvent.patient_id == patient_id)
@@ -419,17 +443,13 @@ async def create_fact(
         )
     values = catalog_fact_values(entry, payload.value, payload.source_label)
     validate_pregnancy_value_for_patient(patient, entry, payload.value)
-    duplicate_query = select(PatientFact).where(
-        PatientFact.patient_id == patient_id,
-        PatientFact.fact_type == entry.fact_type,
-        PatientFact.concept == entry.concept,
-        PatientFact.voided_at.is_(None),
-    )
-    if entry.input_kind is PatientFactInputKind.numeric:
-        duplicate_query = duplicate_query.where(
-            PatientFact.effective_date == payload.value.effective_date
+    duplicate = await session.scalar(
+        active_duplicate_fact_query(
+            patient_id=patient_id,
+            entry=entry,
+            effective_date=payload.value.effective_date,
         )
-    duplicate = await session.scalar(duplicate_query.order_by(PatientFact.created_at.desc()))
+    )
     if duplicate is not None:
         raise duplicate_fact_error(entry, duplicate)
     fact = PatientFact(patient_id=patient_id, **values)
@@ -485,6 +505,16 @@ async def update_fact(
         )
     values = catalog_fact_values(entry, payload.value, payload.source_label)
     validate_pregnancy_value_for_patient(patient, entry, payload.value, fact=fact)
+    duplicate = await session.scalar(
+        active_duplicate_fact_query(
+            patient_id=patient_id,
+            entry=entry,
+            effective_date=payload.value.effective_date,
+            exclude_fact_id=fact.id,
+        )
+    )
+    if duplicate is not None:
+        raise duplicate_fact_error(entry, duplicate)
     before = fact_event_payload(fact)
     result = await session.execute(
         update(PatientFact)
@@ -601,11 +631,10 @@ async def restore_fact(
             field="fact_id",
         )
     duplicate = await session.scalar(
-        select(PatientFact).where(
-            PatientFact.patient_id == patient_id,
-            PatientFact.fact_type == fact.fact_type,
-            PatientFact.concept == fact.concept,
-            PatientFact.voided_at.is_(None),
+        active_duplicate_fact_query(
+            patient_id=patient_id,
+            entry=entry,
+            effective_date=fact.effective_date,
         )
     )
     if duplicate is not None:

@@ -223,7 +223,8 @@ async def test_current_fact_create_update_delete_and_ownership(
     assert removed.status_code == 204
     detail = await api.get(f"/api/v1/patients/{patient['id']}", headers=headers)
     assert detail.json()["facts"] == []
-    assert any(item["event_type"] == "fact_voided" for item in detail.json()["activity"])
+    activity = await api.get(f"/api/v1/patients/{patient['id']}/activity", headers=headers)
+    assert any(item["event_type"] == "fact_voided" for item in activity.json())
     restored = await api.post(f"{fact_url}/{fact_id}/restore", headers=headers)
     assert restored.status_code == 200
     assert restored.json()["id"] == fact_id
@@ -284,6 +285,60 @@ async def test_fact_void_requires_reason_and_activity_is_owner_scoped(
         f"{fact_url}/restore", headers=auth(second)
     )
     assert restored_by_other.status_code == 404
+
+
+async def test_numeric_fact_restore_allows_a_different_effective_date(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}-restore-dates@example.com")
+    headers = auth(account)
+    patient = await create_patient(api, headers, suffix="RESTORE-DATES")
+    facts_url = f"/api/v1/patients/{patient['id']}/facts"
+
+    first = await api.post(
+        facts_url,
+        headers=headers,
+        json={
+            "catalog_key": "hba1c",
+            "value": {
+                "input_kind": "numeric",
+                "value_numeric": 7.1,
+                "effective_date": "2026-07-01",
+            },
+            "expected_patient_updated_at": patient["updated_at"],
+        },
+    )
+    assert first.status_code == 201
+    first_fact = first.json()
+    removed = await api.request(
+        "DELETE",
+        f"{facts_url}/{first_fact['id']}",
+        headers=headers,
+        json={
+            "reason": "Superseded by a newer synthetic result.",
+            "expected_fact_updated_at": first_fact["updated_at"],
+        },
+    )
+    assert removed.status_code == 204
+
+    second = await api.post(
+        facts_url,
+        headers=headers,
+        json={
+            "catalog_key": "hba1c",
+            "value": {
+                "input_kind": "numeric",
+                "value_numeric": 7.4,
+                "effective_date": "2026-07-29",
+            },
+            "expected_patient_updated_at": patient["updated_at"],
+        },
+    )
+    assert second.status_code == 201
+
+    restored = await api.post(f"{facts_url}/{first_fact['id']}/restore", headers=headers)
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["effective_date"] == "2026-07-01"
 
 
 async def test_fact_edits_do_not_rewrite_saved_screening_evidence(

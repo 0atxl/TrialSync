@@ -69,7 +69,7 @@ async def test_loinc_suggestions_require_credentials_and_preserve_units() -> Non
         return httpx.Response(
             200,
             json={
-                "results": [
+                "Results": [
                     {
                         "LOINC_NUM": "2345-7",
                         "LONG_COMMON_NAME": "Glucose [Mass/volume] in Serum or Plasma",

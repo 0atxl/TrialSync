@@ -119,7 +119,7 @@ class TerminologySuggestionService:
 
 
 def _loinc_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    for key in ("results", "items", "data"):
+    for key in ("Results", "results", "items", "data"):
         rows = payload.get(key)
         if isinstance(rows, list):
             return [row for row in rows if isinstance(row, dict)]

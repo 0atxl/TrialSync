@@ -162,6 +162,7 @@ GET  /api/v1/auth/me
 GET|POST           /api/v1/patients
 GET|PATCH|DELETE   /api/v1/patients/{patient_id}
 GET                /api/v1/patient-fact-catalog
+GET                /api/v1/patients/{patient_id}/activity
 GET|POST           /api/v1/clinical-concepts
 GET                /api/v1/clinical-concepts/suggestions
 PATCH              /api/v1/clinical-concepts/{concept_id}
@@ -169,6 +170,7 @@ POST               /api/v1/clinical-concepts/{concept_id}/retire
 POST               /api/v1/clinical-concepts/{concept_id}/restore
 POST               /api/v1/patients/{patient_id}/facts
 PATCH|DELETE       /api/v1/patients/{patient_id}/facts/{fact_id}
+POST               /api/v1/patients/{patient_id}/facts/{fact_id}/restore
 POST               /api/v1/patients/{patient_id}/unsupported-details
 PATCH|DELETE       /api/v1/patients/{patient_id}/unsupported-details/{detail_id}
 
@@ -277,7 +279,11 @@ explicitly and manual entry remains available.
 Deterministic parsing proposes profile fields, patient facts, trial criteria, and a
 small supported subset of rule structures. Every candidate remains editable and
 unapproved, with page and character-span provenance, until the authenticated owner
-explicitly approves the review. Patient approval creates current structured facts.
+explicitly approves the review. Patient candidates are matched against the same active
+clinical catalog used by manual entry: canonical concepts and fixed units are applied
+only after review, while unmatched or incomplete candidates become review-only
+unsupported details with visible warnings rather than screening evidence. Patient
+approval creates current structured facts and patient activity events.
 Trial approval opens the current criteria for editing and then saves the protocol
 through the same simple workflow used by manual authoring. Unsupported criterion prose stays visible for manual review
 and is never silently converted into an eligibility rule. No hosted NLP provider is

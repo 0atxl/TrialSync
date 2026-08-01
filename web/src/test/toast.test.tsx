@@ -92,6 +92,24 @@ describe('application toast feedback', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it('pauses while keyboard focus is inside the notification', () => {
+    vi.useFakeTimers()
+    renderHarness()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show success' }))
+    const toast = screen.getByRole('status')
+    act(() => vi.advanceTimersByTime(3000))
+    fireEvent.focus(toast)
+    act(() => vi.advanceTimersByTime(10000))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    fireEvent.blur(toast)
+    act(() => vi.advanceTimersByTime(1999))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(1))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('gives errors a longer timeout while retaining manual dismissal', () => {
     vi.useFakeTimers()
     renderHarness()

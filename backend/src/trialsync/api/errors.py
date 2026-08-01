@@ -108,6 +108,15 @@ def install_error_handlers(app: FastAPI) -> None:
                     field="date_of_birth",
                     details=errors,
                 )
+        if request.method == "DELETE" and "/facts/" in request.url.path:
+            return error_response(
+                request,
+                status_code=422,
+                code="PATIENT_FACT_REMOVAL_REASON_REQUIRED",
+                message="A reason is required before removing a clinical detail.",
+                field="reason",
+                details=errors,
+            )
         if "/facts" in request.url.path:
             return error_response(
                 request,

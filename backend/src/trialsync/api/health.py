@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trialsync.api.errors import ApplicationError, ErrorResponse
 from trialsync.db.session import get_db_session
 
-EXPECTED_SCHEMA_REVISION = "20260730_0011"
+EXPECTED_SCHEMA_REVISION = "20260802_0012"
 
 router = APIRouter(prefix="/health", tags=["health"])
 

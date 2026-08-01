@@ -211,11 +211,79 @@ async def test_current_fact_create_update_delete_and_ownership(
     )
     assert hidden.status_code == 404
 
-    removed = await api.delete(f"{fact_url}/{fact_id}", headers=headers)
+    removed = await api.request(
+        "DELETE",
+        f"{fact_url}/{fact_id}",
+        headers=headers,
+        json={
+            "reason": "Reconciled against the latest synthetic source.",
+            "expected_fact_updated_at": updated.json()["updated_at"],
+        },
+    )
     assert removed.status_code == 204
     detail = await api.get(f"/api/v1/patients/{patient['id']}", headers=headers)
     assert detail.json()["facts"] == []
-    assert (await api.delete(f"{fact_url}/{fact_id}", headers=headers)).status_code == 404
+    assert any(item["event_type"] == "fact_voided" for item in detail.json()["activity"])
+    restored = await api.post(f"{fact_url}/{fact_id}/restore", headers=headers)
+    assert restored.status_code == 200
+    assert restored.json()["id"] == fact_id
+    assert (await api.delete(f"{fact_url}/{fact_id}", headers=headers)).status_code == 422
+
+
+async def test_fact_void_requires_reason_and_activity_is_owner_scoped(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    first = await register(api, f"{email_prefix}-activity-a@example.com")
+    second = await register(api, f"{email_prefix}-activity-b@example.com")
+    headers = auth(first)
+    patient = await create_patient(api, headers, suffix="ACTIVITY")
+    fact_response = await api.post(
+        f"/api/v1/patients/{patient['id']}/facts",
+        headers=headers,
+        json={
+            "catalog_key": "hba1c",
+            "value": {
+                "input_kind": "numeric",
+                "value_numeric": 7.4,
+                "effective_date": "2026-07-29",
+            },
+            "expected_patient_updated_at": patient["updated_at"],
+        },
+    )
+    assert fact_response.status_code == 201
+    fact = fact_response.json()
+    fact_url = f"/api/v1/patients/{patient['id']}/facts/{fact['id']}"
+
+    missing_reason = await api.delete(fact_url, headers=headers)
+    assert missing_reason.status_code == 422
+    assert missing_reason.json()["error"]["code"] == "PATIENT_FACT_REMOVAL_REASON_REQUIRED"
+
+    hidden_activity = await api.get(
+        f"/api/v1/patients/{patient['id']}/activity", headers=auth(second)
+    )
+    assert hidden_activity.status_code == 404
+
+    removed = await api.request(
+        "DELETE",
+        fact_url,
+        headers=headers,
+        json={
+            "reason": "The value was entered from the wrong source.",
+            "expected_fact_updated_at": fact["updated_at"],
+        },
+    )
+    assert removed.status_code == 204
+    activity = await api.get(
+        f"/api/v1/patients/{patient['id']}/activity", headers=headers
+    )
+    assert activity.status_code == 200
+    voided = next(item for item in activity.json() if item["event_type"] == "fact_voided")
+    assert voided["reason"] == "The value was entered from the wrong source."
+
+    restored_by_other = await api.post(
+        f"{fact_url}/restore", headers=auth(second)
+    )
+    assert restored_by_other.status_code == 404
 
 
 async def test_fact_edits_do_not_rewrite_saved_screening_evidence(

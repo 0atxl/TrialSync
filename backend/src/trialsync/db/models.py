@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -115,7 +116,13 @@ class Patient(TimestampMixin, Base):
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     sex: Mapped[str | None] = mapped_column(String(32), nullable=True)
     facts: Mapped[list[PatientFact]] = relationship(
-        back_populates="patient", cascade="all, delete-orphan", order_by="PatientFact.created_at"
+        back_populates="patient",
+        cascade="all, delete-orphan",
+        order_by="PatientFact.created_at",
+        primaryjoin=lambda: and_(
+            PatientFact.patient_id == Patient.id,
+            PatientFact.voided_at.is_(None),
+        ),
     )
     unsupported_details: Mapped[list[PatientUnsupportedDetail]] = relationship(
         back_populates="patient",
@@ -124,6 +131,11 @@ class Patient(TimestampMixin, Base):
     )
     snapshots: Mapped[list[PatientSnapshot]] = relationship(
         back_populates="patient", passive_deletes=True
+    )
+    activity: Mapped[list[PatientChangeEvent]] = relationship(
+        back_populates="patient",
+        cascade="all, delete-orphan",
+        order_by="PatientChangeEvent.created_at.desc()",
     )
 
 
@@ -145,6 +157,11 @@ class PatientFact(TimestampMixin, Base):
     )
     effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     source_label: Mapped[str] = mapped_column(String(120), default="Manual entry")
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    void_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    voided_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     patient: Mapped[Patient] = relationship(back_populates="facts")
 
 
@@ -171,6 +188,31 @@ class PatientUnsupportedDetail(TimestampMixin, Base):
     context: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_label: Mapped[str] = mapped_column(String(120), default="Manual review item")
     patient: Mapped[Patient] = relationship(back_populates="unsupported_details")
+
+
+class PatientChangeEvent(Base):
+    """Immutable, owner-scoped activity for a patient's mutable record."""
+
+    __tablename__ = "patient_change_events"
+    __table_args__ = (
+        Index("ix_patient_change_events_patient_created", "patient_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("patients.id", ondelete="CASCADE"), index=True
+    )
+    actor_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(32))
+    entity_type: Mapped[str] = mapped_column(String(32))
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    before_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    after_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    patient: Mapped[Patient] = relationship(back_populates="activity")
 
 
 class ClinicalConcept(TimestampMixin, Base):

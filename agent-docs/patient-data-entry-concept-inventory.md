@@ -52,6 +52,13 @@ PD6 must:
 4. mark unsupported concepts for human review;
 5. prevent an unsupported candidate from silently becoming screening evidence.
 
+PD6 completion: the import review now normalizes observation labels and matches
+fact-type/concept/display-label aliases against the active database catalog. It
+adds visible warnings for unmatched, incomplete, or unit-incompatible
+candidates; approval writes canonical facts only when the catalog contract is
+complete and otherwise creates a review-only unsupported detail while retaining
+the source span.
+
 PDF extraction is not otherwise redesigned by this patient-entry overhaul.
 
 ## 4. Screening-domain and API-test inventory

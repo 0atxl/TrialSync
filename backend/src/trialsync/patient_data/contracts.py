@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from trialsync.db.models import Assertion, FactType
 
@@ -191,3 +191,17 @@ class PatientFactUpdateRequest(BaseModel):
     value: PatientFactValue
     source_label: str = Field(default="Manual entry", min_length=1, max_length=120)
     expected_fact_updated_at: datetime
+
+
+class PatientFactVoidRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
+    expected_fact_updated_at: datetime
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        return " ".join(value.split())

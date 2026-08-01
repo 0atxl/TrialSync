@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
 from trialsync.db.models import (
+    Assertion,
     Criterion,
     Document,
     DocumentKind,
@@ -21,7 +22,9 @@ from trialsync.db.models import (
     DocumentSpan,
     DocumentStatus,
     Patient,
+    PatientChangeEvent,
     PatientFact,
+    PatientUnsupportedDetail,
     Trial,
     TrialVersion,
     VersionStatus,
@@ -42,8 +45,28 @@ from trialsync.imports.schemas import (
 )
 from trialsync.nlp.extraction import GroqExtractor, RuleBasedExtractor
 from trialsync.nlp.groq import ProviderCallError
+from trialsync.patient_data import PatientFactCatalogEntry, PatientFactInputKind
+from trialsync.patient_data.catalog import active_catalog_entries
 
 router = APIRouter(prefix="/api/v1/imports", tags=["imports"])
+
+_IMPORT_CONCEPT_ALIASES: dict[tuple[str, str], str] = {
+    ("condition", "type1diabetesmellitus"): "type1_diabetes",
+    ("condition", "type1diabetes"): "type1_diabetes",
+    ("condition", "typeidiabetes"): "type1_diabetes",
+    ("condition", "type2diabetesmellitus"): "type2_diabetes",
+    ("condition", "type2diabetes"): "type2_diabetes",
+    ("condition", "typeiidiabetes"): "type2_diabetes",
+    ("condition", "typeiidiabetesmellitus"): "type2_diabetes",
+    ("condition", "highbloodpressure"): "hypertension",
+    ("condition", "highbp"): "hypertension",
+    ("condition", "reactiveairwaydisease"): "asthma",
+    ("condition", "gestation"): "pregnancy",
+    ("medication", "metforminhydrochloride"): "metformin",
+    ("medication", "atorvastatincalcium"): "atorvastatin",
+    ("medication", "insulintherapy"): "insulin",
+    ("medication", "semaglutideinjection"): "semaglutide",
+}
 
 
 async def owned_import(session: SessionDep, user: CurrentUser, import_id: uuid.UUID) -> Document:
@@ -132,6 +155,132 @@ def _validate_candidates(kind: DocumentKind, candidates: dict[str, Any]) -> dict
     return validated.model_dump(mode="json")
 
 
+def _compact_concept(value: str) -> str:
+    return "".join(character for character in value.casefold() if character.isalnum())
+
+
+def _catalog_index(
+    entries: list[PatientFactCatalogEntry],
+) -> dict[tuple[str, str], PatientFactCatalogEntry]:
+    index: dict[tuple[str, str], PatientFactCatalogEntry] = {}
+    for entry in entries:
+        for label in (entry.key, entry.concept, entry.display_label):
+            index[(entry.fact_type.value, _compact_concept(label))] = entry
+    return index
+
+
+def _matched_catalog_entry(
+    fact_type: str, concept: str, index: dict[tuple[str, str], PatientFactCatalogEntry]
+) -> PatientFactCatalogEntry | None:
+    compact = _compact_concept(concept)
+    direct = index.get((fact_type, compact))
+    if direct is not None:
+        return direct
+    alias = _IMPORT_CONCEPT_ALIASES.get((fact_type, compact))
+    return index.get((fact_type, _compact_concept(alias))) if alias else None
+
+
+def _unit_key(value: str) -> str:
+    return "".join(value.casefold().split())
+
+
+def _catalog_issues(
+    fact: Any,
+    entry: PatientFactCatalogEntry | None,
+) -> list[str]:
+    if entry is None:
+        return [
+            "This concept is not in the active clinical catalog; it will be retained "
+            "as a review-only detail."
+        ]
+    issues: list[str] = []
+    if entry.input_kind is PatientFactInputKind.numeric:
+        if fact.assertion is Assertion.present and fact.value_numeric is None:
+            issues.append("A present numeric observation needs a measured value.")
+        if fact.unit and entry.fixed_unit and _unit_key(fact.unit) != _unit_key(entry.fixed_unit):
+            issues.append(f"The catalog requires the unit {entry.fixed_unit}.")
+        if entry.effective_date_required and fact.effective_date is None:
+            issues.append("Add an effective date before approving this observation.")
+    elif fact.value_numeric is not None:
+        issues.append("Numeric values are not accepted for this status detail.")
+    if fact.assertion not in entry.allowed_assertions:
+        issues.append("The selected assertion is not supported by this catalog entry.")
+    if entry.effective_date_required and fact.effective_date is None:
+        issues.append("Add an effective date before approving this detail.")
+    return list(dict.fromkeys(issues))
+
+
+async def _annotate_patient_candidates(
+    session: SessionDep,
+    candidates: dict[str, object],
+) -> tuple[dict[str, object], list[str]]:
+    """Attach catalog review warnings without silently accepting free-text concepts."""
+
+    parsed = PatientImportCandidates.model_validate(candidates)
+    entries = await active_catalog_entries(session)
+    index = _catalog_index(entries)
+    normalized = parsed.model_dump(mode="json")
+    warnings: list[str] = []
+    for fact, raw_fact in zip(parsed.facts, normalized.get("facts", []), strict=True):
+        entry = _matched_catalog_entry(fact.fact_type.value, fact.concept, index)
+        issues = _catalog_issues(fact, entry)
+        raw_warnings = list(raw_fact.get("warnings", []))
+        for issue in issues:
+            if issue not in raw_warnings:
+                raw_warnings.append(issue)
+            warning = f"Catalog review: {fact.concept} — {issue}"
+            if warning not in warnings:
+                warnings.append(warning)
+        raw_fact["warnings"] = raw_warnings[:10]
+    return normalized, warnings
+
+
+def _unsupported_category(fact_type: str) -> str:
+    return fact_type if fact_type in {"condition", "medication", "observation"} else "other"
+
+
+def _unsupported_import_detail(
+    patient_id: uuid.UUID,
+    fact: Any,
+    issues: list[str],
+) -> PatientUnsupportedDetail:
+    context = (
+        f"Imported document p.{fact.source.page}: {fact.source.text}. "
+        f"{' '.join(issues)}"
+    )
+    return PatientUnsupportedDetail(
+        patient_id=patient_id,
+        category=_unsupported_category(fact.fact_type.value),
+        label=fact.concept,
+        context=context[:500],
+        source_label=f"Imported document p.{fact.source.page}",
+    )
+
+
+def _fact_event_payload(
+    fact_id: uuid.UUID,
+    fact_type: str,
+    concept: str,
+    assertion: Assertion,
+    value_numeric: object,
+    unit: str | None,
+    effective_date: object,
+    source_label: str,
+) -> dict[str, object]:
+    return {
+        "id": str(fact_id),
+        "fact_type": fact_type,
+        "concept": concept,
+        "assertion": assertion.value,
+        "value_numeric": str(value_numeric) if value_numeric is not None else None,
+        "unit": unit,
+        "effective_date": (
+            effective_date.isoformat() if hasattr(effective_date, "isoformat") else None
+        ),
+        "source_label": source_label,
+    }
+
+
 def _preserve_sources(document: Document, candidates: dict[str, object]) -> None:
     spans = {str(span.id): span for span in document.spans}
     key = "facts" if document.kind is DocumentKind.patient else "criteria"
@@ -206,6 +355,9 @@ async def analyze_import(
             },
         )
     candidates, warnings = extraction.candidates, extraction.warnings
+    if payload.kind is DocumentKind.patient:
+        candidates, catalog_warnings = await _annotate_patient_candidates(session, candidates)
+        warnings = [*warnings, *catalog_warnings]
 
     document = Document(
         owner_id=user.id,
@@ -251,6 +403,13 @@ async def update_import(
         )
     candidates = _validate_candidates(document.kind, payload.candidates)
     _preserve_sources(document, candidates)
+    if document.kind is DocumentKind.patient:
+        candidates, catalog_warnings = await _annotate_patient_candidates(session, candidates)
+        document.warnings_json = [
+            warning
+            for warning in document.warnings_json
+            if not warning.startswith("Catalog review:")
+        ] + catalog_warnings
     document.candidates_json = candidates
     await session.commit()
     return import_read(await owned_import(session, user, import_id))
@@ -271,6 +430,14 @@ async def approve_import(
             status_code=409,
         )
     candidates = _validate_candidates(document.kind, document.candidates_json)
+    if document.kind is DocumentKind.patient:
+        candidates, catalog_warnings = await _annotate_patient_candidates(session, candidates)
+        document.candidates_json = candidates
+        document.warnings_json = [
+            warning
+            for warning in document.warnings_json
+            if not warning.startswith("Catalog review:")
+        ] + catalog_warnings
     try:
         if document.kind is DocumentKind.patient:
             patient_candidates = PatientImportCandidates.model_validate(candidates)
@@ -302,21 +469,71 @@ async def approve_import(
             )
             session.add(patient)
             await session.flush()
+            catalog_index = _catalog_index(await active_catalog_entries(session))
+            session.add(
+                PatientChangeEvent(
+                    patient_id=patient.id,
+                    actor_id=user.id,
+                    event_type="patient_created",
+                    entity_type="patient",
+                    entity_id=patient.id,
+                    after_json={
+                        "display_name": patient.display_name,
+                        "date_of_birth": (
+                            patient.date_of_birth.isoformat() if patient.date_of_birth else None
+                        ),
+                        "sex": patient.sex,
+                    },
+                )
+            )
             for fact in patient_candidates.facts:
-                if fact.selected:
-                    session.add(
-                        PatientFact(
-                            patient_id=patient.id,
-                            fact_type=fact.fact_type,
-                            concept=fact.concept,
-                            value_numeric=fact.value_numeric,
-                            value_text=fact.value_text,
-                            unit=fact.unit,
-                            assertion=fact.assertion,
-                            effective_date=fact.effective_date,
-                            source_label=f"Imported document p.{fact.source.page}",
-                        )
+                if not fact.selected:
+                    continue
+                entry = _matched_catalog_entry(
+                    fact.fact_type.value,
+                    fact.concept,
+                    catalog_index,
+                )
+                issues = _catalog_issues(fact, entry)
+                source_label = f"Imported document p.{fact.source.page}"
+                if entry is None or issues:
+                    session.add(_unsupported_import_detail(patient.id, fact, issues))
+                    continue
+                canonical_unit = (
+                    entry.fixed_unit if entry.input_kind is PatientFactInputKind.numeric else None
+                )
+                saved_fact = PatientFact(
+                    patient_id=patient.id,
+                    fact_type=entry.fact_type,
+                    concept=entry.concept,
+                    value_numeric=fact.value_numeric,
+                    value_text=None,
+                    unit=canonical_unit,
+                    assertion=fact.assertion,
+                    effective_date=fact.effective_date,
+                    source_label=source_label,
+                )
+                session.add(saved_fact)
+                await session.flush()
+                session.add(
+                    PatientChangeEvent(
+                        patient_id=patient.id,
+                        actor_id=user.id,
+                        event_type="fact_created",
+                        entity_type="fact",
+                        entity_id=saved_fact.id,
+                        after_json=_fact_event_payload(
+                            saved_fact.id,
+                            entry.fact_type.value,
+                            entry.concept,
+                            fact.assertion,
+                            fact.value_numeric,
+                            canonical_unit,
+                            fact.effective_date,
+                            source_label,
+                        ),
                     )
+                )
             resource_id = patient.id
         else:
             trial_candidates = TrialImportCandidates.model_validate(candidates)

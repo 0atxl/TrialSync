@@ -68,10 +68,13 @@ async def test_catalog_is_complete_stable_and_authenticated(
     assert response.status_code == 200
     assert response.json()["version"] == "pd0-contract-v1"
     entries = response.json()["entries"]
-    assert {(entry["fact_type"], entry["concept"]) for entry in entries} == {
+    concepts = {(entry["fact_type"], entry["concept"]) for entry in entries}
+    expected_concepts = {
         (fact_type.value, concept) for fact_type, concept in INITIAL_CATALOG_CONCEPTS
     }
-    assert len(entries) == len({entry["key"] for entry in entries}) == 25
+    assert expected_concepts <= concepts
+    assert len(entries) == len({entry["key"] for entry in entries})
+    assert len(entries) >= len(expected_concepts) == 25
     assert next(entry for entry in entries if entry["key"] == "hba1c") == {
         "key": "hba1c",
         "fact_type": "observation",

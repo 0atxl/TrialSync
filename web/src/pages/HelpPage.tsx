@@ -27,7 +27,8 @@ export function HelpPage() {
         <h2>Getting started</h2>
         <p>Use the seeded workspace to walk through the complete evidence-backed flow.</p>
         <ol className="help-steps">
-          <li><strong>Review records.</strong> Open a synthetic patient and inspect structured facts, or use the review-first import flow.</li>
+          <li><strong>Review records.</strong> Open a synthetic patient and inspect structured facts, choose details from the searchable catalog, or use the review-first import flow.</li>
+          <li><strong>Edit safely.</strong> Removing a detail requires a reason, keeps an activity entry, and offers a short Undo action. Existing screenings keep their immutable snapshots; only future screenings use restored or changed active details.</li>
           <li><strong>Save a trial.</strong> Create or import a trial, review its criteria, then save the protocol.</li>
           <li><strong>Run screening.</strong> Compare one patient snapshot with one saved trial protocol, or run a bounded synchronous batch.</li>
           <li><strong>Explain the result.</strong> Open a saved screening to inspect each criterion, evidence source, missing information, and the grounded assistant.</li>
@@ -67,6 +68,7 @@ export function HelpPage() {
         <p>Groq may propose reviewable import candidates or explain stored evidence. It cannot approve candidates, create evidence, access another record, or set a screening state. Manual entry, canonical explanations, and deterministic screening continue to work when Groq is disabled or unavailable.</p>
         <ul className="help-list">
           <li>Only synthetic data belongs in this educational workspace.</li>
+          <li>Imported patient concepts are checked against the active catalog. Unknown, incomplete, or incompatible candidates are shown as review warnings and remain review-only instead of becoming screening evidence.</li>
           <li>Conversation memory is scoped to one screening and bounded to the latest ten messages.</li>
           <li>Operational chat metrics are privacy-safe logs containing provider/model, prompt version, latency, validation outcome, answer state, and citation count—not questions, documents, or raw provider payloads.</li>
           <li>Responses are intentionally non-streaming; the interface shows a bounded typing state while validation completes.</li>

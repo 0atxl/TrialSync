@@ -3,13 +3,20 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Response, status
-from sqlalchemy import func, select, update
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
-from trialsync.db.models import Assertion, FactType, Patient, PatientFact, PatientUnsupportedDetail
+from trialsync.db.models import (
+    Assertion,
+    FactType,
+    Patient,
+    PatientChangeEvent,
+    PatientFact,
+    PatientUnsupportedDetail,
+)
 from trialsync.patient_data import (
     BiologicalSex,
     ConditionMedicationValue,
@@ -18,6 +25,7 @@ from trialsync.patient_data import (
     PatientFactCreateRequest,
     PatientFactInputKind,
     PatientFactUpdateRequest,
+    PatientFactVoidRequest,
     PregnancyStatusValue,
 )
 from trialsync.patient_data.catalog import (
@@ -26,6 +34,7 @@ from trialsync.patient_data.catalog import (
 )
 from trialsync.schemas import (
     FactRead,
+    PatientChangeEventRead,
     PatientCreate,
     PatientRead,
     PatientUpdate,
@@ -134,10 +143,64 @@ def duplicate_fact_error(entry: PatientFactCatalogEntry, fact: PatientFact) -> A
     )
 
 
+def profile_event_payload(patient: Patient) -> dict[str, object]:
+    return {
+        "display_name": patient.display_name,
+        "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None,
+        "sex": patient.sex,
+    }
+
+
+def fact_event_payload(fact: PatientFact) -> dict[str, object]:
+    return {
+        "id": str(fact.id),
+        "fact_type": fact.fact_type.value,
+        "concept": fact.concept,
+        "value_numeric": str(fact.value_numeric) if fact.value_numeric is not None else None,
+        "value_text": fact.value_text,
+        "unit": fact.unit,
+        "assertion": fact.assertion.value,
+        "effective_date": fact.effective_date.isoformat() if fact.effective_date else None,
+        "source_label": fact.source_label,
+        "voided_at": fact.voided_at.isoformat() if fact.voided_at else None,
+        "void_reason": fact.void_reason,
+    }
+
+
+def record_change(
+    session: SessionDep,
+    *,
+    patient_id: uuid.UUID,
+    actor_id: uuid.UUID,
+    event_type: str,
+    entity_type: str,
+    entity_id: uuid.UUID | None,
+    before: dict[str, object] | None = None,
+    after: dict[str, object] | None = None,
+    reason: str | None = None,
+) -> None:
+    session.add(
+        PatientChangeEvent(
+            patient_id=patient_id,
+            actor_id=actor_id,
+            event_type=event_type,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            reason=reason,
+            before_json=before,
+            after_json=after,
+        )
+    )
+
+
 async def owned_patient(session: SessionDep, user: CurrentUser, patient_id: uuid.UUID) -> Patient:
     patient = await session.scalar(
         select(Patient)
-        .options(selectinload(Patient.facts), selectinload(Patient.unsupported_details))
+        .options(
+            selectinload(Patient.facts),
+            selectinload(Patient.unsupported_details),
+            selectinload(Patient.activity),
+        )
         .where(Patient.id == patient_id, Patient.owner_id == user.id)
     )
     if patient is None:
@@ -151,7 +214,11 @@ async def owned_patient(session: SessionDep, user: CurrentUser, patient_id: uuid
 async def list_patients(session: SessionDep, user: CurrentUser) -> list[Patient]:
     result = await session.scalars(
         select(Patient)
-        .options(selectinload(Patient.facts), selectinload(Patient.unsupported_details))
+        .options(
+            selectinload(Patient.facts),
+            selectinload(Patient.unsupported_details),
+            selectinload(Patient.activity),
+        )
         .where(Patient.owner_id == user.id)
         .order_by(Patient.updated_at.desc())
         .limit(100)
@@ -187,6 +254,16 @@ async def create_patient(payload: PatientCreate, session: SessionDep, user: Curr
     )
     session.add(patient)
     try:
+        await session.flush()
+        record_change(
+            session,
+            patient_id=patient.id,
+            actor_id=user.id,
+            event_type="patient_created",
+            entity_type="patient",
+            entity_id=patient.id,
+            after=profile_event_payload(patient),
+        )
         await session.commit()
     except IntegrityError as exception:
         await session.rollback()
@@ -202,6 +279,24 @@ async def create_patient(payload: PatientCreate, session: SessionDep, user: Curr
 @router.get("/{patient_id}", response_model=PatientRead)
 async def get_patient(patient_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> Patient:
     return await owned_patient(session, user, patient_id)
+
+
+@router.get("/{patient_id}/activity", response_model=list[PatientChangeEventRead])
+async def get_patient_activity(
+    patient_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> list[PatientChangeEvent]:
+    """Return the bounded immutable change history for one owned patient."""
+
+    await owned_patient(session, user, patient_id)
+    result = await session.scalars(
+        select(PatientChangeEvent)
+        .where(PatientChangeEvent.patient_id == patient_id)
+        .order_by(desc(PatientChangeEvent.created_at))
+        .limit(100)
+    )
+    return list(result)
 
 
 @router.patch("/{patient_id}", response_model=PatientRead)
@@ -236,6 +331,7 @@ async def update_patient(
     if payload.sex is not None:
         values["sex"] = payload.sex.value
     try:
+        before = profile_event_payload(patient)
         result = await session.execute(
             update(Patient)
             .where(
@@ -256,6 +352,26 @@ async def update_patient(
                 ),
                 status_code=409,
             )
+        after_date_of_birth = values.get("date_of_birth", before["date_of_birth"])
+        after = {
+            "display_name": values.get("display_name", before["display_name"]),
+            "date_of_birth": (
+                after_date_of_birth.isoformat()
+                if hasattr(after_date_of_birth, "isoformat")
+                else after_date_of_birth
+            ),
+            "sex": values.get("sex", before["sex"]),
+        }
+        record_change(
+            session,
+            patient_id=patient_id,
+            actor_id=user.id,
+            event_type="profile_updated",
+            entity_type="patient",
+            entity_id=patient_id,
+            before=before,
+            after=after,
+        )
         await session.commit()
     except IntegrityError as exception:
         await session.rollback()
@@ -307,6 +423,7 @@ async def create_fact(
         PatientFact.patient_id == patient_id,
         PatientFact.fact_type == entry.fact_type,
         PatientFact.concept == entry.concept,
+        PatientFact.voided_at.is_(None),
     )
     if entry.input_kind is PatientFactInputKind.numeric:
         duplicate_query = duplicate_query.where(
@@ -317,6 +434,16 @@ async def create_fact(
         raise duplicate_fact_error(entry, duplicate)
     fact = PatientFact(patient_id=patient_id, **values)
     session.add(fact)
+    await session.flush()
+    record_change(
+        session,
+        patient_id=patient_id,
+        actor_id=user.id,
+        event_type="fact_created",
+        entity_type="fact",
+        entity_id=fact.id,
+        after=fact_event_payload(fact),
+    )
     await session.commit()
     await session.refresh(fact)
     return fact
@@ -332,7 +459,11 @@ async def update_fact(
 ) -> PatientFact:
     patient = await owned_patient(session, user, patient_id)
     fact = await session.scalar(
-        select(PatientFact).where(PatientFact.id == fact_id, PatientFact.patient_id == patient_id)
+        select(PatientFact).where(
+            PatientFact.id == fact_id,
+            PatientFact.patient_id == patient_id,
+            PatientFact.voided_at.is_(None),
+        )
     )
     if fact is None:
         raise ApplicationError(
@@ -354,6 +485,7 @@ async def update_fact(
         )
     values = catalog_fact_values(entry, payload.value, payload.source_label)
     validate_pregnancy_value_for_patient(patient, entry, payload.value, fact=fact)
+    before = fact_event_payload(fact)
     result = await session.execute(
         update(PatientFact)
         .where(
@@ -371,26 +503,136 @@ async def update_fact(
             message="This clinical detail changed while you were saving. Reload before retrying.",
             status_code=409,
         )
-    await session.commit()
+    await session.flush()
     await session.refresh(fact)
+    record_change(
+        session,
+        patient_id=patient_id,
+        actor_id=user.id,
+        event_type="fact_updated",
+        entity_type="fact",
+        entity_id=fact.id,
+        before=before,
+        after=fact_event_payload(fact),
+    )
+    await session.commit()
     return fact
 
 
 @router.delete("/{patient_id}/facts/{fact_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_fact(
-    patient_id: uuid.UUID, fact_id: uuid.UUID, session: SessionDep, user: CurrentUser
+    payload: PatientFactVoidRequest,
+    patient_id: uuid.UUID,
+    fact_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
 ) -> Response:
     await owned_patient(session, user, patient_id)
     fact = await session.scalar(
-        select(PatientFact).where(PatientFact.id == fact_id, PatientFact.patient_id == patient_id)
+        select(PatientFact).where(
+            PatientFact.id == fact_id,
+            PatientFact.patient_id == patient_id,
+            PatientFact.voided_at.is_(None),
+        )
+    )
+    if fact is None:
+        raise ApplicationError(
+            code="PATIENT_FACT_ALREADY_REMOVED",
+            message="This clinical detail is already removed or was not found.",
+            status_code=404,
+        )
+    if fact.updated_at != payload.expected_fact_updated_at:
+        raise ApplicationError(
+            code="PATIENT_RECORD_STALE",
+            message="This clinical detail changed after you opened it. Reload before removing.",
+            status_code=409,
+        )
+    before = fact_event_payload(fact)
+    fact.voided_at = func.now()
+    fact.void_reason = payload.reason
+    fact.voided_by_id = user.id
+    await session.flush()
+    await session.refresh(fact)
+    record_change(
+        session,
+        patient_id=patient_id,
+        actor_id=user.id,
+        event_type="fact_voided",
+        entity_type="fact",
+        entity_id=fact.id,
+        before=before,
+        after=fact_event_payload(fact),
+        reason=payload.reason,
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{patient_id}/facts/{fact_id}/restore", response_model=FactRead)
+async def restore_fact(
+    patient_id: uuid.UUID,
+    fact_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> PatientFact:
+    await owned_patient(session, user, patient_id)
+    fact = await session.scalar(
+        select(PatientFact).where(
+            PatientFact.id == fact_id,
+            PatientFact.patient_id == patient_id,
+        )
     )
     if fact is None:
         raise ApplicationError(
             code="FACT_NOT_FOUND", message="Patient fact was not found.", status_code=404
         )
-    await session.delete(fact)
+    if fact.voided_at is None:
+        raise ApplicationError(
+            code="PATIENT_FACT_RESTORE_CONFLICT",
+            message="This clinical detail is already active.",
+            status_code=409,
+        )
+    entry = await active_catalog_entry_by_fact(session, fact.fact_type, fact.concept)
+    if entry is None:
+        raise ApplicationError(
+            code="PATIENT_FACT_UNSUPPORTED",
+            message="This legacy detail is no longer available in the controlled catalog.",
+            status_code=422,
+            field="fact_id",
+        )
+    duplicate = await session.scalar(
+        select(PatientFact).where(
+            PatientFact.patient_id == patient_id,
+            PatientFact.fact_type == fact.fact_type,
+            PatientFact.concept == fact.concept,
+            PatientFact.voided_at.is_(None),
+        )
+    )
+    if duplicate is not None:
+        raise ApplicationError(
+            code="PATIENT_FACT_RESTORE_CONFLICT",
+            message=f"{entry.display_label} is already active. Edit it instead.",
+            status_code=409,
+            details=[{"fact_id": str(duplicate.id)}],
+        )
+    before = fact_event_payload(fact)
+    fact.voided_at = None
+    fact.void_reason = None
+    fact.voided_by_id = None
+    await session.flush()
+    await session.refresh(fact)
+    record_change(
+        session,
+        patient_id=patient_id,
+        actor_id=user.id,
+        event_type="fact_restored",
+        entity_type="fact",
+        entity_id=fact.id,
+        before=before,
+        after=fact_event_payload(fact),
+    )
     await session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return fact
 
 
 async def owned_unsupported_detail(

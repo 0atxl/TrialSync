@@ -16,6 +16,8 @@ export type Fact = {
   source_label: string
   created_at: string
   updated_at: string
+  voided_at?: string | null
+  void_reason?: string | null
 }
 export type PatientFactGroup = 'conditions' | 'medications' | 'observations'
 export type PatientFactInputKind = 'status' | 'pregnancy_status' | 'numeric'
@@ -112,6 +114,18 @@ export type PatientConsistencyIssue = {
   field: 'sex' | 'pregnancy'
   fact_id: string
 }
+export type PatientChangeEvent = {
+  id: string
+  patient_id: string
+  actor_id: string
+  event_type: string
+  entity_type: string
+  entity_id: string | null
+  reason: string | null
+  before_json: Record<string, unknown> | null
+  after_json: Record<string, unknown> | null
+  created_at: string
+}
 export type Patient = {
   id: string
   external_id: string
@@ -123,6 +137,7 @@ export type Patient = {
   facts: Fact[]
   unsupported_details: PatientUnsupportedDetail[]
   consistency_issues: PatientConsistencyIssue[]
+  activity?: PatientChangeEvent[]
 }
 export type Criterion = {
   id: string

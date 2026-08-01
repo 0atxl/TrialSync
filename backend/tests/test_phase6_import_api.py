@@ -125,6 +125,7 @@ async def test_patient_text_import_is_reviewed_edited_and_then_approved(
     condition = next(item for item in candidates["facts"] if item["fact_type"] == "condition")
     condition["concept"] = "Synthetic edited condition"
     observations = [item for item in candidates["facts"] if item["fact_type"] == "observation"]
+    observations[0]["effective_date"] = "2026-07-29"
     observations[1]["selected"] = False
     updated = await api.put(
         f"/api/v1/imports/{review['id']}",
@@ -137,6 +138,7 @@ async def test_patient_text_import_is_reviewed_edited_and_then_approved(
     )
     assert saved_condition["concept"] == "Synthetic edited condition"
     assert saved_condition["source"]["text"].startswith("Condition:")
+    assert any("active clinical catalog" in warning for warning in saved_condition["warnings"])
 
     approved = await api.post(
         f"/api/v1/imports/{review['id']}/approve", headers=headers, json={}
@@ -147,15 +149,64 @@ async def test_patient_text_import_is_reviewed_edited_and_then_approved(
     )
     assert patient.json()["display_name"] == "Synthetic Edited Ada"
     assert patient.json()["sex"] == "female"
-    stored_condition = next(
-        item for item in patient.json()["facts"] if item["fact_type"] == "condition"
+    stored_observation = next(
+        item for item in patient.json()["facts"] if item["fact_type"] == "observation"
     )
-    assert stored_condition["concept"] == "Synthetic edited condition"
-    assert stored_condition["source_label"] == "Imported document p.1"
+    assert stored_observation["concept"] == "hba1c"
+    assert stored_observation["unit"] == "%"
+    assert stored_observation["source_label"] == "Imported document p.1"
+    assert not any(
+        item["concept"] == "Synthetic edited condition" for item in patient.json()["facts"]
+    )
+    unsupported = next(
+        item
+        for item in patient.json()["unsupported_details"]
+        if item["label"] == "Synthetic edited condition"
+    )
+    assert "active clinical catalog" in unsupported["context"]
+    activity_types = [item["event_type"] for item in patient.json()["activity"]]
+    assert "patient_created" in activity_types
+    assert "fact_created" in activity_types
     immutable = await api.put(
         f"/api/v1/imports/{review['id']}", headers=headers, json={"candidates": candidates}
     )
     assert immutable.status_code == 409
+
+
+async def test_patient_import_maps_common_catalog_aliases(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}-aliases@example.com")
+    headers = auth(account)
+    analyzed = await api.post(
+        "/api/v1/imports",
+        headers=headers,
+        json={
+            "kind": "patient",
+            "source_type": "text",
+            "text": (
+                "Patient name: Synthetic Alias Ada\n"
+                "Condition: Type II diabetes mellitus\n"
+                "Medication: Metformin hydrochloride"
+            ),
+        },
+    )
+    assert analyzed.status_code == 201, analyzed.text
+    review = analyzed.json()
+    assert not any(
+        "active clinical catalog" in warning for warning in review["warnings"]
+    )
+    approved = await api.post(
+        f"/api/v1/imports/{review['id']}/approve", headers=headers, json={}
+    )
+    assert approved.status_code == 200, approved.text
+    patient = await api.get(
+        f"/api/v1/patients/{approved.json()['resource_id']}", headers=headers
+    )
+    assert {
+        (item["fact_type"], item["concept"])
+        for item in patient.json()["facts"]
+    } == {("condition", "type2_diabetes"), ("medication", "metformin")}
 
 
 async def test_trial_import_requires_manual_rule_review_and_creates_a_draft(

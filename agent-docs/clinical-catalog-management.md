@@ -1,8 +1,8 @@
 # Clinical Catalog Management
 
-**Date:** 2026-07-30
+**Date:** 2026-08-02
 **Status:** Implemented locally; migrations `20260729_0009` through
-`20260730_0011` are required.
+`20260802_0012` are required.
 
 ## 1. Purpose
 
@@ -108,6 +108,17 @@ until a free LOINC username/password is configured; the Search API uses those va
 Basic Authentication and does not issue a separate API key. The app reports an unavailable source
 and leaves manual local entry fully usable when a source is disabled, unconfigured, rate-limited,
 or unreachable.
+
+### Patient record lifecycle (PD5/PD6)
+
+Migration `20260802_0012` adds reversible fact voiding and immutable,
+owner-scoped patient activity. A removal requires a reason and the loaded fact
+revision; active reads and future snapshots exclude voided facts, while the
+activity endpoint retains the event and the patient page offers a short Undo
+restore action. Reviewed patient imports use the same active catalog: known
+concepts are stored under canonical local keys and fixed units, while unmatched
+or incomplete candidates remain review-only unsupported details with visible
+warnings.
 
 Official authentication reference: [LOINC API authentication](https://loinc.org/kb/api/auth).
 

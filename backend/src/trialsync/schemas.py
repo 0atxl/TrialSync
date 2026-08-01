@@ -192,6 +192,8 @@ class FactRead(FactCreate, ORMModel):
     patient_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    voided_at: datetime | None = None
+    void_reason: str | None = None
 
 
 UnsupportedDetailCategory = Literal["condition", "medication", "observation", "other"]
@@ -245,6 +247,19 @@ class PatientConsistencyIssue(BaseModel):
     fact_id: uuid.UUID
 
 
+class PatientChangeEventRead(ORMModel):
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    actor_id: uuid.UUID
+    event_type: str
+    entity_type: str
+    entity_id: uuid.UUID | None
+    reason: str | None
+    before_json: dict[str, Any] | None
+    after_json: dict[str, Any] | None
+    created_at: datetime
+
+
 class PatientRead(ORMModel):
     id: uuid.UUID
     external_id: str
@@ -256,6 +271,7 @@ class PatientRead(ORMModel):
     facts: list[FactRead] = Field(default_factory=list)
     unsupported_details: list[UnsupportedDetailRead] = Field(default_factory=list)
     consistency_issues: list[PatientConsistencyIssue] = Field(default_factory=list)
+    activity: list[PatientChangeEventRead] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def add_pregnancy_consistency_issues(self) -> PatientRead:

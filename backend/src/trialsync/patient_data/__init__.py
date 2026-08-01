@@ -14,6 +14,7 @@ from trialsync.patient_data.contracts import (
     PatientFactGroup,
     PatientFactInputKind,
     PatientFactUpdateRequest,
+    PatientFactVoidRequest,
     PregnancyStatusValue,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "PatientFactGroup",
     "PatientFactInputKind",
     "PatientFactUpdateRequest",
+    "PatientFactVoidRequest",
     "PregnancyStatusValue",
 ]

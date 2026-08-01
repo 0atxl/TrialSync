@@ -813,6 +813,10 @@ describe('TrialSync Phase 5 screening workflow', () => {
     renderRoute('/patients/p1')
 
     await screen.findByRole('heading', { name: 'Synthetic Ada' })
+    expect(screen.getByRole('link', { name: 'Run a new screening' })).toHaveAttribute(
+      'href',
+      '/screenings/new?patient_id=p1',
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Add clinical detail' }))
     await userEvent.click(screen.getByRole('button', { name: /Pregnancy status/i }))
     await userEvent.click(screen.getByRole('radio', { name: 'Not pregnant' }))
@@ -829,6 +833,12 @@ describe('TrialSync Phase 5 screening workflow', () => {
     })
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByRole('heading', { name: 'Remove this clinical detail?' })).toBeInTheDocument()
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Removal reason' }),
+      'Entered against the wrong synthetic record',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Remove detail' }))
     expect(await screen.findByText(
       'Pregnancy status was removed. Existing saved screenings are unchanged.',
     )).toBeInTheDocument()

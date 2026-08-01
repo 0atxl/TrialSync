@@ -679,6 +679,10 @@ textarea:focus {
 .change-summary strong { color: var(--ink); }
 .change-summary ul { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 18px; }
 .screening-impact-note {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
   margin: 0;
   padding-top: 14px;
   border-top: 1px solid var(--line);
@@ -686,6 +690,8 @@ textarea:focus {
   font-size: 11px;
   line-height: 1.5;
 }
+.screening-impact-note p { margin: 0; }
+.screening-impact-note a { flex: 0 0 auto; }
 .patient-consistency-panel {
   display: flex;
   gap: 24px;
@@ -899,6 +905,60 @@ textarea:focus {
   justify-content: space-between;
   margin-top: 16px;
 }
+.patient-activity {
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+.patient-activity-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.patient-activity-heading h2 { margin: 2px 0 0; font-size: 18px; }
+.patient-activity-heading > span {
+  display: inline-flex;
+  min-width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface-tint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.patient-activity-empty { margin: 0; color: var(--muted); font-size: 12px; }
+.patient-activity-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.patient-activity-list li {
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.patient-activity-list li:last-child { padding-bottom: 0; border-bottom: 0; }
+.patient-activity-list strong { font-size: 12px; }
+.patient-activity-list p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.patient-activity-list time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.void-reason { display: grid; gap: 7px; margin-top: 18px; color: var(--ink); font-size: 12px; font-weight: 750; }
+.void-reason textarea { min-height: 78px; resize: vertical; font-weight: 500; }
 
 .trial-profile-panel { margin-bottom: 28px; }
 .trial-criteria-workspace {
@@ -2287,6 +2347,7 @@ textarea:focus {
   .patient-consistency-panel > .secondary-button { width: 100%; }
   .sex-options { grid-template-columns: 1fr 1fr; }
   .not-recorded-button { grid-column: 1 / -1; }
+  .screening-impact-note { align-items: start; flex-direction: column; gap: 8px; }
   .toast-viewport {
     top: 76px;
     right: 12px;
@@ -2302,6 +2363,8 @@ textarea:focus {
   .form-actions > *, .warning-actions > * { width: 100%; }
   .confirmation-dialog { padding: 22px; }
   .clinical-details-panel { padding: 20px; }
+  .patient-activity { padding: 20px; }
+  .patient-activity-list li { align-items: start; flex-direction: column; gap: 5px; }
   .clinical-details-heading { align-items: stretch; flex-direction: column; }
   .clinical-detail-search { max-width: none; }
   .clinical-detail-row {

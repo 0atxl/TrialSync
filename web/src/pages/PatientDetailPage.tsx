@@ -20,6 +20,7 @@ import {
   type UnsupportedDetailSubmission,
 } from '../components/ClinicalDetailEditor'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
+import { PatientActivity } from '../components/PatientActivity'
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog'
 import { useToast } from '../components/ToastProvider'
 import { useMutationState } from '../hooks/useMutationState'
@@ -120,6 +121,9 @@ export function PatientDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deletingFactId, setDeletingFactId] = useState<string | null>(null)
+  const [factToVoid, setFactToVoid] = useState<Fact | null>(null)
+  const [voidReason, setVoidReason] = useState('')
+  const [voidReasonError, setVoidReasonError] = useState('')
   const [catalog, setCatalog] = useState<PatientFactCatalogEntry[]>([])
   const [catalogError, setCatalogError] = useState('')
   const [catalogLoading, setCatalogLoading] = useState(true)
@@ -173,6 +177,22 @@ export function PatientDetailPage() {
       setCatalogLoading(false)
     }
   }, [token])
+
+  const loadActivity = useCallback(async () => {
+    if (!patientId) return
+    try {
+      const activity = await apiRequest<unknown>(
+        `/patients/${patientId}/activity`,
+        {},
+        token,
+      )
+      if (Array.isArray(activity)) {
+        setPatient((current) => current ? { ...current, activity } : current)
+      }
+    } catch {
+      // Activity is supplementary to the patient record and must not block editing.
+    }
+  }, [patientId, token])
 
   useEffect(() => {
     void loadCatalog()
@@ -254,6 +274,7 @@ export function PatientDetailPage() {
         message: profileChangeMessage(changes),
       })
       setPatient(updated)
+      void loadActivity()
       setSavedProfileChanges(changes)
       setProfileConflictFactId(null)
       setEditingDemographics(false)
@@ -370,9 +391,10 @@ export function PatientDetailPage() {
           ...current,
           facts: previous
             ? current.facts.map((item) => item.id === saved.id ? saved : item)
-            : [...current.facts, saved],
+          : [...current.facts, saved],
         }
       })
+      void loadActivity()
       factMutation.succeed()
       setDetailEditorOpen(false)
       setEditingFact(null)
@@ -465,24 +487,84 @@ export function PatientDetailPage() {
     }
   }
 
-  const deleteFact = async (fact: Fact) => {
+  const requestVoidFact = (fact: Fact) => {
+    setFactToVoid(fact)
+    setVoidReason('')
+    setVoidReasonError('')
+    setError('')
+  }
+
+  const restoreFact = async (factId: string, label: string) => {
+    setDeletingFactId(factId)
+    try {
+      await apiRequest<Fact>(
+        `/patients/${patientId}/facts/${factId}/restore`,
+        { method: 'POST' },
+        token,
+      )
+      await load()
+      await loadActivity()
+      showToast({
+        variant: 'success',
+        title: 'Clinical detail restored',
+        message: `${label} is active again for future screenings.`,
+      })
+    } catch (exception) {
+      const message =
+        exception instanceof ApiError && exception.code === 'PATIENT_FACT_RESTORE_CONFLICT'
+          ? 'This detail could not be restored because an active copy already exists.'
+          : `${label} could not be restored. No changes were made.`
+      setError(message)
+      showToast({
+        variant: 'error',
+        title: 'Clinical detail not restored',
+        message,
+        announce: false,
+      })
+    } finally {
+      setDeletingFactId(null)
+    }
+  }
+
+  const voidFact = async () => {
+    const fact = factToVoid
+    if (!fact) return
+    const reason = voidReason.trim()
+    if (!reason) {
+      setVoidReasonError('Add a short reason so the record history explains this removal.')
+      return
+    }
     const label = factCatalogEntry(catalog, fact)?.display_label ?? factLabel(fact)
     setDeletingFactId(fact.id)
+    setVoidReasonError('')
     setError('')
     try {
-      await apiRequest(`/patients/${patientId}/facts/${fact.id}`, { method: 'DELETE' }, token)
-      setPatient((current) =>
-        current
-          ? { ...current, facts: current.facts.filter((item) => item.id !== fact.id) }
-          : current,
+      await apiRequest(
+        `/patients/${patientId}/facts/${fact.id}`,
+        {
+          method: 'DELETE',
+          body: JSON.stringify({ reason, expected_fact_updated_at: fact.updated_at }),
+        },
+        token,
       )
+      setFactToVoid(null)
+      setVoidReason('')
+      await load()
+      await loadActivity()
       showToast({
         variant: 'success',
         title: 'Clinical detail removed',
         message: `${label} was removed. Existing saved screenings are unchanged.`,
+        action: {
+          label: 'Undo',
+          onClick: () => { void restoreFact(fact.id, label) },
+        },
       })
-    } catch {
-      const message = `${label} could not be removed. No changes were made.`
+    } catch (exception) {
+      const message =
+        exception instanceof ApiError && exception.code === 'PATIENT_RECORD_STALE'
+          ? `${label} changed after you opened it. Reload the latest record before removing.`
+          : `${label} could not be removed. No changes were made.`
       setError(message)
       showToast({
         variant: 'error',
@@ -711,9 +793,15 @@ export function PatientDetailPage() {
             </ul>
           </div>
         ) : null}
-        <p className="screening-impact-note">
-          Existing saved screenings remain unchanged. Future screenings use these current values.
-        </p>
+        <div className="screening-impact-note">
+          <p>Existing saved screenings remain unchanged. Future screenings use these current values.</p>
+          <Link
+            className="text-button"
+            to={`/screenings/new?patient_id=${encodeURIComponent(patient.id)}`}
+          >
+            Run a new screening
+          </Link>
+        </div>
       </section>
       {pregnancySexConflict ? (
         <section
@@ -844,7 +932,7 @@ export function PatientDetailPage() {
                           <button
                             className="text-button danger"
                             disabled={deletingFactId === fact.id}
-                            onClick={() => void deleteFact(fact)}
+                            onClick={() => requestVoidFact(fact)}
                             type="button"
                           >
                             {deletingFactId === fact.id ? 'Removing…' : 'Remove'}
@@ -898,6 +986,7 @@ export function PatientDetailPage() {
           </section>
         </div>
       </section>
+      <PatientActivity events={patient.activity ?? []} />
       <ClinicalDetailEditor
         open={detailEditorOpen}
         entries={catalog}
@@ -913,6 +1002,43 @@ export function PatientDetailPage() {
         onSubmit={(submission) => void saveClinicalDetail(submission)}
         onSubmitUnsupported={(submission) => void saveUnsupportedDetail(submission)}
       />
+      <ConfirmationDialog
+        open={Boolean(factToVoid)}
+        eyebrow="Record history"
+        title="Remove this clinical detail?"
+        confirmLabel="Remove detail"
+        busyLabel="Removing…"
+        busy={Boolean(factToVoid && deletingFactId === factToVoid.id)}
+        onCancel={() => {
+          if (deletingFactId) return
+          setFactToVoid(null)
+          setVoidReason('')
+          setVoidReasonError('')
+        }}
+        onConfirm={() => void voidFact()}
+      >
+        <p>
+          This detail will leave the active record but remain available in the immutable
+          activity history. Existing saved screenings are unchanged.
+        </p>
+        <label className="void-reason">
+          Removal reason
+          <textarea
+            autoFocus
+            rows={3}
+            value={voidReason}
+            aria-describedby={voidReasonError ? 'void-reason-error' : undefined}
+            onChange={(event) => {
+              setVoidReason(event.target.value)
+              setVoidReasonError('')
+            }}
+            placeholder="e.g. Entered against the wrong patient"
+          />
+        </label>
+        {voidReasonError ? (
+          <p className="form-error" id="void-reason-error" role="alert">{voidReasonError}</p>
+        ) : null}
+      </ConfirmationDialog>
       <ConfirmationDialog open={deleteOpen} eyebrow="Permanent action" title="Delete this patient?" confirmLabel="Delete patient" busyLabel="Deleting…" busy={deleting} onCancel={() => setDeleteOpen(false)} onConfirm={() => void deletePatient()}>
         <p><strong>{patient.display_name}</strong> will be removed from the active patient workspace. Existing immutable screening snapshots and their evidence history will remain available.</p>
       </ConfirmationDialog>

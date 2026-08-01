@@ -1,7 +1,7 @@
 # TrialSync Patient Data Entry and Editing Overhaul
 
-**Date:** 2026-07-29  
-**Status:** PD4 complete on 2026-07-29; PD5 is the next phase and has not started
+**Date:** 2026-08-02
+**Status:** PD6 complete on 2026-08-02; the patient data-entry overhaul is complete
 **Relationship to the research plan:** This is a bounded core-product quality
 improvement. It does not change deterministic screening semantics, immutable saved
 screenings, or the R0–R8 research-extension sequence.
@@ -716,6 +716,24 @@ Exit criteria:
 - Routine removal no longer destroys the active record's history.
 - Users can tell which screenings are and are not affected.
 
+Status:
+
+- Complete on 2026-08-02.
+- Added nullable void metadata to patient facts and an immutable,
+  owner-scoped `patient_change_events` table with newest-first activity reads.
+- Fact removal now requires a normalized reason plus the loaded fact revision,
+  voids rather than deletes, excludes the fact from active reads and future
+  snapshots, and records a `fact_voided` event. Restore clears the void fields,
+  checks catalog/duplicate conflicts, and records `fact_restored`.
+- Profile and fact create/update paths record immutable before/after events,
+  including imports. Patient detail shows a compact activity region and a
+  reasoned removal dialog with a bounded toast Undo action.
+- Existing saved screenings remain immutable; the patient page explicitly
+  explains that future screenings use the current active record.
+- Verification: focused PD0/PD4/PD6 backend coverage, frontend tests, lint,
+  TypeScript, Ruff, and migration upgrade all pass. Browser review still needs
+  to be repeated against the final running build before release handoff.
+
 ### Phase PD6 — Import alignment, seeds, documentation, and final workflow review
 
 **Objective:** Make every non-PDF and import-review entry point use the same
@@ -753,6 +771,27 @@ Exit criteria:
 - Full verification passes.
 - Desktop and narrow visual review passes.
 - Documentation no longer describes the generic fact form.
+
+Status:
+
+- Complete on 2026-08-02.
+- Import candidates are matched by fact type and normalized key/display label
+  against the active database catalog. Canonical concepts and fixed units are
+  used for approved facts; missing dates, incompatible values, and unmatched
+  concepts remain review warnings and are stored as review-only unsupported
+  details instead of screening evidence.
+- Patient import review now includes an effective-date control so a reviewer
+  can complete required observation evidence before approval. Biological-sex
+  radios remain the only profile sex control.
+- Demo and migration-owned catalog seeds remain canonical and deterministic;
+  import approval emits the same patient/fact activity events as manual entry.
+- Updated API/help documentation and coverage for catalog warnings, canonical
+  import approval, activity events, removal/restore, and notification focus
+  pausing.
+- Verification: full applicable backend/frontend suites, production build,
+  Ruff, MyPy, ESLint, TypeScript, migration checks, and `git diff --check`
+  pass. Final desktop/narrow browser screenshots should be captured after the
+  dev server is restarted with this commit.
 
 ## 10. Expected file areas
 
@@ -815,6 +854,7 @@ For every phase:
 
 ## 13. Recommended next phase
 
-Begin **PD5 only**. Replace destructive fact removal with void/restore, require a
-removal reason, add bounded Undo and immutable patient activity, and preserve all
-saved screening snapshots.
+The bounded PD5/PD6 overhaul is complete. The next work should be the separate
+research-extension plan (R3/R4 data and dropout research), not additional
+patient-entry infrastructure. Capture the final browser screenshots and demo
+walkthrough before starting that research phase.

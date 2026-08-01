@@ -1,6 +1,6 @@
 # TrialSync architecture
 
-TrialSync is an educational, synthetic-data-only platform for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. A separately approved research extension is planned for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over approved trial eligibility criteria; those capabilities are not currently implemented.
+TrialSync is a controlled BTech research prototype for **Clinical Trial Patient Matching and Dropout Prediction**. Its repository and demo fixtures are synthetic by default, while a research experiment may use legitimately accessible deidentified data under its source terms. Its current operational core is explainable patient–trial matching. A separate research extension is planned for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over approved trial eligibility criteria; those capabilities are not currently implemented.
 
 ```text
 reviewed text/PDF -> deterministic text extraction -> optional local Tesseract OCR
@@ -12,8 +12,12 @@ stored screening + authoritative evidence -> bounded explanation conversation
 ```
 
 The planned extension would add a versioned dropout model, research cohorts, and an
-eligibility-criteria retrieval workflow. Those future research outputs will remain separate from
-the deterministic eligibility outcome.
+eligibility-criteria retrieval workflow. Its public longitudinal cohort comes from an audited
+stochastic generator, optionally orchestrated with NVIDIA NeMo Data Designer; structured outcomes
+remain simulator-owned rather than LLM-generated. The public NCT02054715-D1 schema may inform a
+future adapter; a row-level benchmark runs only if participant data becomes legitimately
+accessible and never becomes a runtime dependency.
+Those future research outputs will remain separate from the deterministic eligibility outcome.
 
 The FastAPI application owns authentication, owner-scoped persistence, document review, and immutable screening history. PostgreSQL schema changes are versioned with Alembic. The React/Vite client consumes only the versioned HTTP API.
 

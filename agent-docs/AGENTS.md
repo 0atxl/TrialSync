@@ -2,9 +2,11 @@
 
 ## Project context
 
-TrialSync is a polished academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**, using **synthetic data only**. Its product story combines explainable patient–trial matching, fixed-horizon dropout-risk research, cohort analytics, LangChain retrieval over approved eligibility criteria, a Gemini structured eligibility summary, and an AI explanation assistant. Deterministic eligibility is the trusted core; research models add a separate retention perspective without changing eligibility.
+TrialSync is a **BTech academic research prototype** for Clinical Trial Patient Matching and Dropout Prediction. It is developed, tested, hosted, and demonstrated in a controlled project environment; it is not currently intended for operational use by hospitals, clinical research coordinators, or patients. Its product story combines explainable patient–trial matching, fixed-horizon dropout-risk research, cohort analytics, LangChain retrieval over approved eligibility criteria, a Gemini structured eligibility summary, and an AI explanation assistant. Deterministic eligibility is the trusted core; research models add a separate retention perspective without changing eligibility.
 
-The safeguards below are product-quality requirements, not the project’s headline. They protect the evidence trail, reproducibility, and credibility of the finished research platform: TrialSync must not be represented as a hospital system, medical device, autonomous eligibility tool, or general medical chatbot.
+Optimize for a clear research contribution, reproducible experiments, defensible evaluation, a coherent demonstration, and semester-scale maintainability. Do not impose enterprise or clinical-production requirements—such as hospital procurement, HIPAA certification, medical-device validation, multi-region availability, production incident processes, or formal clinical deployment approval—unless the user explicitly expands the project scope. A hosted demo or Compose deployment is an academic demonstration target, not a production-readiness claim.
+
+The user may iterate freely on algorithms, providers, interfaces, and generated or legitimately accessible research data within this project scope. Do not invent approval gates for ordinary local development or experiments. The safeguards below protect scientific validity, reproducibility, secrets, and applicable third-party data terms; they are not a production-certification checklist. TrialSync must not be represented as a clinically validated hospital system, medical device, autonomous eligibility tool, or general medical chatbot.
 
 ## Current execution authority and context loading
 
@@ -58,7 +60,14 @@ No legacy rebuild document or later research phase is required for R1.
 - Inspect `git status` before editing. Preserve unrelated user changes.
 - Implement one phase or bounded task at a time; do not build the whole product in one pass.
 - Do not copy the old `CTA` prototype architecture, matching engine, hard-coded scoring thresholds, or route layout.
-- Use synthetic fixture data only. Never add real patient records, credentials, tokens, or API keys to the repository or send them to Groq.
+- Use synthetic fixtures or legitimately accessible deidentified/public research data appropriate
+  to an academic prototype. Do not invent approval gates for ordinary local experiments, but do
+  not assume access to controlled data or bypass a provider's access controls, licence, or stated
+  terms. A controlled benchmark such as NCT02054715-D1 may be used if its participant rows become
+  legitimately accessible under the R3 Track B protocol; keep non-redistributable rows and governed
+  derivatives outside Git and the public demo. Do not send controlled rows or row-derived prompts
+  to a hosted provider unless the source terms allow that processing. Never commit credentials,
+  tokens, or API keys.
 - Keep the screening decision deterministic. Groq or any other NLP provider may create reviewable candidate facts/criteria and explain stored results, but may not approve inputs or set/change the final screening state.
 - Treat the fixed-horizon dropout model as a separate, versioned research prediction. It may surface early retention-risk signals and explanations, but may not change patient–trial eligibility.
 - Link each synthetic research enrollment immutably to one patient snapshot, approved trial
@@ -71,6 +80,9 @@ No legacy rebuild document or later research phase is required for R1.
 - `unknown` is a valid outcome. Missing evidence must never be converted into a pass.
 - Keep single screening as the source operation. Batch screening is only a bounded patient × trial wrapper that calls the exact same single-screening logic.
 - Do not add queues, Redis, Celery, microservices, Kubernetes, billing, EHR integrations, a learned eligibility classifier, BioBERT fine-tuning, or unrelated model experiments unless the user explicitly expands scope.
+- Prefer the smallest research-valid implementation over enterprise hardening. Do not spend time
+  on high availability, production SSO, compliance suites, or operational infrastructure unless a
+  research phase requires it or the user asks for it.
 - Add or adjust tests with every behavioral change.
 - Run the narrowest relevant checks first, then the full applicable tests and frontend build before handing off.
 - Update README/API examples when commands, dependencies, or contracts change.

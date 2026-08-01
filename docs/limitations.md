@@ -2,7 +2,14 @@
 
 These boundaries keep TrialSync’s current patient matching workflow and planned dropout-risk research interpretable and reproducible rather than reducing the project to generic automation.
 
-- Synthetic data only; no real patient records, EHR integration, clinical validation, or compliance claim.
+- Public repository, tests, screenshots, and demo data are synthetic only; no EHR integration,
+  clinical validation, or compliance claim.
+- Optional NeMo Data Designer orchestration does not make generated outcomes empirical evidence;
+  the audited stochastic simulator remains responsible for public research labels and splits.
+- NCT02054715-D1 is study-specific, and its public dictionary and aggregate paper do not include
+  participant rows. Unless the rows become legitimately accessible and a separate evaluation is
+  completed, it is a future adapter rather than evidence for TrialSync. NCT-inspired synthetic
+  rows must not be counted as additional real participants.
 - Planned dropout-risk outputs will be versioned fixed-horizon research predictions. They will not
   be eligibility scores or alter deterministic patient–trial matching.
 - Planned trial-level dropout charts will cover only potentially eligible demo enrollments with an explicit

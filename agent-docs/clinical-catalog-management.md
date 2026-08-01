@@ -104,9 +104,12 @@ TRIALSYNC_LOINC_PASSWORD=
 ```
 
 RxNav has no project credential in this integration. LOINC lookup is unavailable
-until a free LOINC username/password is configured. The app reports an
-unavailable source and leaves manual local entry fully usable when a source is
-disabled, unconfigured, rate-limited, or unreachable.
+until a free LOINC username/password is configured; the Search API uses those values with HTTP
+Basic Authentication and does not issue a separate API key. The app reports an unavailable source
+and leaves manual local entry fully usable when a source is disabled, unconfigured, rate-limited,
+or unreachable.
+
+Official authentication reference: [LOINC API authentication](https://loinc.org/kb/api/auth).
 
 ## 4. Safety and product boundaries
 

@@ -93,13 +93,20 @@ The current workspace supports the evidence-backed matching workflow:
 
 ## Planned research extension
 
-The approved research roadmap is not yet implemented in the running application. It proposes
-separately versioned fixed-horizon dropout-risk predictions, scenario analysis, SHAP
-explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini eligibility-criteria
-workflow. These research outputs will remain separate from the deterministic eligibility result.
+The approved research roadmap is not yet implemented in the running application. It proposes an
+audited statistical/synthetic longitudinal generator, optional NVIDIA NeMo Data Designer
+orchestration, separately versioned fixed-horizon dropout-risk predictions, scenario analysis,
+SHAP explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini eligibility-criteria
+workflow. The public NCT02054715-D1 dictionary and paper can inform a separate study-specific
+adapter, but the participant rows are not currently publicly downloadable or present in NCI's
+current dbGaP availability list. A real-data benchmark remains optional if those rows later become
+legitimately accessible; it is not a public-demo or clean-setup dependency. These
+research outputs will remain separate from the deterministic eligibility result.
 
-This is an educational, synthetic-data-only platform. Eligibility is a reproducible rule-based
-matching outcome; optional AI-assisted extraction and explanations never determine it.
+The public application, repository, automated tests, and demo are synthetic-data-only. A future
+offline benchmark may use NCT02054715-D1 if its participant rows become legitimately accessible
+under the source terms, and will never become a public runtime dependency. Eligibility is a reproducible rule-based matching
+outcome; optional AI-assisted extraction and explanations never determine it.
 
 ## Production deployment
 
@@ -319,9 +326,12 @@ its live-provider limitations are documented in
 Catalog administrators can optionally ask for terminology suggestions while adding
 a local detail. Medication suggestions use RxNav's active approximate-match API;
 observation suggestions use LOINC's Search API when
-`TRIALSYNC_LOINC_USERNAME` and `TRIALSYNC_LOINC_PASSWORD` are configured. LOINC
-uses Basic Authentication and its API is beta, so the app treats both sources as
-best-effort lookup only. A suggestion never creates, changes, or screens a concept
+`TRIALSYNC_LOINC_USERNAME` and `TRIALSYNC_LOINC_PASSWORD` are configured. A free LOINC website
+login supplies those two values; there is no separate API key for this Search API integration.
+LOINC uses HTTP Basic Authentication and currently describes the Search API as a pilot, so the app
+treats both sources as best-effort lookup only. See the official
+[LOINC API authentication guidance](https://loinc.org/kb/api/auth). A suggestion never creates,
+changes, or screens a concept
 on its own: the administrator must select it, review the populated fields, and
 save the local concept. Selected RxNorm/LOINC code provenance is stored on that
 local concept. Set `TRIALSYNC_TERMINOLOGY_SUGGESTIONS_ENABLED=false` to disable

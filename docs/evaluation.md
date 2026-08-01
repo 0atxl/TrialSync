@@ -5,6 +5,11 @@ TrialSync evaluates both the reliability of its evidence-backed patient–trial 
 The extension gate will also reconcile trial-grouped screening totals with versioned enrollment
 links and risk predictions, verify complete-criteria expansion before every Gemini summary, and
 retain GitHub Actions evidence for the tested commit, deployment health gate, and rollback path.
+The dropout gate will verify generator provenance, offline reproducibility without NVIDIA
+credentials, label independence from LLM-generated fields, and leakage-safe day-30/day-90 splits.
+If NCT02054715-D1 participant rows become legitimately accessible, they receive a separate
+study-specific protocol and report; their metrics are never pooled with the public synthetic
+cohort. The currently public dictionary and aggregate paper are not row-level validation data.
 
 Run the reproducible offline evaluation with `make evaluate`; detailed fixture measurements are in [PHASE7_EVALUATION.md](../backend/evaluation/PHASE7_EVALUATION.md) and [PHASE8_EVALUATION.md](../backend/evaluation/PHASE8_EVALUATION.md). All fixtures and seeded records are synthetic.
 

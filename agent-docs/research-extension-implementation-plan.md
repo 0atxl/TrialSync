@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-24
 **Status:** R0 revised and re-locked on 2026-07-26 after alignment with the supplied
-LangChain/Gemini RAG and GitHub Actions CI/CD brief; R1 is the next authorized phase
+LangChain/Gemini RAG and GitHub Actions CI/CD brief; the R3 data strategy was clarified on
+2026-08-01; R1 remains the next authorized implementation phase
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
@@ -15,7 +16,9 @@ the trusted matching core.
 The approved extension contains:
 
 1. Canonical evidence-backed PDF reporting and GitHub Actions CI/CD.
-2. A separate synthetic longitudinal enrollment dataset for dropout-risk research.
+2. A separate, auditable longitudinal enrollment generator for dropout-risk research, with
+   optional NVIDIA NeMo Data Designer orchestration and a future external benchmark adapter if
+   suitable row-level data becomes legitimately accessible.
 3. Logistic regression, XGBoost, LightGBM, MLflow, SHAP, and a missed-dose Scenario Lab.
 4. A screening-derived patient cohort for DBSCAN clustering, FAISS similarity, and the
    Cohort Atlas.
@@ -36,7 +39,7 @@ TrialSync patient-matching core
   -> canonical evidence and downloadable report
 
 TrialSync research analytics
-  -> longitudinal synthetic enrollment dataset
+  -> hybrid statistical/synthetic longitudinal enrollment dataset
   -> dropout-risk experiments and Scenario Lab
   -> screening-derived patient cohort
   -> DBSCAN clustering, FAISS similarity, and Cohort Atlas
@@ -67,7 +70,7 @@ Known extension gaps:
 
 - No downloadable canonical screening-result PDF.
 - No GitHub Actions CI/CD workflow.
-- No synthetic longitudinal enrollment dataset for dropout research.
+- No hybrid longitudinal enrollment generator or frozen dropout-research dataset.
 - No screening-derived patient cohort/reference-trial matrix.
 - No dropout-risk model, model registry, calibration report, or SHAP explanation.
 - No research-risk inference API or UI.
@@ -83,12 +86,25 @@ These decisions apply to every phase unless the user explicitly changes them aft
 ### 3.1 Data boundary
 
 - The repository, automated tests, demo, Groq requests, screenshots, and downloadable reports use fictional synthetic participant data only.
-- The longitudinal dropout dataset is generated specifically for this project with fixed
-  seeds and documented causal assumptions.
+- The public, reproducible longitudinal dropout dataset is generated specifically for this
+  project with fixed seeds and documented causal assumptions. Its structured events and outcome
+  labels come from an auditable stochastic simulator, not directly from an LLM.
+- NVIDIA NeMo Data Designer may orchestrate approved samplers, expressions, validation, and
+  optional fictional narrative fields. It is not the authority for eligibility, dropout labels,
+  hidden hazard coefficients, dataset splits, or evaluation ground truth.
 - The cohort dataset is generated from unique synthetic patient snapshots evaluated against
   a fixed, versioned panel of approved synthetic trial versions.
-- MIMIC-III, PRO-ACT, n2c2, NCT02054715-D1, and Project Data Sphere are not implementation dependencies.
-- Restricted datasets may be discussed as future validation sources but are never required to run the project.
+- MIMIC-III, PRO-ACT, n2c2, NCT02054715-D1, and Project Data Sphere are not runtime, build,
+  test, public-demo, or clean-reproduction dependencies.
+- The public NCT02054715-D1 material currently verifies a useful study-specific schema, including
+  genuine participant dropout fields, but does not include downloadable participant rows. The
+  study is not in NCI's current dbGaP availability list as of 2026-08-01. If row-level data later
+  becomes legitimately accessible, it may be evaluated as a separate benchmark; it is never
+  merged into the public synthetic cohort or used to broaden claims beyond that oncology
+  psychoeducation study.
+- Restricted rows, prompts derived from them, and potentially governed derivatives must not be
+  sent to NVIDIA or any other hosted model endpoint without explicit data-use and institutional
+  approval. No restricted or NCT-derived row or model artifact belongs in Git or the public demo.
 - The RAG corpus is built from approved, versioned trial criteria already stored in TrialSync
   plus checked-in synthetic trial fixtures; it does not require a live external trial registry.
 
@@ -120,6 +136,8 @@ These decisions apply to every phase unless the user explicitly changes them aft
 Allowed claims:
 
 - "Synthetic dropout-risk modeling demonstration."
+- "Study-specific retention-risk benchmark on NCT02054715-D1" only after participant rows become
+  legitimately accessible and a completed held-out evaluation exists.
 - "Research-only cohort discovery over generated patient profiles."
 - "Similarity in a versioned synthetic feature space."
 - "RAG-assisted matching over approved, versioned trial eligibility criteria."
@@ -143,6 +161,8 @@ Approved for inclusion:
 - Canonical evidence-backed screening PDF reports.
 - GitHub Actions continuous integration and health-gated deployment to the configured target.
 - A versioned synthetic longitudinal participant dataset.
+- An optional, separately versioned NCT02054715-D1 adapter and evaluation report if participant
+  rows become legitimately accessible; the public application remains reproducible without it.
 - Logistic-regression, XGBoost, and LightGBM dropout-risk experiments with MLflow and SHAP.
 - A separate research-risk API and UI.
 - A trial-centric recruitment and retention overview, including grouped screening counts and an aggregate dropout-risk chart for explicitly linked research participants.
@@ -164,6 +184,7 @@ backend/src/trialsync/
   research/
     dropout_data/            # longitudinal enrollment generation and validation
     dropout_features/        # leakage-safe fixed-horizon features
+    external_validation/     # optional restricted-data adapters; no governed rows in Git
     risk/                    # training, evaluation, registry, inference
     cohort_profiles/         # patient facts and screening-profile matrices
     cohorts/                 # DBSCAN, stability, projections, summaries
@@ -221,7 +242,8 @@ Record the approved extension boundaries and prevent later phases from silently 
 | Model comparison | Dummy, logistic regression, XGBoost, and LightGBM; deploy only the accepted winner |
 | MLflow | Private, local SQLite-backed tracking through an optional Compose profile |
 | Research navigation | Visible, clearly labelled main-navigation area |
-| Dropout data | Separate multi-condition longitudinal synthetic enrollment dataset |
+| Dropout data | Separate multi-condition longitudinal dataset from an audited stochastic simulator; optional NeMo Data Designer orchestration |
+| External dropout benchmark | NCT02054715-D1 public schema now; row-level evaluation only if the participant data becomes legitimately accessible, with separate artifacts and claims |
 | Cohort data | Unique synthetic patient snapshots × fixed approved reference-trial panel |
 | Dropout fixture/demo/experiment sizes | 50 / 400 / 4,000 enrollments |
 | Screening cohort | 750 unique patients × 20 reference trial versions |
@@ -257,14 +279,16 @@ Record the approved extension boundaries and prevent later phases from silently 
 
 Complete and re-locked on 2026-07-26 after correcting R7 to the supplied LangChain/Gemini brief,
 adding the trial-to-enrollment linkage required by the recruitment overview, and including
-health-gated GitHub Actions deployment. Begin R1 only; later phase approval does not authorize
-combining phases.
+health-gated GitHub Actions deployment. On 2026-08-01 the user approved clarification of R3's
+hybrid NVIDIA/statistical generation boundary and the separate controlled-access
+NCT02054715-D1 benchmark. Begin R1 only; later phase approval does not authorize combining
+phases.
 
 ### Claims matrix
 
 | Original requirement or presentation claim | TrialSync implementation or correction |
 |---|---|
-| Patient dropout prediction | Synthetic fixed-horizon dropout-risk demonstration; not real-world prediction |
+| Patient dropout prediction | Synthetic fixed-horizon dropout-risk demonstration; optional study-specific NCT02054715-D1 benchmark only if participant rows become accessible; no general clinical prediction claim |
 | XGBoost and LightGBM | Compared with dummy and logistic baselines on the frozen synthetic dataset |
 | SHAP explainability | Model contribution analysis only; never eligibility or causality |
 | DBSCAN cohorts | Patient-fact and screening-profile clusters over unique synthetic patients |
@@ -428,7 +452,11 @@ the workflow history.
 ### Objective
 
 Create a reproducible event-level synthetic enrollment dataset for fixed-horizon dropout-risk
-research and missed-dose scenario analysis. This dataset does not supply DBSCAN or FAISS data.
+research and missed-dose scenario analysis. Use an auditable stochastic simulator as the source
+of structured events and outcome labels, with optional NVIDIA NeMo Data Designer orchestration
+for declared samplers, expressions, validation, and fictional narrative fields. Define a separate
+NCT02054715-D1 benchmark adapter that activates only if participant rows become legitimately
+accessible. Neither dataset supplies DBSCAN or FAISS data.
 
 ### 9.1 Research question
 
@@ -440,6 +468,14 @@ Scenario:
 
 > How does the accepted model's output change when a plausible pre-cutoff dose event is changed
 > from administered to missed, with every dependent feature recomputed?
+
+External benchmark, conditional on access:
+
+> Within the NCT02054715-D1 study population and its published follow-up definition, do baseline
+> variables provide reproducible held-out signal for the study's recorded dropout outcome?
+
+This external question is deliberately narrower than the synthetic multi-condition question. Its
+feature schema, follow-up semantics, splits, metrics, model artifacts, and claims remain separate.
 
 ### 9.2 Required time definitions
 
@@ -518,7 +554,62 @@ events are generated only for linked screenings whose stored state is `potential
 the dataset represents simulated enrolled participants without relabelling screening rows as
 dropout outcomes.
 
-### 9.4 Generation principles
+### 9.4 Two-track data strategy
+
+#### Track A — required public synthetic protocol
+
+Track A is the only dataset required to build, test, run, and demonstrate TrialSync. Use a hybrid
+pipeline:
+
+1. TrialSync code owns relational IDs, chronology, eligibility linkage, event schedules, hidden
+   hazard coefficients, stochastic outcome sampling, censoring, splits, and checksums.
+2. NeMo Data Designer may declaratively orchestrate statistical samplers, dependent expressions,
+   schema validation, and optional fictional text. The evaluated configuration and provider/model
+   metadata are versioned when used.
+3. An LLM must not directly choose dropout labels, fabricate model ground truth, or see hidden
+   generator state. Optional generated text is excluded from R4 features unless a later reviewed
+   protocol defines and leakage-tests it.
+4. The generator must run in an offline deterministic mode without an NVIDIA account. NVIDIA is
+   an optional research accelerator, not a runtime or clean-reproduction dependency.
+
+NVIDIA's current Data Designer documentation describes schema-driven samplers, expressions,
+structured generation, validation, previews, and provider-backed execution:
+[NeMo Data Designer](https://docs.nvidia.com/nemo/datadesigner/getting-started/welcome).
+
+#### Track B — optional future external benchmark
+
+NCT02054715-D1's public dictionary contains a scrambled participant ID, baseline variables,
+`Dropouttime`, and `Dropout` reason, and the public paper reports aggregate study results. These
+assets are enough to define an adapter and an explicitly synthetic, NCT-inspired fixture, but not
+to train or evaluate a model on real participants. NCI now directs NCTN/NCORP patient-level access
+through dbGaP, and NCT02054715 is not in NCI's current available-dataset list as of 2026-08-01.
+Therefore Track B is a future adapter, not a currently runnable real-data benchmark. If participant
+rows later become available from a legitimate source:
+
+1. Record the accession or delivery source, applicable use terms, storage boundary, and any
+   expiration date.
+2. Inspect row count, event count, missingness, follow-up timing, censoring semantics, and permitted
+   uses before freezing a study-specific task.
+3. Keep all governed rows, fitted artifacts, intermediate files, logs, and credentials outside
+   Git and outside the public TrialSync deployment.
+4. Do not send rows or row-derived prompts to NVIDIA, Gemini, Groq, or another hosted provider
+   unless the source terms permit that processing.
+5. Do not merge Track B participants with Track A, use them to populate the public demo, or claim
+   that one oncology psychoeducation study validates multi-condition day-30/day-90 prediction.
+6. Treat any synthetic rows fitted from Track B as governed derivatives until the applicable
+   terms and disclosure review say otherwise. More generated rows do not create more independent
+   real-world evidence.
+
+Track B may evaluate the same model families, but it receives its own feature contract, split,
+MLflow experiment, report, and claim label. Until participant rows are accessible, Track B remains
+a documented future-validation adapter and Track A remains complete on its own.
+
+Primary sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.nih.gov/system/files/dataset/NCT02054715-D1/NCT02054715-D1-Data-Dictionary.pdf),
+[published study](https://pubmed.ncbi.nlm.nih.gov/30291797/),
+[NCI NCTN/NCORP Data Archive](https://dctd.cancer.gov/research/networks/nctn/data-archive), and
+[NIH dbGaP access process](https://www.grants.nih.gov/policy-and-compliance/policy-topics/sharing-policies/accessing-data/dbgap).
+
+### 9.5 Generation principles
 
 1. Use a fixed default seed plus configurable alternative seeds.
 2. Separate the data-generating mechanism from the model-training pipeline.
@@ -535,8 +626,13 @@ dropout outcomes.
 12. Use documented bounded resampling to reach the requested enrollment count when a generated
     snapshot is not potentially eligible; report attempted-versus-accepted counts and never use a
     future dropout outcome during acceptance.
+13. Freeze generator configuration before model tuning and record whether each field came from
+    TrialSync code, a statistical sampler, an expression, or an optional LLM-backed column.
+14. Validate generated distributions and conditional relationships against declared assumptions;
+    do not describe resemblance to real NCT02054715-D1 participants unless a row-level Track B
+    analysis measured it.
 
-### 9.5 Dataset sizes
+### 9.6 Dataset sizes
 
 Use three locked sizes:
 
@@ -552,7 +648,7 @@ screening history.
 Target approximately 25% synthetic dropout through day 90. Report the exact generated
 prevalence and event counts for every split; never adjust the test set after inspection.
 
-### 9.6 Split strategy
+### 9.7 Split strategy
 
 - Split by participant.
 - Fit preprocessing on training data only.
@@ -561,10 +657,14 @@ prevalence and event counts for every split; never adjust the test set after ins
 - Freeze the primary test split before model tuning.
 - Use repeated seeds or cross-validation only on training/validation data.
 
-### 9.7 Artifacts and documentation
+### 9.8 Artifacts and documentation
 
 - Versioned dataset schema.
 - Generator configuration.
+- Field-level provenance identifying deterministic, statistical, expression-derived, and optional
+  LLM-generated columns.
+- NVIDIA Data Designer recipe, dependency/provider versions, token/cost summary, and validation
+  report when the optional path is used; never credentials or restricted prompts.
 - Feature dictionary.
 - Outcome definition.
 - Leakage audit.
@@ -572,6 +672,8 @@ prevalence and event counts for every split; never adjust the test set after ins
 - Aggregate distributions and missingness report.
 - Generator unit tests.
 - Dataset card describing intended and prohibited uses.
+- A Track B access/governance record and separate benchmark protocol, or an explicit
+  `not available` decision with no implied validation claim.
 
 ### Tests
 
@@ -589,6 +691,11 @@ prevalence and event counts for every split; never adjust the test set after ins
 - Train/validation/test participants do not overlap.
 - Hidden generator labels are excluded from exported model features.
 - Missed-dose scenario edits recompute every dependent adherence feature.
+- Offline generation succeeds without NVIDIA credentials.
+- Optional Data Designer output conforms to the same schema and invariant checks as offline output.
+- No LLM-generated field directly or indirectly determines the label.
+- Repository and public-demo scans contain no Track B rows, governed derivatives, access tokens,
+  or fitted restricted-data artifacts.
 
 ### Exit criteria
 
@@ -596,6 +703,10 @@ prevalence and event counts for every split; never adjust the test set after ins
 - Leakage tests pass.
 - Outcome prevalence and split event counts are reported.
 - The dataset card reports enrollments and dropout prevalence by linked trial version.
+- The report names which columns, if any, used NeMo Data Designer and demonstrates that the label
+  and split remained simulator-owned.
+- Track B is either backed by a recorded legitimate row-level source and separate protocol or
+  clearly marked unavailable; synthetic generation does not masquerade as external validation.
 - The user approves the artificial assumptions before model training begins.
 
 ### Stop point
@@ -606,7 +717,10 @@ Pause for review of the generated dataset report before implementing model exper
 
 ### Objective
 
-Build a reproducible offline research pipeline comparing interpretable and tree-based classifiers on the approved synthetic dataset.
+Build a reproducible offline research pipeline comparing interpretable and tree-based classifiers
+on the approved Track A synthetic dataset. If Track B participant rows become accessible, run a separate
+study-specific benchmark without merging its participants, features, metrics, or artifacts into
+Track A.
 
 ### Model sequence
 
@@ -629,6 +743,8 @@ risk API.
 - No tuning on the test split.
 - Serialized pipeline includes preprocessing and model.
 - Model metadata includes dataset, generator, split, feature, code, and dependency versions.
+- Track A and Track B use distinct feature builders, experiment names, model aliases, artifact
+  locations, and intended-use labels.
 
 ### Metrics
 
@@ -667,7 +783,9 @@ Track:
 - Serialized pipeline.
 - Model signature and input example.
 - Dependency environment.
-- Tags describing synthetic-only intended use.
+- Tags describing the data track, study scope, and intended/prohibited uses.
+- A data-track tag (`synthetic_multicondition` or `controlled_nct02054715_d1`) and, for Track B,
+  non-sensitive approval/protocol metadata without governed row content.
 
 Use the locked private, local SQLite-backed MLflow store through its optional Compose profile.
 Do not add a remote tracking service as a hidden requirement.
@@ -688,7 +806,9 @@ Model aliases:
 
 ### Acceptance criteria
 
-Because the data are synthetic, acceptance must focus on pipeline correctness and reproducibility rather than impressive scores:
+For Track A, acceptance must focus on pipeline correctness and reproducibility rather than
+impressive synthetic scores. Track B, when available, additionally tests study-specific held-out
+performance but still cannot establish clinical validity or broad generalization:
 
 - Training is reproducible within documented tolerance.
 - The final model beats the dummy baseline on the frozen synthetic test set.
@@ -697,6 +817,8 @@ Because the data are synthetic, acceptance must focus on pipeline correctness an
 - SHAP contributions reconcile with the model output within library tolerance.
 - A simple logistic baseline remains visible beside the tree model.
 - Known generator signal recovery is discussed without claiming real-world validity.
+- No Track B model can become the champion for the multi-condition Scenario Lab, and no Track A
+  model can be reported as externally validated.
 
 ### Tests
 
@@ -1224,22 +1346,26 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 2. Canonical PDF consistency checks.
 3. CI workflow evidence.
 4. Synthetic dataset card and leakage audit.
-5. Dropout model comparison:
+5. Generator provenance and NeMo Data Designer comparison/validation evidence when that optional
+   path is used.
+6. Dropout model comparison:
    - dummy;
    - logistic regression;
    - XGBoost;
    - LightGBM.
-6. Calibration and selected threshold.
-7. MLflow run/registry evidence.
-8. SHAP global and local explanation examples.
-9. Trial Recruitment Overview reconciliation of screening totals, linked enrollments, predictions,
+7. Calibration and selected threshold.
+8. MLflow run/registry evidence.
+9. SHAP global and local explanation examples.
+10. Track B access decision and, only when approved and executed, a separately labelled
+    NCT02054715-D1 benchmark report.
+11. Trial Recruitment Overview reconciliation of screening totals, linked enrollments, predictions,
    risk bands, and visible denominators.
-10. Patient-fact and screening-profile DBSCAN parameter/stability reports.
-11. Both FAISS exact-neighbor verifications and Cohort Atlas projection evidence.
-12. LangChain criteria-retrieval, complete-criteria expansion, and Gemini grounded-generation metrics.
-13. Gemini/Groq cooldown, cache, retry, and degraded-mode behavior.
-14. CI/CD deployed-commit, health-gate, and rollback evidence.
-15. Security, dependency, and secret checks.
+12. Patient-fact and screening-profile DBSCAN parameter/stability reports.
+13. Both FAISS exact-neighbor verifications and Cohort Atlas projection evidence.
+14. LangChain criteria-retrieval, complete-criteria expansion, and Gemini grounded-generation metrics.
+15. Gemini/Groq cooldown, cache, retry, and degraded-mode behavior.
+16. CI/CD deployed-commit, health-gate, and rollback evidence.
+17. Security, dependency, restricted-data, and secret checks.
 
 ### Final demonstration script
 
@@ -1361,6 +1487,9 @@ Potential new dependencies must be approved during their phase. Expected categor
 
 - Deterministic PDF rendering.
 - pandas/NumPy or equivalent bounded tabular tooling.
+- NVIDIA NeMo Data Designer only if R3 demonstrates a concrete benefit over the offline
+  simulator and its license, Python 3.12 support, dependency weight, provider costs, and
+  credential-free fallback are accepted.
 - scikit-learn.
 - XGBoost.
 - LightGBM.
@@ -1389,7 +1518,7 @@ One possible history:
 docs: approve TrialSync research extension plan
 feat: add canonical screening PDF reports
 ci: add verification and health-gated deployment workflows
-feat: add reproducible synthetic participant generator
+feat: add reproducible hybrid synthetic participant generator
 feat: add dropout model experiments and MLflow tracking
 feat: add versioned synthetic risk inference
 feat: add research cohort and similarity explorer
@@ -1405,6 +1534,10 @@ Commits are phase checkpoints, not permission to combine several phases into one
 - [x] R1–R8 remain separate bounded phases.
 - [x] BioBERT, restricted-data dependencies, and local-LLM fallback are deferred.
 - [x] Dropout and cohort/similarity use different datasets and units of analysis.
+- [x] The public dropout label and split remain owned by the audited simulator; NeMo Data Designer
+  is optional orchestration with a credential-free fallback.
+- [x] NCT02054715-D1 is a future, separate study-specific adapter and never inflates the public
+  synthetic cohort or its real-world evidence claim.
 - [x] Dummy, logistic, XGBoost, and LightGBM are compared before champion selection.
 - [x] MLflow uses a private optional Compose profile.
 - [x] Research analytics appear in labelled main navigation.
@@ -1425,7 +1558,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R0. Scope lock | Complete | Revised scope re-locked by user after final consistency audit, 2026-07-26 | This document |
 | R1. Canonical report PDF | Approved | User selected evidence-backed reporting, 2026-07-26 | |
 | R2. GitHub Actions CI/CD | Approved | Corrected to the supplied delivery brief, 2026-07-26 | |
-| R3. Synthetic dropout protocol/dataset | Approved | User selected dropout-risk modeling, 2026-07-26 | |
+| R3. Synthetic dropout protocol/dataset | Approved | User selected dropout-risk modeling on 2026-07-26 and clarified hybrid NVIDIA generation plus separate NCT02054715-D1 validation on 2026-08-01 | |
 | R4. Dropout models/MLflow/SHAP | Approved | User selected dropout-risk modeling, 2026-07-26 | |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |
 | R6. Screening-derived DBSCAN/FAISS cohorts | Approved | User selected cohort analytics, 2026-07-26 | |

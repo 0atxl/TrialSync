@@ -1,7 +1,8 @@
 # TrialSync Research Pivot: Feasibility Findings and Recommended Scope
 
 **Date:** 2026-07-19
-**Status:** Feasibility findings; implementation scope selected on 2026-07-26
+**Status:** Feasibility findings; implementation scope selected on 2026-07-26 and dropout-data
+strategy clarified on 2026-08-01
 **Relationship to existing project:** Incremental extension of the completed TrialSync application; not a replacement or total rewrite.
 
 This document preserves the feasibility evidence behind the pivot. The locked scope, phase order, dataset sizes, and exit criteria live in
@@ -63,13 +64,31 @@ generates the structured summary.
 
 ### Candidate participant-level retention datasets
 
-The NCI NCTN/NCORP Data Archive includes a verified candidate for a bounded retention-risk research experiment: **NCT02054715-D1**, a randomized multimedia-versus-print psychoeducation study for patients with cancer who were eligible for clinical trials. Its published data dictionary includes a participant identifier, baseline demographics, cancer type, recent treatment history, education, income, marital status, study group, `Dropouttime` (`0=no dropout`, `1=dropout at follow-up 1`, `2=dropout at follow-up 2`), and a `Dropout` reason field. This is a genuine participant-level dropout outcome; it is not inferred from missing records.
+The NCI NCTN/NCORP Data Archive documents a candidate schema for a bounded retention-risk research experiment: **NCT02054715-D1**, a randomized multimedia-versus-print psychoeducation study for patients with cancer who were eligible for clinical trials. Its public data dictionary includes a participant identifier, baseline demographics, cancer type, recent treatment history, education, income, marital status, study group, `Dropouttime` (`0=no dropout`, `1=dropout at follow-up 1`, `2=dropout at follow-up 2`), and a `Dropout` reason field. This verifies that the study recorded a genuine participant-level dropout outcome, but the public dictionary does not contain the participant rows.
 
-It can support a narrowly framed prototype such as “research-only retention-risk prediction in the NCT02054715-derived study.” It cannot support a claim that the model predicts dropout across cancer trials or clinical trials generally: it is one study with one intervention context, and its event count and follow-up structure must be inspected after access is granted.
+It can support a narrowly framed prototype such as “research-only retention-risk prediction in
+the NCT02054715-D1 study.” It cannot support a claim that the model predicts dropout across cancer
+trials or clinical trials generally: it is one study with one intervention context, and its event
+count and follow-up structure must be inspected after access is granted. It also does not provide
+the multi-condition visit, dose, laboratory, and adverse-event stream required by TrialSync's
+day-30/day-90 missed-dose Scenario Lab.
 
-NCI now directs researchers to obtain NCTN/NCORP patient-level data through dbGaP. The data must therefore remain outside the repository, be used only under the applicable approval and data-use conditions, and never be sent to hosted model providers without explicit authorization.
+NCI now directs researchers to obtain NCTN/NCORP patient-level data through dbGaP, but
+NCT02054715 is not in NCI's current available-dataset list as of 2026-08-01. The public material is
+therefore sufficient for schema design and NCT-inspired synthetic fixtures, not real-data model
+training or evaluation. If rows later become available, use them under the applicable source terms
+and do not send them to a hosted model provider unless those terms permit it.
 
-Sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.nih.gov/system/files/dataset/NCT02054715-D1/NCT02054715-D1-Data-Dictionary.pdf), [NCI NCTN/NCORP Data Archive](https://dctd.cancer.gov/research/networks/nctn/data-archive)
+If participant rows become legitimately accessible, use NCT02054715-D1 as a separate external benchmark with its own task,
+feature schema, split, artifacts, and claim label. Do not merge it into the public synthetic cohort
+or generate look-alike rows and count them as additional independent real participants. Any
+NCT-derived synthetic data remains a potentially governed derivative until the applicable terms
+and disclosure review say otherwise.
+
+Sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.nih.gov/system/files/dataset/NCT02054715-D1/NCT02054715-D1-Data-Dictionary.pdf),
+[published study](https://pubmed.ncbi.nlm.nih.gov/30291797/),
+[NCI NCTN/NCORP Data Archive](https://dctd.cancer.gov/research/networks/nctn/data-archive), and
+[NIH dbGaP access process](https://www.grants.nih.gov/policy-and-compliance/policy-topics/sharing-policies/accessing-data/dbgap)
 
 For future multi-study work, [Project Data Sphere](https://data.projectdatasphere.org/) provides de-identified patient-level randomized cancer-trial datasets. A dataset is suitable only after its study documentation confirms a usable completion/discontinuation outcome and baseline or pre-horizon predictors. When data are in CDISC SDTM form, inspect the Disposition (`DS`) domain: its standard fields record completion/discontinuation status, date, and primary reason. Do not assume every Project Data Sphere study includes a usable `DS` domain or compatible follow-up window. [CDISC disposition guidance](https://www.cdisc.org/standards/foundational/cdash/cdashig-v2-0)
 
@@ -82,13 +101,13 @@ The proposed datasets do not support patient-level clinical-trial dropout predic
 - Discharge, mortality, readmission, or disappearance from MIMIC cannot be treated as trial dropout.
 - A proxy label created from missing later records would be clinically and methodologically invalid.
 
-Therefore, “predict patient trial dropout” remains blocked for the originally listed datasets, but NCT02054715-D1 is a viable controlled-access candidate for a narrowly scoped retention-risk experiment. Any selected dataset must include enrollment, follow-up, withdrawal/dropout, reason, and censoring information sufficient for the chosen prediction task.
+Therefore, “predict patient trial dropout” remains blocked for the originally listed public datasets. NCT02054715-D1 is a viable future study-specific adapter, but not a currently available row-level benchmark. Any selected dataset must include enrollment, follow-up, withdrawal/dropout, reason, and censoring information sufficient for the chosen prediction task.
 
 ## Feature-by-feature assessment
 
 | Feature | Feasibility | Recommendation |
 |---|---|---|
-| Patient dropout prediction | Feasible as a reproducible synthetic fixed-horizon experiment; real-world validation needs an approved participant-level dataset | Implement the selected synthetic longitudinal protocol; retain NCT02054715-D1 only as a possible future external-validation dataset |
+| Patient dropout prediction | Feasible as a reproducible synthetic fixed-horizon experiment; NCT02054715-D1 publicly documents a genuine but study-specific outcome schema, not participant rows | Implement the public hybrid synthetic protocol; if rows become legitimately accessible, run NCT02054715-D1 as a separate external benchmark rather than merging or amplifying it |
 | XGBoost/LightGBM | Feasible when labels exist | Use time-aware feature windows, leakage controls, calibration, and model-versioned inference |
 | SHAP explanations | Feasible | Explain predictive risk features only; do not call SHAP an eligibility score |
 | DBSCAN cohort discovery | Feasible research module | Build versioned patient-fact and screening-profile vectors from synthetic screening data and report stability and interpretable summaries |
@@ -275,10 +294,11 @@ The phase order is intentionally maintained only in
 
 Proceed with the selected scope: **LangChain candidate retrieval + complete approved-criteria
 expansion + Gemini structured eligibility summaries + deterministic screening + grounded
-reporting** as the product centerpiece, with **linked synthetic dropout modeling, MLflow, SHAP,
+reporting** as the product centerpiece, with **linked hybrid synthetic dropout modeling, MLflow, SHAP,
 trial-grouped retention views, DBSCAN cohorts, and FAISS similarity** as the research analytics
 layer. GitHub Actions provides CI/CD to the configured target. BioBERT is deferred.
-Controlled-access NCT02054715-D1 work remains future external validation and is not an
-implementation dependency.
+NCT02054715-D1 work is a separate optional future external benchmark and is not a runtime, build,
+test, public-demo, or clean-reproduction dependency. It becomes active only if participant rows
+become legitimately accessible and a study-specific protocol is recorded.
 
 This approach adds meaningful research depth while preserving the architecture, tests, safety boundaries, and user experience already built in TrialSync.

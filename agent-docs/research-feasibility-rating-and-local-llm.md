@@ -1,7 +1,8 @@
 # TrialSync Research Feasibility, Project Assessment, and Local LLM Decision
 
 **Date:** 2026-07-26
-**Status:** R0 decision brief revised and re-approved on 2026-07-26; R1 is the next implementation phase
+**Status:** R0 decision brief revised and re-approved on 2026-07-26; dropout-data strategy
+clarified on 2026-08-01; R1 is the next implementation phase
 **Purpose:** Record the practical feasibility audit, an intentionally blunt academic
 assessment, and the local-versus-hosted LLM recommendation before the research extension
 is implemented.
@@ -18,23 +19,30 @@ The central conclusions are:
    patient clustering and similarity. The unit must remain one unique patient/profile, not
    one patient × trial row.
 2. Those screening records are not a dropout dataset. A separate, reproducible, event-level
-   synthetic enrollment cohort is required only for dropout modeling and scenario analysis.
-3. The research extension therefore needs two explicit datasets: a screening-derived cohort
+   synthetic enrollment cohort is required for the public dropout-modeling and scenario-analysis
+   workflow. Its events and labels must come from an auditable stochastic process, not directly
+   from a generative model.
+3. The research extension therefore needs two explicit public datasets: a screening-derived cohort
    for DBSCAN/FAISS and a longitudinal enrollment dataset for dropout prediction. Product-facing
    demo enrollments use an immutable link to the exact patient snapshot, approved trial version,
    and potentially eligible screening needed by the Trial Recruitment Overview.
-4. Missed-dose what-if visualization is feasible and valuable, but it is model sensitivity,
+4. NCT02054715-D1's public dictionary verifies a genuine participant-level dropout field, but the
+   participant rows are not currently public or listed among NCI's available dbGaP datasets. It can
+   provide a separate study-specific benchmark only if those rows later become legitimately
+   accessible. It cannot replace the multi-condition event generator, be merged into the public
+   cohort, or validate claims outside its oncology psychoeducation context.
+5. Missed-dose what-if visualization is feasible and valuable, but it is model sensitivity,
    not a causal treatment-effect estimate.
-5. DBSCAN and exact CPU FAISS are technically easy at semester scale. Honest feature design,
+6. DBSCAN and exact CPU FAISS are technically easy at semester scale. Honest feature design,
    stability evaluation, and the frontend Cohort Atlas are the harder and more valuable work.
-6. Eligibility-criteria RAG is feasible using LangChain over TrialSync's approved trial corpus
+7. Eligibility-criteria RAG is feasible using LangChain over TrialSync's approved trial corpus
    and Gemini for a structured, citation-validated eligibility summary.
-7. `alsomine` can execute the installed 1–1.5B Ollama models, but live measurements do not
+8. `alsomine` can execute the installed 1–1.5B Ollama models, but live measurements do not
    justify using either as an automatic replacement for Gemini RAG generation or the existing
    Groq extraction/explanation features.
-8. Gemini and Groq need separate rate-limit-aware provider adapters with operation-specific
+9. Gemini and Groq need separate rate-limit-aware provider adapters with operation-specific
    fallbacks, not an automatic switch to a weaker local model.
-9. The current application is already stronger than a CRUD-and-chatbot demo, but its ML
+10. The current application is already stronger than a CRUD-and-chatbot demo, but its ML
    research contribution is limited. A well-executed extension can make it a strong BTech
    capstone; merely adding library names will not.
 
@@ -99,7 +107,7 @@ This is separate from dropout modeling. A research enrollment needs generated lo
 events and an actual synthetic dropout/censoring outcome. Screening IDs and criterion results
 must not become dropout-model features.
 
-## 3. A viable synthetic dropout dataset
+## 3. A viable hybrid synthetic dropout dataset
 
 ### 3.1 Research unit
 
@@ -170,7 +178,7 @@ post-dropout missed visits, and final completion state are forbidden model featu
 
 ### 3.4 Generation approach
 
-The generator should use an explicit stochastic process:
+The generator should use an explicit stochastic process owned by TrialSync code:
 
 1. Sample baseline participant, site, and trial-context variables.
 2. Generate scheduled visits and doses.
@@ -180,6 +188,19 @@ The generator should use an explicit stochastic process:
 5. Sample dropout time rather than directly copying a deterministic score into the label.
 6. Continue only valid observations until dropout or censoring.
 7. Export the hidden generator state separately for generator validation, never as model input.
+
+NVIDIA NeMo Data Designer may be evaluated as an optional orchestration layer for declared
+statistical samplers, dependent expressions, schema validation, dataset profiling, and fictional
+narrative columns. It must not directly choose the dropout label, hidden hazard, data split, or
+eligibility state. The same schema and invariant tests must pass through a credential-free offline
+generator, so an NVIDIA account is never required to reproduce or run the public project.
+[NVIDIA NeMo Data Designer documentation](https://docs.nvidia.com/nemo/datadesigner/getting-started/welcome)
+describes the supported orchestration and validation workflow.
+
+Do not send NCT02054715-D1 rows or row-derived prompts to NVIDIA-hosted endpoints unless the
+applicable source terms permit that processing. Generating more
+rows from a controlled study does not create more independent real-world evidence and may produce
+governed derivatives rather than publicly releasable data.
 
 At least one nonlinear interaction should exist so that tree models have something meaningful
 to compare with logistic regression. For example, missed doses may matter more when treatment
@@ -225,7 +246,33 @@ To make the experiment less circular:
 - vary coefficients and missingness in a stress-test cohort;
 - retain a dummy and logistic-regression baseline;
 - report calibration and uncertainty, not only AUROC;
-- describe restricted participant datasets as future external validation.
+- report NCT02054715-D1 only as a separate study-specific benchmark if participant rows become
+  legitimately accessible; otherwise keep it as an unavailable future-validation adapter.
+
+### 3.7 Future NCT02054715-D1 adapter
+
+The public NCT02054715-D1 dictionary defines a scrambled participant identifier, baseline
+demographics and treatment variables, study group, `Dropouttime`, and `Dropout` reason. It proves
+that the study schema contains a real dropout label, but it does not supply participant rows. The
+study also does not provide the multi-condition visit, dose, laboratory, and adverse-event tables
+needed for the TrialSync day-30/day-90 Scenario Lab.
+
+Use it, if participant rows become legitimately accessible, for a second experiment with its own
+research question, feature contract, follow-up semantics, split, MLflow experiment, model
+artifacts, and limitations. Do not
+merge it with the synthetic cohort or train a synthetic-data generator from it merely to claim a
+larger real dataset. Approved aggregate distributions may inform documented plausibility checks;
+they do not become empirical support for conditions or workflows absent from the source study.
+
+NCI now directs researchers to request NCTN/NCORP patient-level data through dbGaP, but
+NCT02054715 is not in the current available-dataset list as of 2026-08-01. If a legitimate
+row-level source appears, record its use, storage, expiration, and disclosure terms before using
+the data.
+
+Primary sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.nih.gov/system/files/dataset/NCT02054715-D1/NCT02054715-D1-Data-Dictionary.pdf),
+[published study](https://pubmed.ncbi.nlm.nih.gov/30291797/),
+[NCI NCTN/NCORP Data Archive](https://dctd.cancer.gov/research/networks/nctn/data-archive), and
+[NIH dbGaP access process](https://www.grants.nih.gov/policy-and-compliance/policy-topics/sharing-policies/accessing-data/dbgap).
 
 ## 4. A viable screening-derived cohort and similarity dataset
 
@@ -500,7 +547,7 @@ migrations, verify health, and restore the prior commit when the health gate fai
 |---|---|---|---|
 | R1 canonical PDF | High | deterministic pagination and long text | 3–5 focused days |
 | R2 GitHub Actions CI/CD | High | PostgreSQL, deployment secrets, health gates, and rollback | 4–6 focused days |
-| R3 synthetic longitudinal protocol/dataset | Medium–high | invalid or trivially learnable generator | 1.5–2.5 weeks |
+| R3 hybrid longitudinal protocol/dataset | Medium–high | invalid/trivially learnable generator, optional-provider drift, or conflating controlled and synthetic evidence | 2–3 weeks |
 | R4 models, MLflow, SHAP | Medium–high | leakage, calibration, dependency weight | 2–3 weeks |
 | R5 risk API and Scenario Lab | Medium–high | feature parity and non-causal wording | 1.5–2.5 weeks |
 | R6 DBSCAN, FAISS, Cohort Atlas | Medium–high | patient-level matrix design, stability, and honest 2D visualization | 2–3 weeks |
@@ -787,6 +834,8 @@ method or evidence that produced it.
 - canonical PDF;
 - GitHub Actions CI/CD with a protected, health-gated deployment and rollback;
 - separate multi-condition synthetic longitudinal dropout cohort;
+- optional NeMo Data Designer orchestration with an offline audited generator as the source of labels;
+- a separate NCT02054715-D1 benchmark only if participant rows become legitimately accessible;
 - screening-derived patient-fact and screening-profile cohorts;
 - logistic regression, XGBoost, LightGBM, MLflow, and SHAP;
 - missed-dose Scenario Lab;
@@ -807,6 +856,10 @@ method or evidence that produced it.
 - automatically route 429s to an unevaluated 1B model;
 - deploy from an untested commit or without migration, health-gate, and rollback behavior;
 - claim clinical validity from synthetic data.
+- describe NCT-derived synthetic rows as additional independent participants or broader external
+  validation.
+- upload restricted participant rows to a hosted generator when their source terms do not permit
+  that processing.
 
 ### Next task
 

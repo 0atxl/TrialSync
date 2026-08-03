@@ -267,3 +267,70 @@ async def test_guided_trial_criterion_validation_is_stable(
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "TRIAL_CRITERION_VALUE_INVALID"
     assert response.json()["error"]["field"] == field
+
+
+async def test_generic_trial_rule_validation_rejects_typos_and_unknown_facts(
+    api: AsyncClient,
+    account_prefix: str,
+) -> None:
+    account = await register(api, f"{account_prefix}-rule-validation@example.com")
+    headers = auth(account)
+    trial = await api.post(
+        "/api/v1/trials",
+        headers=headers,
+        json={"title": "Synthetic rule validation", "condition": "Synthetic"},
+    )
+    trial_id = trial.json()["id"]
+    version = await api.post(f"/api/v1/trials/{trial_id}/versions/draft", headers=headers)
+    criteria_url = f"/api/v1/trials/{trial_id}/versions/{version.json()['id']}/criteria"
+
+    misspelled_operator = await api.post(
+        criteria_url,
+        headers=headers,
+        json={
+            "kind": "inclusion",
+            "order": 1,
+            "source_text": "Type 2 diabetes",
+            "normalized_rule": {"op": "presnet", "fact": "condition.type2_diabetes"},
+        },
+    )
+    assert misspelled_operator.status_code == 422
+    assert misspelled_operator.json()["error"]["code"] == "TRIAL_RULE_INVALID"
+    assert '"presnet"' in misspelled_operator.json()["error"]["message"]
+    assert misspelled_operator.json()["error"]["details"][0]["path"] == "$.op"
+
+    unknown_fact = await api.post(
+        criteria_url,
+        headers=headers,
+        json={
+            "kind": "inclusion",
+            "order": 1,
+            "source_text": "Diabetes",
+            "normalized_rule": {"op": "present", "fact": "condition.diabtes"},
+        },
+    )
+    assert unknown_fact.status_code == 422
+    assert unknown_fact.json()["error"]["details"][0]["code"] == "RULE_FACT_UNKNOWN"
+
+
+async def test_direct_approved_version_creation_requires_reviewed_draft(
+    api: AsyncClient,
+    account_prefix: str,
+) -> None:
+    account = await register(api, f"{account_prefix}-direct-approved@example.com")
+    headers = auth(account)
+    trial = await api.post(
+        "/api/v1/trials",
+        headers=headers,
+        json={"title": "Synthetic direct approval", "condition": "Synthetic"},
+    )
+
+    response = await api.post(
+        f"/api/v1/trials/{trial.json()['id']}/versions",
+        headers=headers,
+        json={"version": 1, "status": "approved"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "TRIAL_VERSION_REVIEW_INCOMPLETE"
+    assert response.json()["error"]["field"] == "status"

@@ -67,7 +67,9 @@ export function ImportReviewPage() {
     try { await save() }
     catch (exception) {
       setError(
-        exception instanceof Error && exception.message.includes('date of birth')
+        exception instanceof ApiError && exception.code === 'IMPORT_RULE_INVALID'
+          ? exception.message
+          : exception instanceof Error && exception.message.includes('date of birth')
           ? 'Date of birth cannot be in the future.'
           : exception instanceof SyntaxError ||
               exception instanceof Error && exception.message.includes('Rule JSON')
@@ -86,6 +88,7 @@ export function ImportReviewPage() {
     } catch (exception) {
       if (exception instanceof ApiError && exception.code === 'PATIENT_NAME_REVIEW_REQUIRED') setDuplicateOpen(true)
       else if (exception instanceof ApiError && exception.code === 'IMPORT_REVIEW_INCOMPLETE') setError('Selected criteria need valid deterministic rule JSON before approval. Deselect unsupported criteria or enter a supported rule.')
+      else if (exception instanceof ApiError && exception.code === 'IMPORT_RULE_INVALID') setError(exception.message)
       else if (exception instanceof Error && exception.message.includes('date of birth')) setError('Date of birth cannot be in the future.')
       else if (exception instanceof SyntaxError) setError('Each selected trial criterion needs valid rule JSON.')
       else setError('The reviewed import could not be approved. No structured record was created.')

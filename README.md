@@ -234,6 +234,13 @@ The implementation retains immutable internal copies so saved screenings stay
 reproducible, but it does not expose draft, revision, ordering, or protocol-history
 controls in routine UI. Unsupported criterion wording can be saved for mapping
 review, but blocks saving until it is mapped to a supported rule or removed.
+Every rule is also recursively validated against the active catalog at criterion
+save, import review, and version approval boundaries. Misspelled operators,
+unknown fact paths, incompatible units, malformed nested expressions, and
+unsupported fact types return a structured validation error rather than becoming
+an approved rule. Screening execution still treats invalid or unsupported rules
+as `unknown` defensively, and the screening UI distinguishes that trial
+configuration problem from missing patient evidence.
 
 ## Saved screening history
 

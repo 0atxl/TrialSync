@@ -302,6 +302,38 @@ async def test_trial_import_requires_manual_rule_review_and_creates_a_draft(
     )
 
 
+async def test_trial_import_rejects_a_malformed_edited_rule(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}-invalid-rule@example.com")
+    headers = auth(account)
+    analyzed = await api.post(
+        "/api/v1/imports",
+        headers=headers,
+        json={
+            "kind": "trial",
+            "source_type": "text",
+            "text": (
+                "Title: Synthetic invalid rule protocol\n"
+                "Condition: Synthetic condition\n"
+                "Inclusion Criteria:\n- Age 18 to 75 years"
+            ),
+        },
+    )
+    assert analyzed.status_code == 201, analyzed.text
+    review = analyzed.json()
+    candidates = review["candidates"]
+    candidates["criteria"][0]["normalized_rule"]["op"] = "presnet"
+    saved = await api.put(
+        f"/api/v1/imports/{review['id']}",
+        headers=headers,
+        json={"candidates": candidates},
+    )
+    assert saved.status_code == 422, saved.text
+    assert saved.json()["error"]["code"] == "IMPORT_RULE_INVALID"
+    assert '"presnet"' in saved.json()["error"]["message"]
+
+
 async def test_text_pdf_preserves_page_text_and_pdf_failures_are_explicit(
     api: AsyncClient, email_prefix: str
 ) -> None:

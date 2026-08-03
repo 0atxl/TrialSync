@@ -11,8 +11,16 @@ from sqlalchemy.orm import selectinload
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
 from trialsync.db.models import Criterion, FactType, Trial, TrialVersion, VersionStatus
+from trialsync.domain.rules import (
+    RuleValidationIssue,
+    validate_rule,
+)
 from trialsync.patient_data import PatientFactInputKind
-from trialsync.patient_data.catalog import active_catalog_entry_by_key
+from trialsync.patient_data.catalog import (
+    active_catalog_entries,
+    active_catalog_entry_by_key,
+    rule_fact_specs,
+)
 from trialsync.schemas import (
     CriterionCreate,
     CriterionRead,
@@ -43,6 +51,43 @@ def display_number(value: Decimal) -> str:
 
 def json_number(value: Decimal) -> int | float:
     return int(value) if value == value.to_integral_value() else float(value)
+
+
+def _rule_error_details(
+    issues: tuple[RuleValidationIssue, ...],
+    *,
+    criterion: Criterion | None = None,
+) -> list[dict[str, object]]:
+    return [
+        {
+            "criterion_id": str(criterion.id) if criterion is not None else None,
+            "criterion_order": criterion.order if criterion is not None else None,
+            "code": issue.code,
+            "path": issue.path,
+            "message": issue.message,
+        }
+        for issue in issues
+    ]
+
+
+async def validate_rule_for_session(
+    session: SessionDep,
+    expression: object,
+    *,
+    criterion: Criterion | None = None,
+) -> None:
+    entries = await active_catalog_entries(session)
+    issues = validate_rule(expression, fact_specs=rule_fact_specs(entries))
+    if not issues:
+        return
+    prefix = f"Criterion {criterion.order}: " if criterion is not None else "Criterion: "
+    raise ApplicationError(
+        code="TRIAL_RULE_INVALID",
+        message=prefix + issues[0].message,
+        status_code=422,
+        field=(f"criteria.{criterion.order}.normalized_rule" if criterion else "normalized_rule"),
+        details=_rule_error_details(issues, criterion=criterion),
+    )
 
 
 async def guided_criterion_values(
@@ -220,7 +265,7 @@ def require_draft(version: TrialVersion) -> None:
         )
 
 
-def require_approvable(version: TrialVersion) -> None:
+async def require_approvable(session: SessionDep, version: TrialVersion) -> None:
     if not version.criteria:
         raise ApplicationError(
             code="TRIAL_VERSION_REVIEW_INCOMPLETE",
@@ -235,6 +280,26 @@ def require_approvable(version: TrialVersion) -> None:
             code="TRIAL_VERSION_REVIEW_INCOMPLETE",
             message="Every criterion needs a deterministic rule before approval.",
             status_code=422,
+        )
+    entries = await active_catalog_entries(session)
+    fact_specs = rule_fact_specs(entries)
+    invalid: list[tuple[Criterion, tuple[RuleValidationIssue, ...]]] = []
+    for criterion in version.criteria:
+        issues = validate_rule(criterion.normalized_rule, fact_specs=fact_specs)
+        if issues:
+            invalid.append((criterion, issues))
+    if invalid:
+        criterion, issues = invalid[0]
+        raise ApplicationError(
+            code="TRIAL_RULE_INVALID",
+            message=f"Criterion {criterion.order}: {issues[0].message}",
+            status_code=422,
+            field=f"criteria.{criterion.order}.normalized_rule",
+            details=[
+                detail
+                for item, item_issues in invalid
+                for detail in _rule_error_details(item_issues, criterion=item)
+            ],
         )
 
 
@@ -321,6 +386,13 @@ async def create_version(
     payload: VersionCreate, trial_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> TrialVersion:
     await owned_trial(session, user, trial_id)
+    if payload.status is VersionStatus.approved:
+        raise ApplicationError(
+            code="TRIAL_VERSION_REVIEW_INCOMPLETE",
+            message="Create a draft version, add validated criteria, then approve it.",
+            status_code=422,
+            field="status",
+        )
     version = TrialVersion(trial_id=trial_id, **payload.model_dump())
     session.add(version)
     try:
@@ -394,7 +466,7 @@ async def update_version(
     version = await owned_version(session, user, trial_id, version_id)
     require_draft(version)
     if payload.status is VersionStatus.approved:
-        require_approvable(version)
+        await require_approvable(session, version)
     for key, value in payload.model_dump().items():
         setattr(version, key, value)
     try:
@@ -438,6 +510,8 @@ async def create_criterion(
 ) -> Criterion:
     version = await owned_version(session, user, trial_id, version_id)
     require_draft(version)
+    if payload.normalized_rule is not None:
+        await validate_rule_for_session(session, payload.normalized_rule)
     criterion = Criterion(trial_version_id=version_id, **payload.model_dump())
     session.add(criterion)
     try:
@@ -469,6 +543,7 @@ async def create_guided_criterion(
     version = await owned_version(session, user, trial_id, version_id)
     require_draft(version)
     source_text, normalized_rule = await guided_criterion_values(session, payload)
+    await validate_rule_for_session(session, normalized_rule)
     last_order = await session.scalar(
         select(func.max(Criterion.order)).where(Criterion.trial_version_id == version_id)
     )
@@ -540,6 +615,8 @@ async def update_criterion(
             code="CRITERION_NOT_FOUND", message="Criterion was not found.", status_code=404
         )
     for key, value in payload.model_dump().items():
+        if key == "normalized_rule" and value is not None:
+            await validate_rule_for_session(session, value)
         setattr(criterion, key, value)
     try:
         await session.commit()
@@ -582,6 +659,7 @@ async def update_guided_criterion(
             status_code=404,
         )
     source_text, normalized_rule = await guided_criterion_values(session, payload)
+    await validate_rule_for_session(session, normalized_rule)
     criterion.kind = payload.kind
     criterion.source_text = source_text
     criterion.normalized_rule = normalized_rule

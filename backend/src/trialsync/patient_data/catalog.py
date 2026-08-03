@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trialsync.db.models import Assertion, ClinicalConcept, FactType
+from trialsync.domain.rules import RuleFactSpec
 from trialsync.patient_data.contracts import (
     PatientFactCatalogEntry,
     PatientFactGroup,
@@ -28,6 +31,26 @@ def catalog_entry_from_record(record: ClinicalConcept) -> PatientFactCatalogEntr
         help_text=record.help_text,
         display_order=record.display_order,
     )
+
+
+def rule_fact_specs(entries: Iterable[PatientFactCatalogEntry]) -> dict[str, RuleFactSpec]:
+    """Adapt catalog entries to the pure rule validator's fact contract."""
+
+    specs = {
+        "demographic.age": RuleFactSpec(numeric=True, units=("year",)),
+        "demographic.male": RuleFactSpec(numeric=False),
+        "demographic.female": RuleFactSpec(numeric=False),
+    }
+    for entry in entries:
+        units = tuple(
+            unit for unit in (entry.fixed_unit, *entry.allowed_units) if unit
+        )
+        specs[f"{entry.fact_type.value}.{entry.concept}"] = RuleFactSpec(
+            numeric=entry.input_kind.value == "numeric",
+            units=units,
+            screening_supported=entry.screening_supported,
+        )
+    return specs
 
 
 async def active_catalog_entries(session: AsyncSession) -> list[PatientFactCatalogEntry]:

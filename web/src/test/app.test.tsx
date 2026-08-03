@@ -141,6 +141,24 @@ const importReview = {
   },
   warnings: [], quality: { page_count: 1, character_count: 52 }, approved_resource_id: null, created_at: '2026-07-15T00:00:00Z',
 }
+const trialImportReview = {
+  ...importReview,
+  kind: 'trial' as const,
+  candidates: {
+    profile: { title: 'Synthetic imported trial', condition: 'Synthetic condition', phase: null },
+    criteria: [{
+      candidate_id: 'criterion-candidate-1',
+      selected: true,
+      kind: 'inclusion' as const,
+      order: 1,
+      source_text: 'Type 2 diabetes',
+      normalized_rule: { op: 'present', fact: 'condition.type2_diabetes' },
+      parse_state: 'parsed' as const,
+      source: { span_id: 'span-1', page: 1, start: 0, end: 16, text: 'Type 2 diabetes' },
+      warnings: [],
+    }],
+  },
+}
 const conversation = {
   screening_id: 'screen-1',
   provider: { enabled: true, provider: 'canonical', model: 'deterministic-canonical-1', prompt_version: 'screening-chat-v1' },
@@ -356,6 +374,24 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByText('Date of birth is required to calculate age.')).toBeInTheDocument()
     expect(screen.getByText('Synthetic Ada')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Patient facts at screening' })).toBeInTheDocument()
+  })
+
+  it('separates invalid trial configuration from missing patient evidence', async () => {
+    authenticate()
+    const configurationIssue = {
+      ...screening,
+      evaluations: [{
+        ...evaluation,
+        reason_code: 'UNSUPPORTED_RULE',
+        missing_information: [],
+      }],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(configurationIssue)))
+    renderRoute('/screenings/screen-1')
+    expect(await screen.findByText('Trial configuration needs attention.')).toBeInTheDocument()
+    expect(screen.getByText(/Patient information is not the problem/)).toBeInTheDocument()
+    expect(screen.getByText('This trial criterion has an unsupported rule configuration.')).toBeInTheDocument()
+    expect(screen.getByText(/Ask the trial author to correct this criterion/)).toBeInTheDocument()
   })
 
   it('downloads the canonical report with loading and success feedback', async () => {
@@ -1445,6 +1481,30 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(fetchMock.mock.calls.some(([input]) => input.endsWith('/imports/import-1/approve'))).toBe(true)
   })
 
+  it('shows imported trial rule validation errors next to the review workspace', async () => {
+    authenticate()
+    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+      if (input.endsWith('/imports/import-1') && options?.method === 'PUT') {
+        return Promise.resolve(json({
+          error: {
+            code: 'IMPORT_RULE_INVALID',
+            message: 'Criterion 1: Fact "condition.diabtes" is not present in the active clinical catalog.',
+          },
+        }, 422))
+      }
+      return Promise.resolve(json(trialImportReview))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/imports/import-1')
+
+    await screen.findByRole('heading', { name: 'Review extracted trial candidates' })
+    await userEvent.click(screen.getByRole('button', { name: 'Save review' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Fact "condition.diabtes" is not present in the active clinical catalog.',
+    )
+  })
+
   it('rejects a future date of birth before approving an imported patient', async () => {
     authenticate()
     const fetchMock = vi.fn().mockResolvedValue(json(importReview))
@@ -1527,6 +1587,42 @@ describe('TrialSync Phase 5 screening workflow', () => {
         .not.toBeInTheDocument())
     expect(screen.getByText('Protocol saved')).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(true)
+  })
+
+  it('shows trial rule validation errors when saving a protocol', async () => {
+    authenticate()
+    const criterion = {
+      id: 'c-condition',
+      kind: 'inclusion' as const,
+      order: 1,
+      source_text: 'Type 2 diabetes',
+      normalized_rule: { op: 'present', fact: 'condition.type2_diabetes' },
+      required: true,
+    }
+    const draft = {
+      ...trial,
+      versions: [{ ...trial.versions[0], status: 'draft' as const, criteria: [criterion] }],
+    }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (options?.method === 'PUT') {
+        return Promise.resolve(json({
+          error: {
+            code: 'TRIAL_RULE_INVALID',
+            message: 'Criterion 1: Fact "condition.diabtes" is not present in the active clinical catalog.',
+          },
+        }, 422))
+      }
+      return Promise.resolve(json(draft))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/trials/t1')
+
+    await screen.findByRole('button', { name: 'Save protocol' })
+    await userEvent.click(screen.getByRole('button', { name: 'Save protocol' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Fact "condition.diabtes" is not present in the active clinical catalog.',
+    )
   })
 
   it('builds a guided deterministic criterion without codes, units, or order fields', async () => {

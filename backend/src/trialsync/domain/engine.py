@@ -7,6 +7,11 @@ from decimal import Decimal, InvalidOperation
 from typing import cast
 
 from trialsync.domain.logic import truth_and, truth_not, truth_or
+from trialsync.domain.rules import (
+    SUPPORTED_DSL_VERSION,
+    SUPPORTED_OPERATORS,
+    units_match,
+)
 from trialsync.domain.types import (
     ApprovedTrialVersion,
     Assertion,
@@ -27,25 +32,6 @@ from trialsync.domain.types import (
     Temporality,
     TruthValue,
 )
-
-SUPPORTED_DSL_VERSION = "1.0"
-SUPPORTED_OPERATORS = {
-    "and",
-    "or",
-    "not",
-    "present",
-    "absent",
-    "eq",
-    "lt",
-    "lte",
-    "gt",
-    "gte",
-    "between",
-    "concept_is",
-    "concept_in",
-    "current",
-    "within_before",
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,28 +276,10 @@ def _decimal(value: object) -> Decimal | None:
         return None
 
 
-def _unit_key(value: str) -> str:
-    return value.strip().lower().replace(" ", "")
-
-
-UNIT_ALIASES = {
-    "%": "%",
-    "percent": "%",
-    "year": "year",
-    "years": "year",
-    "ml/min/1.73m2": "ml/min/1.73m2",
-    "ml/min/1.73m²": "ml/min/1.73m2",
-}
-
-
 def _units_match(actual: str | None, expected: object) -> bool:
     if not isinstance(expected, str):
         return actual is None
-    if actual is None:
-        return False
-    return UNIT_ALIASES.get(_unit_key(actual), _unit_key(actual)) == UNIT_ALIASES.get(
-        _unit_key(expected), _unit_key(expected)
-    )
+    return units_match(actual, expected)
 
 
 def _compare(op: str, value: Decimal, expression: RuleExpression) -> bool | None:

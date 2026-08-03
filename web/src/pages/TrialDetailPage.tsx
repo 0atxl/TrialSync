@@ -289,6 +289,8 @@ export function TrialDetailPage() {
         exception instanceof ApiError &&
         exception.code === 'TRIAL_VERSION_REVIEW_INCOMPLETE'
           ? 'Resolve every review-only criterion and add at least one structured criterion.'
+          : exception instanceof ApiError && exception.code === 'TRIAL_RULE_INVALID'
+            ? exception.message
           : 'The protocol could not be saved.'
       setError(message)
       showToast({

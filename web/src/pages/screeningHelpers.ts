@@ -5,13 +5,15 @@ const reasonLabels: Record<string, string> = {
   MISSING_FACT: 'Required information is not recorded.',
   EVALUATED_TRUE: 'The recorded evidence satisfies this rule.',
   EVALUATED_FALSE: 'The recorded evidence does not satisfy this rule.',
-  UNSUPPORTED_RULE: 'This rule needs manual review because it is not supported yet.',
+  UNSUPPORTED_RULE: 'This trial criterion has an unsupported rule configuration.',
   CONFLICTING_EVIDENCE: 'The record contains conflicting evidence.',
   INCOMPATIBLE_UNIT: 'The recorded unit cannot be compared safely.',
   STALE_EVIDENCE: 'The available evidence is outside the required time window.',
-  INVALID_RULE: 'This rule is invalid and requires manual correction.',
+  INVALID_RULE: 'This trial criterion has an invalid rule configuration.',
 }
 export const reasonLabel = (reason: string) => reasonLabels[reason] ?? 'This criterion requires review of its recorded evidence.'
+export const isConfigurationReason = (reason: string) =>
+  reason === 'UNSUPPORTED_RULE' || reason === 'INVALID_RULE'
 export const screeningTrialLabel = (screening: { trial_version?: { registry_id: string; title: string; version: number }; trial_version_id: string }, trials: Trial[] = []) => screening.trial_version ? `${screening.trial_version.registry_id} · ${screening.trial_version.title}` : versionLabel(trials, screening.trial_version_id)
 export const versionLabel = (trials: Trial[], id: string) => {
   for (const trial of trials) {

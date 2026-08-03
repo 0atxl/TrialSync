@@ -29,6 +29,11 @@ from trialsync.db.models import (
     TrialVersion,
     VersionStatus,
 )
+from trialsync.domain.rules import (
+    RuleFactSpec,
+    RuleValidationIssue,
+    validate_rule,
+)
 from trialsync.imports.parser import (
     ImportParseError,
     extract_pdf_input,
@@ -46,7 +51,7 @@ from trialsync.imports.schemas import (
 from trialsync.nlp.extraction import GroqExtractor, RuleBasedExtractor
 from trialsync.nlp.groq import ProviderCallError
 from trialsync.patient_data import PatientFactCatalogEntry, PatientFactInputKind
-from trialsync.patient_data.catalog import active_catalog_entries
+from trialsync.patient_data.catalog import active_catalog_entries, rule_fact_specs
 
 router = APIRouter(prefix="/api/v1/imports", tags=["imports"])
 
@@ -325,6 +330,40 @@ def _preserve_sources(document: Document, candidates: dict[str, object]) -> None
         }
 
 
+def _validate_import_trial_rules(
+    candidates: TrialImportCandidates,
+    fact_specs: dict[str, RuleFactSpec],
+) -> None:
+    invalid: list[tuple[Any, tuple[RuleValidationIssue, ...]]] = []
+    for criterion in candidates.criteria:
+        if not criterion.selected or criterion.normalized_rule is None:
+            continue
+        issues = validate_rule(criterion.normalized_rule, fact_specs=fact_specs)
+        if issues:
+            invalid.append((criterion, issues))
+    if not invalid:
+        return
+    details = [
+        {
+            "criterion_id": str(criterion.candidate_id),
+            "criterion_order": criterion.order,
+            "code": issue.code,
+            "path": issue.path,
+            "message": issue.message,
+        }
+        for criterion, issues in invalid
+        for issue in issues
+    ]
+    first_criterion, first_issues = invalid[0]
+    raise ApplicationError(
+        code="IMPORT_RULE_INVALID",
+        message=f"Criterion {first_criterion.order}: {first_issues[0].message}",
+        status_code=422,
+        field="criteria",
+        details=details,
+    )
+
+
 @router.post("", response_model=ImportRead, status_code=status.HTTP_201_CREATED)
 async def analyze_import(
     payload: ImportAnalyzeRequest, request: Request, session: SessionDep, user: CurrentUser
@@ -428,6 +467,12 @@ async def update_import(
             for warning in document.warnings_json
             if not warning.startswith("Catalog review:")
         ] + catalog_warnings
+    else:
+        trial_candidates = TrialImportCandidates.model_validate(candidates)
+        _validate_import_trial_rules(
+            trial_candidates,
+            rule_fact_specs(await active_catalog_entries(session)),
+        )
     document.candidates_json = candidates
     await session.commit()
     return import_read(await owned_import(session, user, import_id))
@@ -565,6 +610,10 @@ async def approve_import(
                     message="Selected criteria need valid manual rules before approval.",
                     status_code=422,
                 )
+            _validate_import_trial_rules(
+                trial_candidates,
+                rule_fact_specs(await active_catalog_entries(session)),
+            )
             trial = Trial(
                 owner_id=user.id,
                 registry_id=f"SYN-TRIAL-{uuid.uuid4().hex[:10].upper()}",

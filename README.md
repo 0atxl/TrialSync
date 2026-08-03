@@ -303,8 +303,8 @@ unsupported details with visible warnings rather than screening evidence. Patien
 approval creates current structured facts and patient activity events.
 Trial approval opens the current criteria for editing and then saves the protocol
 through the same simple workflow used by manual authoring. Unsupported criterion prose stays visible for manual review
-and is never silently converted into an eligibility rule. No hosted NLP provider is
-used in this phase.
+and is never silently converted into an eligibility rule. Hosted NLP remains
+optional review assistance and cannot approve or change the deterministic rule.
 
 ## Bounded NLP and explanation conversation
 
@@ -431,6 +431,11 @@ make audit
 `make verify-backend` and `make verify-frontend` provide narrower full-suite gates.
 `make audit` checks installed Python packages and the locked npm tree against current
 advisory data, so it requires network access.
+
+As of 2026-08-04, the Python dependency audit is clean. The npm audit still reports
+the tracked React Router RSC advisory and a transitive PostCSS advisory; neither is
+used by the deterministic screening engine, and the React Router migration remains
+separate compatibility work.
 
 The backend import is intentionally side-effect free: it does not connect to PostgreSQL, create tables, or load models. Schema changes are made only through Alembic.
 

@@ -411,15 +411,18 @@ architecture/evaluation docs, and this phase plan.
 Behavior/API/data changes: Added owner-scoped `GET /api/v1/screenings/{screening_id}/report.pdf`;
 no database migration or stored-report column was added.
 
-Tests and builds run: `make verify` (151 backend tests, 69 frontend tests, migration,
-Ruff, mypy, evaluation, and production build), focused report tests, backend dependency
-audit, and production backend image/font smoke check.
+Tests and builds run: `make verify` (151 backend tests and 69 frontend tests at the
+R1 handoff; the current repository gate reports 159 backend tests and 72 frontend
+tests), migration, Ruff, mypy, evaluation, and production build; focused report
+tests, backend dependency audit, and production backend image/font smoke check.
 
 Visual states inspected: Desktop and narrow saved-screening detail pages, readable
 three-page PDF metadata/evidence pages, long/Unicode pagination fixtures.
 
-Known limitations: `npm audit` still reports existing high advisories in
-`brace-expansion` and `react-router`; they are outside R1 and were not auto-upgraded.
+Known limitations: The R1 handoff recorded high advisories in `brace-expansion` and
+`react-router`. The current audit has cleared `brace-expansion` but still reports
+high React Router and moderate PostCSS advisories; they remain outside R1 and were
+not auto-upgraded.
 
 Exit criteria not yet satisfied: None for R1.
 

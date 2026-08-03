@@ -1,9 +1,10 @@
 # TrialSync Codebase Health Audit
 
-**Date:** 2026-08-02
-**Status:** Repository-health snapshot after PD6, the R1 report, and R2 CI; this
-is supporting guidance, not an implementation phase or replacement for the active
-research and patient-data plans.
+**Date:** 2026-08-04
+**Status:** Repository-health snapshot after PD6, the R1 report, R2 CI, current
+rule validation, and the initial NeMo dropout-data guide; this is supporting
+guidance, not an implementation phase or replacement for the active research and
+patient-data plans.
 
 ## Scope and measurements
 
@@ -12,13 +13,13 @@ Physical line counts after removing proven stale code are:
 
 | Area | Lines |
 | --- | ---: |
-| Backend runtime | 9,415 |
-| Frontend runtime, including CSS (tests excluded) | 7,589 |
+| Backend runtime | 9,955 |
+| Frontend runtime, including CSS (tests excluded) | 7,582 |
 | Alembic migrations | 1,123 |
-| Backend, frontend, and browser tests | 7,082 |
-| Total application code and tests | 25,209 |
+| Backend, frontend, and browser tests | 7,387 |
+| Total application code and tests | 26,047 |
 
-For context, all tracked repository text is approximately 40,178 lines when
+For context, all tracked repository text is approximately 41,586 lines when
 Markdown documentation and JSON/lock/configuration files are included. These
 counts exclude dependencies, generated builds, caches, and local artifacts.
 
@@ -28,9 +29,9 @@ surfaces.
 
 ## Evidence collected
 
-- The full backend suite contains 151 tests. The audit coverage run measured
+- The full backend suite contains 159 tests. The audit coverage run measured
   90% statement coverage across backend runtime modules.
-- The frontend suite contains 69 unit/component tests, and the repository keeps
+- The frontend suite contains 72 unit/component tests, and the repository keeps
   a separate browser workflow for the principal synthetic-data path. The
   browser workflow was not rerun here because `make test-e2e` reseeds the demo
   workspace; the existing frontend gate was kept non-destructive while the
@@ -42,10 +43,12 @@ surfaces.
 - Advisory complexity findings are concentrated in guided trial-criterion
   compilation, the deterministic rule engine, PDF/OCR parsing, and bounded
   provider clients rather than spread throughout the repository.
+- The new rule validator is covered by focused tests but currently has 71%
+  statement coverage; the overall backend remains at 90%.
 - `pip-audit --local` is clean. The transitive `brace-expansion` advisories
   reported by the initial JavaScript audit are resolved in the lockfile. npm
-  still reports [the React Router RSC advisory](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
-  for the current 7.x DOM package;
+  still reports the [React Router RSC advisory](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
+  for the current 7.x DOM package and a moderate transitive PostCSS advisory;
   this SPA does not use the unstable RSC APIs. React Router v8.3 is the patched
   line, and [the v8 upgrade guide](https://reactrouter.com/upgrading/v7)
   documents that v8 intentionally removes the `react-router-dom` re-export package;

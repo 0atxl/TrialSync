@@ -16,7 +16,7 @@ Run the reproducible offline evaluation with `make evaluate`; detailed fixture m
 
 The held-out fixture checks candidate precision/recall, exact structure, source-quote validity, supported-conversation citation validity, refusal behavior, and deterministic parser latency. The six-workflow browser suite covers registration/history, needs-review evidence, batch screening, reviewed import, conversation persistence/refusal, and responsive chatbot interaction. Backend tests cover the rule engine, ownership, persistence, provider failures, and OCR fallback/provenance.
 
-The 2026-08-02 local verification gate reports 151 backend tests, 69 frontend tests,
+The 2026-08-04 local verification gate reports 159 backend tests, 72 frontend tests,
 6 browser end-to-end workflows, a successful frontend production build, Ruff,
 mypy, ESLint, TypeScript, migrations, the canonical screening-report API/UI tests,
 and the held-out synthetic evaluation. The R1 visual review covered desktop and

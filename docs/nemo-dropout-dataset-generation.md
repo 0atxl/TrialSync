@@ -6,8 +6,17 @@ not a clinically validated data-generating process.
 
 The proposed first experiment uses NVIDIA NeMo Data Designer for structured
 synthetic attributes and a controlled Python step for longitudinal visits and
-dropout outcomes. The resulting tables can be used directly to train the
-dropout model.
+dropout outcomes. Once that simulation and export step is implemented and
+validated, the resulting tables can be used to train the dropout model.
+
+## Current implementation status
+
+This document is a schema and starter workflow, not a complete executable
+generator. It includes the baseline NeMo configuration and the logic that the
+finished pipeline should follow, but the full visit simulation, adverse-event
+process, dropout-label generation, validation report, and export pipeline for all
+four Parquet tables still need to be implemented after the schema is reviewed
+and finalized.
 
 ## Important design decision
 

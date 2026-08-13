@@ -1,0 +1,41 @@
+{
+  "report_type": "observed_generated_cohort_summary",
+  "artifact_directory": "artifacts/nemo/r3_demo",
+  "generator": "nvidia_nemo_data_designer",
+  "generator_version": "r3-nemo-btech-v3",
+  "data_designer_version": "0.8.0",
+  "dataset_contract_version": null,
+  "generation_run_id": null,
+  "legacy_metadata_note": "This accepted artifact predates dataset-contract and run-ID metadata; no identifier has been invented retrospectively.",
+  "requested_enrollments": 400,
+  "accepted_enrollments": 400,
+  "dropout_count": 64,
+  "dropout_prevalence": 0.16,
+  "dropout_by_split": {
+    "test": {
+      "rows": 60,
+      "dropouts": 9,
+      "prevalence": 0.15
+    },
+    "train": {
+      "rows": 280,
+      "dropouts": 45,
+      "prevalence": 0.16071428571428573
+    },
+    "validation": {
+      "rows": 60,
+      "dropouts": 10,
+      "prevalence": 0.16666666666666666
+    }
+  },
+  "dropout_probability_by_hidden_tier": {
+    "low": 0.08,
+    "moderate": 0.18,
+    "high": 0.35,
+    "very_high": 0.55
+  },
+  "dropout_prevalence_policy": {
+    "forced_to_exact_target": false,
+    "interpretation": "Observed stochastic output from this synthetic run, not a clinical estimate or exact target."
+  }
+}

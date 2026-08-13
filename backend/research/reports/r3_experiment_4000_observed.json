@@ -1,0 +1,651 @@
+{
+  "artifact_directory": "artifacts/nemo/r3_experiment_4000",
+  "checksum_file_count": 626,
+  "data_quality": {
+    "all_evaluable_relationship_directions_observed": true,
+    "generator_validation_passed": true,
+    "primary_view_row_count_matches_enrollments": true
+  },
+  "dropout_by_condition": [
+    {
+      "condition_category": "cardiovascular",
+      "dropouts": 134,
+      "prevalence": 0.16584158415841585,
+      "rows": 808
+    },
+    {
+      "condition_category": "metabolic",
+      "dropouts": 125,
+      "prevalence": 0.16087516087516088,
+      "rows": 777
+    },
+    {
+      "condition_category": "oncology",
+      "dropouts": 146,
+      "prevalence": 0.18814432989690721,
+      "rows": 776
+    },
+    {
+      "condition_category": "renal",
+      "dropouts": 157,
+      "prevalence": 0.19406674907292953,
+      "rows": 809
+    },
+    {
+      "condition_category": "respiratory",
+      "dropouts": 140,
+      "prevalence": 0.1686746987951807,
+      "rows": 830
+    }
+  ],
+  "dropout_by_treatment_arm": [
+    {
+      "dropouts": 325,
+      "prevalence": 0.16531027466937945,
+      "rows": 1966,
+      "treatment_arm": "active"
+    },
+    {
+      "dropouts": 377,
+      "prevalence": 0.18534906588003933,
+      "rows": 2034,
+      "treatment_arm": "control"
+    }
+  ],
+  "dropout_by_trial_version": [
+    {
+      "dropouts": 134,
+      "prevalence": 0.16584158415841585,
+      "rows": 808,
+      "trial_version_id": "trial-cardiovascular-r3-v1"
+    },
+    {
+      "dropouts": 125,
+      "prevalence": 0.16087516087516088,
+      "rows": 777,
+      "trial_version_id": "trial-metabolic-r3-v1"
+    },
+    {
+      "dropouts": 146,
+      "prevalence": 0.18814432989690721,
+      "rows": 776,
+      "trial_version_id": "trial-oncology-r3-v1"
+    },
+    {
+      "dropouts": 157,
+      "prevalence": 0.19406674907292953,
+      "rows": 809,
+      "trial_version_id": "trial-renal-r3-v1"
+    },
+    {
+      "dropouts": 140,
+      "prevalence": 0.1686746987951807,
+      "rows": 830,
+      "trial_version_id": "trial-respiratory-r3-v1"
+    }
+  ],
+  "generation": {
+    "acceptance_strategy": "single_pass_designed_eligible_no_resampling",
+    "accepted_enrollments": 4000,
+    "attempted_enrollments": 4000,
+    "data_designer_version": "0.8.0",
+    "dataset_contract_version": "r3-dataset-contract-v1",
+    "dropout_by_split": {
+      "test": {
+        "dropouts": 106,
+        "prevalence": 0.17666666666666667,
+        "rows": 600
+      },
+      "train": {
+        "dropouts": 491,
+        "prevalence": 0.17535714285714285,
+        "rows": 2800
+      },
+      "validation": {
+        "dropouts": 105,
+        "prevalence": 0.175,
+        "rows": 600
+      }
+    },
+    "dropout_count": 702,
+    "dropout_prevalence": 0.1755,
+    "dynamic_landmark_positive_rows": 994,
+    "generated_at_utc": "2026-08-13T19:37:01.740525+00:00",
+    "generation_run_id": "r3-run-84ab672d-ebc2-447c-a3ad-2cd82a78ad7a",
+    "generator": "nvidia_nemo_data_designer",
+    "generator_version": "r3-nemo-btech-v3",
+    "model_usage": "sampler_and_expression_columns_only",
+    "observation_cutoff_day": 30,
+    "prediction_horizon_day": 90,
+    "rejected_enrollments": 0,
+    "requested_enrollments": 4000,
+    "schema_fingerprint_sha256": "d7171e625cf6693a8a94d8ce21e6806a0536aaf0242021096abcac8cb35c8a61",
+    "table_row_counts": {
+      "dynamic_landmarks": 20000,
+      "landmark_day30_features": 4000,
+      "research_adverse_events": 3920,
+      "research_dose_events": 339849,
+      "research_enrollments": 4000,
+      "research_measurements": 98856,
+      "research_outcomes": 4000,
+      "research_participants": 4000,
+      "research_visit_events": 45428,
+      "survival_features": 4000
+    },
+    "unfilled_requested_enrollments": 0,
+    "validation": {
+      "all_enrollments_potentially_eligible": true,
+      "all_primary_rows_have_day30_cutoff": true,
+      "chronology_and_ranges_valid": true,
+      "enrollment_snapshot_consistent": true,
+      "foreign_keys_resolve": true,
+      "label_and_censoring_consistent": true,
+      "model_views_leakage_safe": true,
+      "no_post_observation_events": true,
+      "participant_level_splits": true,
+      "schema_contracts_match": true,
+      "split_consistency": {
+        "dynamic_landmarks": true,
+        "landmark_day30_features": true,
+        "research_adverse_events": true,
+        "research_dose_events": true,
+        "research_enrollments": true,
+        "research_measurements": true,
+        "research_outcomes": true,
+        "research_participants": true,
+        "research_visit_events": true,
+        "survival_features": true
+      },
+      "split_counts": {
+        "test": 600,
+        "train": 2800,
+        "validation": 600
+      },
+      "unique_ids": true
+    }
+  },
+  "leakage_audit": {
+    "all_feature_cutoffs_are_day30": true,
+    "all_primary_scheduled_dose_counts_are_30": true,
+    "all_targets_observed": true,
+    "forbidden_columns_in_primary_view": [],
+    "hidden_generation_columns_exported": [],
+    "no_forbidden_columns": true,
+    "participant_split_overlap_count": 0
+  },
+  "linkage": {
+    "linkage_sha256": "ef9fd65c88720e118cea3b6a43d7455d6fb048b28f1c4b23f20d5dd164efd7e9",
+    "manifest_version": "r3-linkage-manifest-v1",
+    "row_count": 4000
+  },
+  "missingness": {
+    "dynamic_landmarks": {
+      "functional_severity_slope": {
+        "count": 440,
+        "rate": 0.022
+      },
+      "latest_functional_severity": {
+        "count": 18,
+        "rate": 0.0009
+      }
+    },
+    "landmark_day30_features": {},
+    "research_adverse_events": {},
+    "research_dose_events": {
+      "missed_dose_reason": {
+        "count": 308830,
+        "rate": 0.9087271111581908
+      }
+    },
+    "research_enrollments": {},
+    "research_measurements": {
+      "value": {
+        "count": 5466,
+        "rate": 0.05529254673464433
+      }
+    },
+    "research_outcomes": {
+      "dropout_day": {
+        "count": 3298,
+        "rate": 0.8245
+      },
+      "dropout_reason": {
+        "count": 3298,
+        "rate": 0.8245
+      }
+    },
+    "research_participants": {},
+    "research_visit_events": {},
+    "survival_features": {}
+  },
+  "numeric_feature_summary": {
+    "administered_dose_count": {
+      "25%": 26.0,
+      "5%": 23.0,
+      "50%": 28.0,
+      "75%": 29.0,
+      "95%": 30.0,
+      "count": 4000.0,
+      "max": 30.0,
+      "mean": 27.18175,
+      "min": 14.0,
+      "std": 2.0545734972407024
+    },
+    "adverse_event_burden": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 1.0,
+      "95%": 2.0,
+      "count": 4000.0,
+      "max": 6.0,
+      "mean": 0.4845,
+      "min": 0.0,
+      "std": 0.8677257556375455
+    },
+    "adverse_event_count": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 1.0,
+      "95%": 1.0,
+      "count": 4000.0,
+      "max": 3.0,
+      "mean": 0.36025,
+      "min": 0.0,
+      "std": 0.5848550686818409
+    },
+    "age": {
+      "25%": 33.0,
+      "5%": 21.0,
+      "50%": 49.0,
+      "75%": 65.0,
+      "95%": 77.0,
+      "count": 4000.0,
+      "max": 80.0,
+      "mean": 49.051,
+      "min": 18.0,
+      "std": 17.990575705172716
+    },
+    "attended_visit_count": {
+      "25%": 3.0,
+      "5%": 2.0,
+      "50%": 3.0,
+      "75%": 4.0,
+      "95%": 4.0,
+      "count": 4000.0,
+      "max": 4.0,
+      "mean": 3.338,
+      "min": 0.0,
+      "std": 0.7722726858275636
+    },
+    "baseline_comorbidity_burden": {
+      "25%": 1.0,
+      "5%": 0.0,
+      "50%": 1.0,
+      "75%": 2.0,
+      "95%": 3.0,
+      "count": 4000.0,
+      "max": 4.0,
+      "mean": 1.39675,
+      "min": 0.0,
+      "std": 1.129450464645538
+    },
+    "baseline_functional_severity": {
+      "25%": 0.280514542334804,
+      "5%": 0.09238436008311109,
+      "50%": 0.5015780855777596,
+      "75%": 0.7282583794688827,
+      "95%": 0.9070153552138107,
+      "count": 4000.0,
+      "max": 0.9492829845128217,
+      "mean": 0.5023269131760093,
+      "min": 0.05004220802470434,
+      "std": 0.26084237365447216
+    },
+    "baseline_treatment_burden": {
+      "25%": 2.0,
+      "5%": 1.0,
+      "50%": 2.0,
+      "75%": 3.0,
+      "95%": 4.0,
+      "count": 4000.0,
+      "max": 4.0,
+      "mean": 2.255,
+      "min": 0.0,
+      "std": 1.0289507689492392
+    },
+    "delayed_visit_count": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 1.0,
+      "95%": 1.0,
+      "count": 4000.0,
+      "max": 3.0,
+      "mean": 0.36425,
+      "min": 0.0,
+      "std": 0.5836583776280813
+    },
+    "feature_cutoff_day": {
+      "25%": 30.0,
+      "5%": 30.0,
+      "50%": 30.0,
+      "75%": 30.0,
+      "95%": 30.0,
+      "count": 4000.0,
+      "max": 30.0,
+      "mean": 30.0,
+      "min": 30.0,
+      "std": 0.0
+    },
+    "functional_observation_count": {
+      "25%": 5.0,
+      "5%": 4.0,
+      "50%": 5.0,
+      "75%": 5.0,
+      "95%": 5.0,
+      "count": 4000.0,
+      "max": 5.0,
+      "mean": 4.7345,
+      "min": 2.0,
+      "std": 0.5138830304089012
+    },
+    "functional_severity_slope": {
+      "25%": -0.003006655827462018,
+      "5%": -0.008169742533588183,
+      "50%": -0.00041100869783172094,
+      "75%": 0.0018714401908177154,
+      "95%": 0.0054253532663817135,
+      "count": 4000.0,
+      "max": 0.013228512979781877,
+      "mean": -0.0007294817954783931,
+      "min": -0.01903368086821805,
+      "std": 0.004088400461891203
+    },
+    "latest_functional_severity": {
+      "25%": 0.24829796521758782,
+      "5%": 0.0648425546056162,
+      "50%": 0.4843072618838797,
+      "75%": 0.711137251982534,
+      "95%": 0.9235620854950687,
+      "count": 4000.0,
+      "max": 1.0,
+      "mean": 0.48243012623960485,
+      "min": 0.0,
+      "std": 0.2772966762900262
+    },
+    "mean_visit_delay_days": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 0.5,
+      "95%": 1.25,
+      "count": 4000.0,
+      "max": 2.5,
+      "mean": 0.232125,
+      "min": 0.0,
+      "std": 0.41575076253584586
+    },
+    "measurement_missing_count": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 1.0,
+      "95%": 2.0,
+      "count": 4000.0,
+      "max": 5.0,
+      "mean": 0.54825,
+      "min": 0.0,
+      "std": 0.7799512923924328
+    },
+    "measurement_missingness_rate": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 0.1,
+      "95%": 0.2,
+      "count": 4000.0,
+      "max": 0.5,
+      "mean": 0.054825000000000006,
+      "min": 0.0,
+      "std": 0.07799512923924329
+    },
+    "measurement_observation_count": {
+      "25%": 9.0,
+      "5%": 8.0,
+      "50%": 10.0,
+      "75%": 10.0,
+      "95%": 10.0,
+      "count": 4000.0,
+      "max": 10.0,
+      "mean": 9.45175,
+      "min": 5.0,
+      "std": 0.7799512923924329
+    },
+    "medication_count": {
+      "25%": 1.0,
+      "5%": 0.0,
+      "50%": 3.0,
+      "75%": 4.0,
+      "95%": 7.0,
+      "count": 4000.0,
+      "max": 8.0,
+      "mean": 2.95625,
+      "min": 0.0,
+      "std": 2.0566704672486336
+    },
+    "missed_dose_count": {
+      "25%": 1.0,
+      "5%": 0.0,
+      "50%": 2.0,
+      "75%": 4.0,
+      "95%": 7.0,
+      "count": 4000.0,
+      "max": 16.0,
+      "mean": 2.81825,
+      "min": 0.0,
+      "std": 2.0545734972407024
+    },
+    "missed_dose_rate": {
+      "25%": 0.03333333333333333,
+      "5%": 0.0,
+      "50%": 0.06666666666666667,
+      "75%": 0.13333333333333333,
+      "95%": 0.23333333333333334,
+      "count": 4000.0,
+      "max": 0.5333333333333333,
+      "mean": 0.09394166666666667,
+      "min": 0.0,
+      "std": 0.06848578324135675
+    },
+    "missed_visit_count": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 1.0,
+      "95%": 1.0,
+      "count": 4000.0,
+      "max": 3.0,
+      "mean": 0.29775,
+      "min": 0.0,
+      "std": 0.536345834526151
+    },
+    "missed_visit_rate": {
+      "25%": 0.0,
+      "5%": 0.0,
+      "50%": 0.0,
+      "75%": 0.25,
+      "95%": 0.25,
+      "count": 4000.0,
+      "max": 0.75,
+      "mean": 0.0744375,
+      "min": 0.0,
+      "std": 0.13408645863153776
+    },
+    "patient_reported_burden": {
+      "25%": 0.3036915756597277,
+      "5%": 0.08234466227133212,
+      "50%": 0.4880998171275887,
+      "75%": 0.6777655318634923,
+      "95%": 0.8976022531040057,
+      "count": 4000.0,
+      "max": 0.9996267236590042,
+      "mean": 0.4900671918664292,
+      "min": 0.00011611330415773336,
+      "std": 0.2409000584714208
+    },
+    "scheduled_dose_count": {
+      "25%": 30.0,
+      "5%": 30.0,
+      "50%": 30.0,
+      "75%": 30.0,
+      "95%": 30.0,
+      "count": 4000.0,
+      "max": 30.0,
+      "mean": 30.0,
+      "min": 30.0,
+      "std": 0.0
+    },
+    "scheduled_visit_count": {
+      "25%": 4.0,
+      "5%": 4.0,
+      "50%": 4.0,
+      "75%": 4.0,
+      "95%": 4.0,
+      "count": 4000.0,
+      "max": 4.0,
+      "mean": 4.0,
+      "min": 4.0,
+      "std": 0.0
+    },
+    "support_availability": {
+      "25%": 2.0,
+      "5%": 0.0,
+      "50%": 2.0,
+      "75%": 3.0,
+      "95%": 4.0,
+      "count": 4000.0,
+      "max": 4.0,
+      "mean": 2.357,
+      "min": 0.0,
+      "std": 1.1385846888894313
+    },
+    "travel_access_burden": {
+      "25%": 1.0,
+      "5%": 0.0,
+      "50%": 2.0,
+      "75%": 3.0,
+      "95%": 4.0,
+      "count": 4000.0,
+      "max": 4.0,
+      "mean": 1.8375,
+      "min": 0.0,
+      "std": 1.1215650792784002
+    }
+  },
+  "primary_model_feature_selection": {
+    "excluded_columns": {
+      "administered_dose_count": "redundant/constant",
+      "attended_visit_count": "redundant/constant",
+      "dataset_split": "metadata",
+      "dropout_by_day90": "target",
+      "feature_cutoff_day": "metadata",
+      "measurement_missing_count": "redundant/constant",
+      "measurement_observation_count": "redundant/constant",
+      "missed_dose_count": "redundant/constant",
+      "missed_visit_count": "redundant/constant",
+      "patient_snapshot_id": "identifier",
+      "research_enrollment_id": "identifier",
+      "research_participant_id": "identifier",
+      "scheduled_dose_count": "redundant/constant",
+      "scheduled_visit_count": "redundant/constant",
+      "target_observed": "metadata",
+      "trial_version_id": "identifier"
+    },
+    "included_predictors": [
+      "condition_category",
+      "site_region",
+      "treatment_arm",
+      "age",
+      "sex",
+      "baseline_functional_severity",
+      "patient_reported_burden",
+      "baseline_comorbidity_burden",
+      "baseline_treatment_burden",
+      "travel_access_burden",
+      "support_availability",
+      "medication_count",
+      "latest_functional_severity",
+      "functional_severity_slope",
+      "functional_observation_count",
+      "missed_dose_rate",
+      "delayed_visit_count",
+      "missed_visit_rate",
+      "mean_visit_delay_days",
+      "measurement_missingness_rate",
+      "adverse_event_count",
+      "adverse_event_burden"
+    ]
+  },
+  "relationship_checks": [
+    {
+      "absolute_prevalence_difference": 0.08159184334690076,
+      "declared_direction_observed": true,
+      "higher_risk_dropout_prevalence": 0.2410394265232975,
+      "higher_risk_rows": 1116,
+      "lower_risk_dropout_prevalence": 0.15944758317639673,
+      "lower_risk_rows": 1593,
+      "name": "high versus low travel/access burden"
+    },
+    {
+      "absolute_prevalence_difference": 0.07370680236473845,
+      "declared_direction_observed": true,
+      "higher_risk_dropout_prevalence": 0.23085714285714284,
+      "higher_risk_rows": 875,
+      "lower_risk_dropout_prevalence": 0.1571503404924044,
+      "lower_risk_rows": 1909,
+      "name": "limited versus strong support availability"
+    },
+    {
+      "absolute_prevalence_difference": 0.1554570902235079,
+      "declared_direction_observed": true,
+      "higher_risk_dropout_prevalence": 0.27850877192982454,
+      "higher_risk_rows": 912,
+      "lower_risk_dropout_prevalence": 0.12305168170631665,
+      "lower_risk_rows": 1219,
+      "name": "high versus low patient-reported burden"
+    },
+    {
+      "absolute_prevalence_difference": 0.20987454462837324,
+      "declared_direction_observed": true,
+      "higher_risk_dropout_prevalence": 0.32457293035479634,
+      "higher_risk_rows": 761,
+      "lower_risk_dropout_prevalence": 0.11469838572642312,
+      "lower_risk_rows": 1177,
+      "name": "high versus low missed-dose rate"
+    },
+    {
+      "absolute_prevalence_difference": 0.06795309220780812,
+      "declared_direction_observed": true,
+      "higher_risk_dropout_prevalence": 0.2330508474576271,
+      "higher_risk_rows": 472,
+      "lower_risk_dropout_prevalence": 0.16509775524981898,
+      "lower_risk_rows": 2762,
+      "name": "high versus zero adverse-event burden"
+    }
+  ],
+  "report_version": "r3-experiment-review-v1",
+  "table_row_counts": {
+    "dynamic_landmarks": 20000,
+    "landmark_day30_features": 4000,
+    "research_adverse_events": 3920,
+    "research_dose_events": 339849,
+    "research_enrollments": 4000,
+    "research_measurements": 98856,
+    "research_outcomes": 4000,
+    "research_participants": 4000,
+    "research_visit_events": 45428,
+    "survival_features": 4000
+  }
+}

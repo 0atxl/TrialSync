@@ -33,4 +33,6 @@ test-results/
 # Generated application data
 uploads/
 models/
+artifacts/
+mlruns/
 *.log

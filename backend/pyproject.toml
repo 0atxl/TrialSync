@@ -14,7 +14,7 @@ dependencies = [
   "fastapi==0.139.0",
   "httpx==0.28.1",
   "pillow==12.3.0",
-  "pypdf==6.14.2",
+  "pypdf==6.15.0",
   "psycopg[binary]==3.3.4",
   "pydantic-settings==2.10.1",
   "reportlab==5.0.0",
@@ -29,7 +29,10 @@ dev = [
   "pip-audit==2.10.1",
   "pytest==9.0.3",
   "pytest-cov==6.2.1",
-  "ruff==0.12.5",
+  "ruff==0.16.2",
+]
+research = [
+  "data-designer==0.8.0",
 ]
 
 [project.scripts]
@@ -37,16 +40,17 @@ trialsync-demo = "trialsync.demo:main"
 trialsync-evaluate = "trialsync.evaluation:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/trialsync"]
+packages = ["src/trialsync", "research"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
+pythonpath = [".", "src"]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "research"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
@@ -56,3 +60,8 @@ python_version = "3.12"
 strict = true
 packages = ["trialsync"]
 plugins = ["pydantic.mypy"]
+mypy_path = ["$MYPY_CONFIG_FILE_DIR/src", "$MYPY_CONFIG_FILE_DIR"]
+
+[[tool.mypy.overrides]]
+module = ["data_designer", "data_designer.*", "pandas", "pandas.*"]
+ignore_missing_imports = true

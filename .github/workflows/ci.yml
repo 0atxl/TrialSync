@@ -62,7 +62,7 @@ jobs:
         run: |
           python -m venv backend/.venv
           backend/.venv/bin/python -m pip install --upgrade pip
-          backend/.venv/bin/python -m pip install --editable "backend[dev]"
+          backend/.venv/bin/python -m pip install --editable "backend[dev,research]"
 
       - name: Install frontend dependencies
         run: npm ci --prefix web
@@ -87,8 +87,8 @@ jobs:
       - name: Run repository verification gate
         run: make verify
 
-      - name: Audit Python dependencies
-        run: backend/.venv/bin/pip-audit --local
+      - name: Audit dependencies
+        run: make audit
 
   container-build:
     name: Build application images

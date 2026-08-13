@@ -4,8 +4,17 @@ These boundaries keep TrialSync’s current patient matching workflow and planne
 
 - Public repository, tests, screenshots, and demo data are synthetic only; no EHR integration,
   clinical validation, or compliance claim.
-- Optional NeMo Data Designer orchestration does not make generated outcomes empirical evidence;
-  the audited stochastic simulator remains responsible for public research labels and splits.
+- NeMo Data Designer generation does not make generated outcomes empirical evidence. A reviewed
+  uniform sampler draw and dependent expression produce the probabilistic synthetic label locally,
+  while TrialSync owns relational linkage, censoring, participant-level splits, leakage-safe views,
+  and validation. No LLM field determines the label, no hosted model request is made, and no
+  duplicate offline simulator is maintained.
+- The 400-enrollment demo has 64 generated dropouts (16%); the 4,000-enrollment experiment has
+  702 (17.55%). These are observed stochastic cohort statistics—not prediction accuracy, forced
+  targets, clinical estimates, or evidence that a future model will generalize to real participants.
+- The physical Parquet files are intentionally not fully normalized: each enrollment preserves an
+  immutable copy of the participant baseline fields. The contract validates those copies and uses
+  `site_region`; it does not export `site_id`.
 - NCT02054715-D1 is study-specific, and its public dictionary and aggregate paper do not include
   participant rows. Unless the rows become legitimately accessible and a separate evaluation is
   completed, it is a future adapter rather than evidence for TrialSync. NCT-inspired synthetic

@@ -4,7 +4,10 @@
 **Status:** R0 revised and re-locked on 2026-07-26 after alignment with the supplied
 LangChain/Gemini RAG and GitHub Actions brief; the R3 data strategy was clarified on
 2026-08-01; R1 completed on 2026-08-02; R2 CI completed on 2026-08-02; automated CD is
-deferred until the deployment target and release frequency justify it.
+deferred until the deployment target and release frequency justify it. R3 entered implementation
+on 2026-08-09. Its 20-enrollment smoke and 400-enrollment demo artifacts are generated and
+validated. The 4,000-enrollment experiment review candidate, EDA, dataset card, feature dictionary,
+linkage manifest, and checksums are complete; final acceptance remains pending.
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
@@ -17,8 +20,8 @@ the trusted matching core.
 The approved extension contains:
 
 1. Canonical evidence-backed PDF reporting and GitHub Actions CI, with automated CD deferred.
-2. A separate, auditable longitudinal enrollment generator for dropout-risk research, with
-   optional NVIDIA NeMo Data Designer orchestration and a future external benchmark adapter if
+2. A separate, auditable longitudinal enrollment generator for dropout-risk research, using
+   NVIDIA NeMo Data Designer and a future external benchmark adapter if
    suitable row-level data becomes legitimately accessible.
 3. Logistic regression, XGBoost, LightGBM, MLflow, SHAP, and a missed-dose Scenario Lab.
 4. A screening-derived patient cohort for DBSCAN clustering, FAISS similarity, and the
@@ -40,7 +43,7 @@ TrialSync patient-matching core
   -> canonical evidence and downloadable report
 
 TrialSync research analytics
-  -> hybrid statistical/synthetic longitudinal enrollment dataset
+  -> NeMo-backed synthetic longitudinal enrollment dataset
   -> dropout-risk experiments and Scenario Lab
   -> screening-derived patient cohort
   -> DBSCAN clustering, FAISS similarity, and Cohort Atlas
@@ -71,7 +74,8 @@ Known extension gaps:
 
 - GitHub Actions CI is implemented; automated CD is deferred and manual Compose deployment
   remains the current delivery path.
-- No hybrid longitudinal enrollment generator or frozen dropout-research dataset.
+- The R3 generator, schema contract, 400-enrollment demo, and 4,000-enrollment experiment review
+  candidate exist and pass the declared invariants; only final R3 acceptance remains pending.
 - No screening-derived patient cohort/reference-trial matrix.
 - No dropout-risk model, model registry, calibration report, or SHAP explanation.
 - No research-risk inference API or UI.
@@ -87,12 +91,14 @@ These decisions apply to every phase unless the user explicitly changes them aft
 ### 3.1 Data boundary
 
 - The repository, automated tests, demo, Groq requests, screenshots, and downloadable reports use fictional synthetic participant data only.
-- The public, reproducible longitudinal dropout dataset is generated specifically for this
-  project with fixed seeds and documented causal assumptions. Its structured events and outcome
-  labels come from an auditable stochastic simulator, not directly from an LLM.
-- NVIDIA NeMo Data Designer may orchestrate approved samplers, expressions, validation, and
-  optional fictional narrative fields. It is not the authority for eligibility, dropout labels,
-  hidden hazard coefficients, dataset splits, or evaluation ground truth.
+- The public, versioned and auditable longitudinal dropout dataset is generated specifically for
+  this project with NVIDIA NeMo Data Designer and documented generation assumptions. Exact
+  configuration and frozen run artifacts are preserved; byte-identical regeneration is not
+  claimed without a project-level sampler seed.
+- NVIDIA NeMo Data Designer is the selected generation tool for approved samplers, expressions,
+  validation, and optional fictional narrative fields. A reviewed random sampler draw and dependent
+  expression define the synthetic dropout label; NeMo is not an authority for eligibility or real-world clinical
+  ground truth, and TrialSync still owns dataset splits and evaluation boundaries.
 - The cohort dataset is generated from unique synthetic patient snapshots evaluated against
   a fixed, versioned panel of approved synthetic trial versions.
 - MIMIC-III, PRO-ACT, n2c2, NCT02054715-D1, and Project Data Sphere are not runtime, build,
@@ -244,14 +250,14 @@ Record the approved extension boundaries and prevent later phases from silently 
 | Model comparison | Dummy, logistic regression, XGBoost, and LightGBM; deploy only the accepted winner |
 | MLflow | Private, local SQLite-backed tracking through an optional Compose profile |
 | Research navigation | Visible, clearly labelled main-navigation area |
-| Dropout data | Separate multi-condition longitudinal dataset from an audited stochastic simulator; optional NeMo Data Designer orchestration |
+| Dropout data | NVIDIA NeMo Data Designer-backed multi-condition longitudinal synthetic dataset with explicit TrialSync validation and outcome definitions |
 | External dropout benchmark | NCT02054715-D1 public schema now; row-level evaluation only if the participant data becomes legitimately accessible, with separate artifacts and claims |
 | Cohort data | Unique synthetic patient snapshots × fixed approved reference-trial panel |
 | Dropout fixture/demo/experiment sizes | 50 / 400 / 4,000 enrollments |
 | Screening cohort | 750 unique patients × 20 reference trial versions |
 | Condition portfolio | Metabolic, cardiovascular, renal, oncology, and respiratory |
 | Observation cutoff and horizon | Day 30 cutoff; synthetic dropout through day 90 |
-| Synthetic dropout prevalence | Approximately 25%, documented as a generator design choice |
+| Synthetic dropout prevalence | Emergent from frozen 8%/18%/35%/55% hidden-tier probabilities; report every run, never force an exact rate |
 | Scenario analysis | Missed-dose Scenario Lab with non-causal model-sensitivity wording |
 | Cohort representations | Patient-fact space and screening-profile space |
 | Cohort visualization | Seeded PCA initially; DBSCAN/FAISS operate in full feature space |
@@ -282,8 +288,8 @@ Record the approved extension boundaries and prevent later phases from silently 
 Complete and re-locked on 2026-07-26 after correcting R7 to the supplied LangChain/Gemini brief,
 adding the trial-to-enrollment linkage required by the recruitment overview, and including
 GitHub Actions CI with a documented manual deployment path. On 2026-08-01 the user approved clarification of R3's
-hybrid NVIDIA/statistical generation boundary and the separate controlled-access
-NCT02054715-D1 benchmark. R1 and R2 CI are complete; begin R3 only and preserve the later
+NeMo-sampler/TrialSync-shaping boundary and the separate controlled-access
+NCT02054715-D1 benchmark. R1 and R2 CI are complete; continue R3 only and preserve the later
 phase stop points. Later phase approval does not authorize combining phases.
 
 ### Claims matrix
@@ -412,21 +418,22 @@ Behavior/API/data changes: Added owner-scoped `GET /api/v1/screenings/{screening
 no database migration or stored-report column was added.
 
 Tests and builds run: `make verify` (151 backend tests and 69 frontend tests at the
-R1 handoff; the current repository gate reports 159 backend tests and 72 frontend
+R1 handoff; the current repository gate reports 172 backend tests and 72 frontend
 tests), migration, Ruff, mypy, evaluation, and production build; focused report
 tests, backend dependency audit, and production backend image/font smoke check.
 
 Visual states inspected: Desktop and narrow saved-screening detail pages, readable
 three-page PDF metadata/evidence pages, long/Unicode pagination fixtures.
 
-Known limitations: The R1 handoff recorded high advisories in `brace-expansion` and
-`react-router`. The current audit has cleared `brace-expansion` but still reports
-high React Router and moderate PostCSS advisories; they remain outside R1 and were
-not auto-upgraded.
+Known limitations at the R1 handoff: dependency audits reported `brace-expansion`, React Router,
+and PostCSS findings. Subsequent lockfile remediation cleared those findings; the current npm audit
+reports zero vulnerabilities. The remaining Python `cryptography` exception belongs to the offline
+Data Designer dependency and is documented separately.
 
 Exit criteria not yet satisfied: None for R1.
 
-Recommended next task: Begin R3 dataset schema and seeded synthetic longitudinal generator work;
+Recommended next task at R1 completion: Begin R3 dataset schema and versioned NeMo-backed
+longitudinal generator work;
 automated CD remains deferred.
 
 ## 8. Phase R2 — GitHub Actions CI (CD deferred)
@@ -506,16 +513,16 @@ builds remain the corresponding local checks; GitHub Actions executes their clea
 Known limitations: The workflow does not deploy to Alsomine or run browser E2E tests. Those remain
 manual until a later delivery phase requires them.
 
-Recommended next task: Begin R3 dataset schema and seeded synthetic longitudinal generator work.
+Recommended next task at R2 completion: Begin R3 dataset schema and versioned NeMo-backed
+longitudinal generator work.
 
 ## 9. Phase R3 — Synthetic longitudinal dropout protocol
 
 ### Objective
 
-Create a reproducible event-level synthetic enrollment dataset for fixed-horizon dropout-risk
-research and missed-dose scenario analysis. Use an auditable stochastic simulator as the source
-of structured events and outcome labels, with optional NVIDIA NeMo Data Designer orchestration
-for declared samplers, expressions, validation, and fictional narrative fields. Define a separate
+Create a versioned, auditable event-level synthetic enrollment dataset for fixed-horizon dropout-risk
+research and missed-dose scenario analysis using NVIDIA NeMo Data Designer for the generation
+workflow and explicit TrialSync validation/outcome definitions. Define a separate
 NCT02054715-D1 benchmark adapter that activates only if participant rows become legitimately
 accessible. Neither dataset supplies DBSCAN or FAISS data.
 
@@ -593,10 +600,10 @@ Derived leakage-safe features:
 
 Outcomes:
 
-- `dropout_within_horizon`.
+- `dropout_by_day90`, defined as dropout during days 31–90 after the day-30 feature cutoff.
 - `dropout_day`.
 - `dropout_reason` from a declared synthetic taxonomy.
-- `censored`.
+- `event_observed` and `censor_day` under the frozen follow-up rule.
 
 Required event tables:
 
@@ -608,33 +615,34 @@ Required event tables:
 - `research_adverse_events`;
 - `research_outcomes`.
 
-Each `research_enrollment` is the explicit versioned bridge between the dropout dataset and the
-matching product. It references one immutable patient snapshot, one approved trial version, and
-the ordinary screening created by the exact single-screening service for that pair. Longitudinal
-events are generated only for linked screenings whose stored state is `potentially_eligible`, so
-the dataset represents simulated enrolled participants without relabelling screening rows as
-dropout outcomes.
+Each `research_enrollment` is the explicit versioned bridge contract between the dropout dataset
+and the matching product. During offline R3 generation it carries synthetic snapshot, trial-version,
+and screening identifiers and records the result of the pure canonical domain engine; it does not
+claim that corresponding PostgreSQL rows already exist. R5 may materialize the bounded 400-row
+demo linkage through the ordinary service layer. Longitudinal events are generated only for rows
+whose canonical domain result is `potentially_eligible`, without relabelling screening state as a
+dropout outcome.
 
 ### 9.4 Two-track data strategy
 
 #### Track A — required public synthetic protocol
 
-Track A is the only dataset required to build, test, run, and demonstrate TrialSync. Use a hybrid
-pipeline:
+Track A is the only dataset required to build, test, run, and demonstrate TrialSync. Use the
+NeMo-backed pipeline:
 
-1. TrialSync code owns relational IDs, chronology, eligibility linkage, event schedules, hidden
-   hazard coefficients, stochastic outcome sampling, censoring, splits, and checksums.
-2. NeMo Data Designer may declaratively orchestrate statistical samplers, dependent expressions,
-   schema validation, and optional fictional text. The evaluated configuration and provider/model
-   metadata are versioned when used.
-3. An LLM must not directly choose dropout labels, fabricate model ground truth, or see hidden
-   generator state. Optional generated text is excluded from R4 features unless a later reviewed
-   protocol defines and leakage-tests it.
-4. The generator must run in an offline deterministic mode without an NVIDIA account. NVIDIA is
-   an optional research accelerator, not a runtime or clean-reproduction dependency.
+1. TrialSync code owns relational IDs, chronology, eligibility linkage, event schedules, censoring,
+   participant-level splits, and leakage-safe derived views.
+2. Data Designer generates the reviewed synthetic participant, enrollment, event, and outcome
+   fields through statistical samplers and seed-aware dependent expressions. The evaluated
+   configuration, package version, execution summary, and provenance metadata are versioned.
+3. The sampler-and-expression configuration—not an LLM narrative—defines the dropout label. Optional fictional
+   text is excluded from R4 features unless a later reviewed protocol defines and leakage-tests it.
+4. The reviewed R3 workflow records its local execution/model-usage summary and generation
+   metadata. An offline Python simulator is not part of the current approved R3 implementation.
 
 NVIDIA's current Data Designer documentation describes schema-driven samplers, expressions,
-structured generation, validation, previews, and provider-backed execution:
+structured generation, validation, previews, and optional provider-backed columns. The current R3
+recipe uses only local sampler/expression execution:
 [NeMo Data Designer](https://docs.nvidia.com/nemo/datadesigner/getting-started/welcome).
 
 #### Track B — optional future external benchmark
@@ -672,7 +680,9 @@ Primary sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.
 
 ### 9.5 Generation principles
 
-1. Use a fixed default seed plus configurable alternative seeds.
+1. Preserve the exact Data Designer configuration and run artifacts. Data Designer 0.8 does not
+   expose the project-level sampler seed required for a byte-identical rerun, so do not claim
+   checksum reproducibility from a nonexistent seed flag.
 2. Separate the data-generating mechanism from the model-training pipeline.
 3. Include stochastic noise and interactions.
 4. Avoid a single deterministic "dropout score" column.
@@ -682,11 +692,13 @@ Primary sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.
 8. Define at least one deliberately nonlinear relationship so tree models have something meaningful to compare with logistic regression.
 9. Preserve hidden generator state only for generator validation; do not export it as a model feature.
 10. Generate only fictional values and identifiers.
-11. Generate the matching patient/trial inputs first, call the existing single-screening service,
-    and freeze the linkage before generating any longitudinal events or dropout outcome.
-12. Use documented bounded resampling to reach the requested enrollment count when a generated
-    snapshot is not potentially eligible; report attempted-versus-accepted counts and never use a
-    future dropout outcome during acceptance.
+11. Generate typed patient/trial inputs first, call the existing pure screening domain engine, and
+    freeze the synthetic linkage before generating longitudinal events or outcomes. Product
+    database materialization, if required, belongs to the bounded R5 service workflow.
+12. Use the frozen single-pass protocol, which designs every generated participant to satisfy its
+    condition-specific canonical screening. Report requested, attempted, accepted, rejected, and
+    unfilled counts; never use a future dropout outcome during acceptance. If this assumption ever
+    changes, introduce a new generator version and document any resampling separately.
 13. Freeze generator configuration before model tuning and record whether each field came from
     TrialSync code, a statistical sampler, an expression, or an optional LLM-backed column.
 14. Validate generated distributions and conditional relationships against declared assumptions;
@@ -701,22 +713,28 @@ Use three locked sizes:
 - Demo cohort: 400 enrollments for the Scenario Lab and local inference.
 - Experiment cohort: 4,000 enrollments for model comparison and stress evaluation.
 
-The 400-enrollment demo cohort is the bounded product-facing cohort whose enrollment links are
-materialized for R5. The 4,000-enrollment experiment cohort remains an offline versioned research
-artifact; its linkage manifest is used for reproducibility and training, not bulk ordinary
-screening history.
+The accepted 20-enrollment smoke cohort contains 4 synthetic dropouts (20%). The accepted
+400-enrollment demo contains 64 (16%): 45/280 in training, 10/60 in validation, and 9/60 in test.
+The 400-enrollment cohort is the bounded product-facing dataset whose enrollment links may be
+materialized for R5. The 4,000-enrollment experiment cohort is an offline versioned review
+candidate; its linkage manifest supports reproducibility and training, not bulk
+ordinary screening history.
 
-Target approximately 25% synthetic dropout through day 90. Report the exact generated
-prevalence and event counts for every split; never adjust the test set after inspection.
+The generator does not force an exact prevalence. Report the generated prevalence and event count
+for every split and never adjust the test set after inspection. Observed prevalence is an
+artificial run statistic, not model performance or a clinical estimate.
 
 ### 9.7 Split strategy
 
-- Split by participant.
+- Use one participant-level stratified 70/15/15 train/validation/test split for the primary R3
+  artifact. Every enrollment for one participant follows that participant into the same split.
 - Fit preprocessing on training data only.
-- Prefer a generator-time or site-based holdout in addition to a random stratified split.
-- Include a stress-test regime with changed coefficients or missingness.
 - Freeze the primary test split before model tuning.
-- Use repeated seeds or cross-validation only on training/validation data.
+- Use cross-validation only on training/validation data.
+- A second generator-run, site holdout, or changed-coefficient/missingness stress cohort is an
+  optional R4 robustness experiment, not an R3 dataset-acceptance requirement. If performed, it
+  receives a separate run identifier and report rather than being described as a repeated project
+  seed.
 
 ### 9.8 Artifacts and documentation
 
@@ -724,8 +742,9 @@ prevalence and event counts for every split; never adjust the test set after ins
 - Generator configuration.
 - Field-level provenance identifying deterministic, statistical, expression-derived, and optional
   LLM-generated columns.
-- NVIDIA Data Designer recipe, dependency/provider versions, token/cost summary, and validation
-  report when the optional path is used; never credentials or restricted prompts.
+- NVIDIA Data Designer recipe, package version, local execution/model-usage summary, and validation
+  report. The current sampler-and-expression route reports zero model requests; never record
+  credentials or restricted prompts.
 - Feature dictionary.
 - Outcome definition.
 - Leakage audit.
@@ -738,22 +757,26 @@ prevalence and event counts for every split; never adjust the test set after ins
 
 ### Tests
 
-- Same seed produces identical checksums.
-- Different seed changes participant values.
+- The exact Data Designer configuration, package version, local execution/model-usage metadata, and
+  output validation report are recorded. The current sampler-and-expression route does not expose
+  a project seed through the CLI, so the dataset is not described as byte-for-byte reproducible
+  from a seed flag.
 - IDs are unique and fictional.
 - Dates follow the declared ordering.
 - No post-cutoff feature leakage.
 - Dropout labels agree with event times.
-- Every enrollment resolves to exactly one immutable patient snapshot, approved trial version,
-  and `potentially_eligible` canonical screening.
+- Every enrollment resolves to exactly one internally consistent synthetic snapshot/trial/screening
+  identifier set and a `potentially_eligible` canonical domain-engine result. Database-backed
+  product resolution is tested when the bounded R5 linkage is materialized.
 - Linkage metadata cannot change when risk predictions are regenerated.
 - Censoring is internally consistent.
 - Values and units stay in declared artificial ranges.
 - Train/validation/test participants do not overlap.
 - Hidden generator labels are excluded from exported model features.
 - Missed-dose scenario edits recompute every dependent adherence feature.
-- Offline generation succeeds without NVIDIA credentials.
-- Optional Data Designer output conforms to the same schema and invariant checks as offline output.
+- The Data Designer run succeeds locally; the sampler-and-expression configuration records zero
+  LLM/model requests and requires no NVIDIA API key.
+- NeMo output conforms to the same schema and invariant checks as the reviewed contract.
 - No LLM-generated field directly or indirectly determines the label.
 - Repository and public-demo scans contain no Track B rows, governed derivatives, access tokens,
   or fitted restricted-data artifacts.
@@ -764,8 +787,8 @@ prevalence and event counts for every split; never adjust the test set after ins
 - Leakage tests pass.
 - Outcome prevalence and split event counts are reported.
 - The dataset card reports enrollments and dropout prevalence by linked trial version.
-- The report names which columns, if any, used NeMo Data Designer and demonstrates that the label
-  and split remained simulator-owned.
+- The report names which columns used NeMo Data Designer and demonstrates that the label came from
+  the reviewed sampler draw and dependent expression while the split and feature views remained deterministic.
 - Track B is either backed by a recorded legitimate row-level source and separate protocol or
   clearly marked unavailable; synthetic generation does not masquerade as external validation.
 - The user approves the artificial assumptions before model training begins.
@@ -773,6 +796,15 @@ prevalence and event counts for every split; never adjust the test set after ins
 ### Stop point
 
 Pause for review of the generated dataset report before implementing model experiments.
+
+### Status
+
+In final review as of 2026-08-14. The table-aware Data Designer 0.8.0 configuration, frozen
+`r3-dataset-contract-v1`, 20-enrollment smoke cohort, 400-enrollment demo cohort, and 4,000-row
+experiment candidate are complete. The experiment contains 702 synthetic dropouts (17.55%) and
+passes schema, linkage, immutable-snapshot, split, chronology, censoring, relationship, and leakage
+validation with zero hosted model requests. EDA, dataset card, feature dictionary, linkage
+manifest, and checksum evidence are complete. Final user acceptance remains required before R4.
 
 ## 10. Phase R4 — Dropout model experiments, MLflow, and SHAP
 
@@ -1340,7 +1372,8 @@ Add explicit settings for:
 - Gemini request timeout, output bound, concurrency, and retry budget.
 
 Provider keys remain optional for local/core operation, are never required by automated tests, and
-enter production only through the protected GitHub environment.
+are supplied to the manually deployed backend through its protected host environment. A protected
+GitHub environment becomes relevant only if automated CD is implemented later.
 
 ### Retrieval and grounding evaluation
 
@@ -1407,8 +1440,7 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 2. Canonical PDF consistency checks.
 3. CI workflow evidence.
 4. Synthetic dataset card and leakage audit.
-5. Generator provenance and NeMo Data Designer comparison/validation evidence when that optional
-   path is used.
+5. Generator provenance and NeMo Data Designer configuration/validation evidence.
 6. Dropout model comparison:
    - dummy;
    - logistic regression;
@@ -1550,9 +1582,8 @@ Potential new dependencies must be approved during their phase. Expected categor
 
 - Deterministic PDF rendering.
 - pandas/NumPy or equivalent bounded tabular tooling.
-- NVIDIA NeMo Data Designer only if R3 demonstrates a concrete benefit over the offline
-  simulator and its license, Python 3.12 support, dependency weight, provider costs, and
-  credential-free fallback are accepted.
+- NVIDIA Data Designer for R3, with its license, Python support, dependency weight, local execution
+  mode, and optional provider boundary documented.
 - scikit-learn.
 - XGBoost.
 - LightGBM.
@@ -1581,7 +1612,7 @@ One possible history:
 docs: approve TrialSync research extension plan
 feat: add canonical screening PDF reports
 ci: add repository verification workflow
-feat: add reproducible hybrid synthetic participant generator
+feat: add versioned NeMo-backed synthetic participant generator
 feat: add dropout model experiments and MLflow tracking
 feat: add versioned synthetic risk inference
 feat: add research cohort and similarity explorer
@@ -1597,8 +1628,9 @@ Commits are phase checkpoints, not permission to combine several phases into one
 - [x] R1–R8 remain separate bounded phases.
 - [x] BioBERT, restricted-data dependencies, and local-LLM fallback are deferred.
 - [x] Dropout and cohort/similarity use different datasets and units of analysis.
-- [x] The public dropout label and split remain owned by the audited simulator; NeMo Data Designer
-  is optional orchestration with a credential-free fallback.
+- [x] The public synthetic dropout label is sampled by the reviewed Data Designer uniform sampler
+  and dependent expression; TrialSync owns deterministic linkage, censoring, splits, views, and
+  validation. No duplicate offline Python simulator is maintained.
 - [x] NCT02054715-D1 is a future, separate study-specific adapter and never inflates the public
   synthetic cohort or its real-world evidence claim.
 - [x] Dummy, logistic, XGBoost, and LightGBM are compared before champion selection.
@@ -1623,7 +1655,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R0. Scope lock | Complete | Revised scope re-locked by user after final consistency audit, 2026-07-26 | This document |
 | R1. Canonical report PDF | Complete | User selected evidence-backed reporting, 2026-07-26 | Provider-free typed report assembler, owner-scoped PDF endpoint, complete evidence/missing-information/stale-evidence/ownership/long-text/determinism tests, frontend download states, production build, and visual review, 2026-08-02 |
 | R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
-| R3. Synthetic dropout protocol/dataset | Approved | User selected dropout-risk modeling on 2026-07-26 and clarified hybrid NVIDIA generation plus separate NCT02054715-D1 validation on 2026-08-01 | |
+| R3. Synthetic dropout protocol/dataset | Final review | User selected dropout-risk modeling on 2026-07-26 and clarified Data Designer sampler generation plus separate NCT02054715-D1 validation on 2026-08-01 | Frozen contract; accepted smoke/demo artifacts; 4,000-row experiment review candidate with 702 synthetic dropouts, EDA, dataset card, feature dictionary, leakage audit, linkage manifest, and checksums complete; final acceptance pending |
 | R4. Dropout models/MLflow/SHAP | Approved | User selected dropout-risk modeling, 2026-07-26 | |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |
 | R6. Screening-derived DBSCAN/FAISS cohorts | Approved | User selected cohort analytics, 2026-07-26 | |
@@ -1632,7 +1664,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R1 and R2 are complete. Begin R3 only and preserve every later stop point.
+R1 and R2 are complete. Continue R3 only and preserve every later stop point.
 
 ## 22. Implementation handoff format
 

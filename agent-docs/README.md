@@ -10,6 +10,10 @@ This directory holds the documents used to guide implementation agents.
 - [`codebase-health-audit.md`](codebase-health-audit.md) records the current LOC,
   dependency, stale-code, and refactor baseline; it is supporting guidance, not
   an active implementation phase.
+- [`codebase-remediation-plan.md`](codebase-remediation-plan.md) records the approved cleanup
+  sequence that must complete before the R3 experiment cohort is frozen.
+- [`dependency-security-exceptions.md`](dependency-security-exceptions.md) records narrowly scoped,
+  time-bounded advisory exceptions enforced by the repository audit command.
 - [`legacy/`](legacy/) contains completed-rebuild records. Do not use them to determine the current phase unless the active instructions explicitly call for them.
 
 The root [`AGENTS.md`](../AGENTS.md) remains only as a conventional discovery bootstrap for coding-agent tools.

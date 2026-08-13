@@ -108,7 +108,7 @@ This is separate from dropout modeling. A research enrollment needs generated lo
 events and an actual synthetic dropout/censoring outcome. Screening IDs and criterion results
 must not become dropout-model features.
 
-## 3. A viable hybrid synthetic dropout dataset
+## 3. A viable NeMo-backed synthetic dropout dataset
 
 ### 3.1 Research unit
 
@@ -170,7 +170,8 @@ A practical first experiment is:
 - observation cutoff: day 30;
 - prediction target: dropout between day 31 and day 90;
 - censoring: no known dropout through day 90;
-- target prevalence: a documented synthetic design parameter, initially about 25%.
+- prevalence: emergent from frozen hidden-tier probabilities and reported for every run; the
+  accepted 400-row demo observed 16% and no exact percentage is forced.
 
 The cutoff and horizon are design choices, not estimates of real clinical-trial behavior.
 
@@ -179,22 +180,24 @@ post-dropout missed visits, and final completion state are forbidden model featu
 
 ### 3.4 Generation approach
 
-The generator should use an explicit stochastic process owned by TrialSync code:
+The generator uses an explicit stochastic process split across reviewed responsibilities:
 
-1. Sample baseline participant, site, and trial-context variables.
-2. Generate scheduled visits and doses.
-3. Generate pre-cutoff adherence, burden, adverse events, and missingness with noise and
-   declared interactions.
-4. Compute a hidden stochastic dropout hazard from selected pre-cutoff and latent variables.
-5. Sample dropout time rather than directly copying a deterministic score into the label.
-6. Continue only valid observations until dropout or censoring.
-7. Export the hidden generator state separately for generator validation, never as model input.
+1. NeMo Data Designer samples baseline participant, site, and trial-context variables.
+2. TrialSync creates relational identifiers, eligibility linkage, and fixed visit/dose schedules.
+3. NeMo statistical draws and dependent expressions generate adherence, burden, adverse events,
+   missingness, and the probabilistic dropout outcome from the reviewed configuration.
+4. TrialSync applies censoring, participant-level splits, relational checks, and leakage-safe
+   model views.
+5. Hidden generator state is retained only for generator validation and is never exported as a
+   model feature.
 
-NVIDIA NeMo Data Designer may be evaluated as an optional orchestration layer for declared
-statistical samplers, dependent expressions, schema validation, dataset profiling, and fictional
-narrative columns. It must not directly choose the dropout label, hidden hazard, data split, or
-eligibility state. The same schema and invariant tests must pass through a credential-free offline
-generator, so an NVIDIA account is never required to reproduce or run the public project.
+NVIDIA Data Designer is the selected R3 generation framework for declared statistical samplers,
+seed-aware dependent expressions, schema validation, and profiling. A reviewed uniform draw and
+dependent expression produce the probabilistic synthetic label; it never determines eligibility,
+and TrialSync continues to own the split and feature-view boundaries. No duplicate offline
+simulator is maintained. The accepted sampler-and-expression recipe runs locally on the CPU,
+requires no NVIDIA credentials, and records zero model requests. Frozen generated Parquet
+artifacts remain trainable and evaluable without provider access.
 [NVIDIA NeMo Data Designer documentation](https://docs.nvidia.com/nemo/datadesigner/getting-started/welcome)
 describes the supported orchestration and validation workflow.
 
@@ -242,7 +245,7 @@ show that the model recovered relationships intentionally placed in the generato
 To make the experiment less circular:
 
 - freeze the generator before model tuning;
-- use multiple generator seeds;
+- use multiple independent, versioned generator runs when robustness testing is in scope;
 - include site-based or generator-regime holdouts;
 - vary coefficients and missingness in a stress-test cohort;
 - retain a dummy and logistic-regression baseline;
@@ -550,7 +553,7 @@ becomes part of the final assessment.
 | R1 canonical PDF | High | deterministic pagination and long text | 3–5 focused days |
 | R2 GitHub Actions CI | High | PostgreSQL service configuration and clean-runner dependency setup | 1–2 focused days |
 | Future CD | High | Deployment secrets, migration safety, health gates, and rollback | Deferred until needed |
-| R3 hybrid longitudinal protocol/dataset | Medium–high | invalid/trivially learnable generator, optional-provider drift, or conflating controlled and synthetic evidence | 2–3 weeks |
+| R3 NeMo-backed longitudinal protocol/dataset | Medium–high | invalid/trivially learnable generator, sampler-configuration drift, or conflating controlled and synthetic evidence | 2–3 weeks |
 | R4 models, MLflow, SHAP | Medium–high | leakage, calibration, dependency weight | 2–3 weeks |
 | R5 risk API and Scenario Lab | Medium–high | feature parity and non-causal wording | 1.5–2.5 weeks |
 | R6 DBSCAN, FAISS, Cohort Atlas | Medium–high | patient-level matrix design, stability, and honest 2D visualization | 2–3 weeks |
@@ -837,7 +840,8 @@ method or evidence that produced it.
 - canonical PDF;
 - GitHub Actions CI with manual health-checked deployment; protected automated CD and rollback are deferred;
 - separate multi-condition synthetic longitudinal dropout cohort;
-- optional NeMo Data Designer orchestration with an offline audited generator as the source of labels;
+- required NeMo Data Designer sampler generation with TrialSync relational shaping, censoring,
+  participant-level splits, and validation;
 - a separate NCT02054715-D1 benchmark only if participant rows become legitimately accessible;
 - screening-derived patient-fact and screening-profile cohorts;
 - logistic regression, XGBoost, LightGBM, MLflow, and SHAP;

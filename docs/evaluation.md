@@ -6,8 +6,12 @@ The extension gate will also reconcile trial-grouped screening totals with versi
 links and risk predictions, verify complete-criteria expansion before every Gemini summary, and
 retain GitHub Actions CI evidence for the tested commit. Deployment remains a manual,
 health-checked Compose procedure until automated CD is needed.
-The dropout gate will verify generator provenance, offline reproducibility without NVIDIA
-credentials, label independence from LLM-generated fields, and leakage-safe day-30/day-90 splits.
+The dropout-data gate verifies generator provenance, preservation of the exact Data Designer
+configuration and run artifacts, label independence from LLM-generated fields, and leakage-safe
+day-30/day-90 splits. Data Designer 0.8.0 executes the current sampler-and-expression recipe on the
+local CPU: generation makes no hosted model requests and requires no NVIDIA credentials. A frozen
+Parquet artifact can also be trained and evaluated offline. Byte-identical regeneration is not
+claimed because Data Designer 0.8.0 does not expose a project-level sampler seed.
 If NCT02054715-D1 participant rows become legitimately accessible, they receive a separate
 study-specific protocol and report; their metrics are never pooled with the public synthetic
 cohort. The currently public dictionary and aggregate paper are not row-level validation data.
@@ -16,12 +20,19 @@ Run the reproducible offline evaluation with `make evaluate`; detailed fixture m
 
 The held-out fixture checks candidate precision/recall, exact structure, source-quote validity, supported-conversation citation validity, refusal behavior, and deterministic parser latency. The six-workflow browser suite covers registration/history, needs-review evidence, batch screening, reviewed import, conversation persistence/refusal, and responsive chatbot interaction. Backend tests cover the rule engine, ownership, persistence, provider failures, and OCR fallback/provenance.
 
-The 2026-08-04 local verification gate reports 159 backend tests, 72 frontend tests,
-6 browser end-to-end workflows, a successful frontend production build, Ruff,
-mypy, ESLint, TypeScript, migrations, the canonical screening-report API/UI tests,
-and the held-out synthetic evaluation. The R1 visual review covered desktop and
-narrow screening details plus a three-page generated PDF.
-These counts are software verification results, not clinical performance claims.
+The R3 smoke artifact contains 20 enrollments and 4 synthetic dropouts (20%). The demo artifact
+contains 400 enrollments and 64 synthetic dropouts (16%). The experiment artifact contains 4,000
+enrollments and 702 synthetic dropouts (17.55%): 491/2,800 in training, 105/600 in validation, and
+106/600 in test. Its schema, linkage, chronology, censoring, relationship, split, and leakage
+checks pass. These values are generated-label prevalence, not model accuracy, prediction
+performance, a forced target, or a clinical estimate. Trained-model metrics remain pending.
+
+The 2026-08-14 local verification gate reports 173 backend tests, including 13 focused R3 tests
+with 88.22% generator coverage, plus 72 frontend tests, a successful frontend production build,
+Ruff, strict mypy, ESLint, TypeScript, migrations, Compose validation, and the held-out synthetic
+evaluation. The 4,000-row review candidate also passes the frozen schema, foreign-key, immutable
+snapshot, chronology, censoring, participant-split, and leakage checks. These counts are software
+and synthetic-data verification results, not clinical performance claims.
 
 R2 adds `.github/workflows/ci.yml`, which reproduces the verification gate on a clean GitHub
 Actions runner with PostgreSQL and builds both application images without provider credentials.

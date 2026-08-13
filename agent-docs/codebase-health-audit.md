@@ -1,15 +1,16 @@
 # TrialSync Codebase Health Audit
 
-**Date:** 2026-08-04
-**Status:** Repository-health snapshot after PD6, the R1 report, R2 CI, current
-rule validation, and the initial NeMo dropout-data guide; this is supporting
-guidance, not an implementation phase or replacement for the active research and
-patient-data plans.
+**Date:** 2026-08-13
+**Status:** Repository-health snapshot after PD6, R1/R2, and codebase-remediation
+Phases 1–7, updated for the Phase 8 review candidate. The R3 generator contract, 400-enrollment
+demo, and 4,000-enrollment experiment artifact are validated; final dataset acceptance is pending.
+This is supporting guidance, not a replacement for the active research and patient-data plans.
 
 ## Scope and measurements
 
-The audit excludes dependencies, generated builds, caches, and local artifacts.
-Physical line counts after removing proven stale code are:
+The audit excludes dependencies, generated builds, caches, and local artifacts. The following
+physical line counts are the preserved 2026-08-04 size snapshot and are useful only as scale
+context, not as current quality metrics:
 
 | Area | Lines |
 | --- | ---: |
@@ -29,8 +30,9 @@ surfaces.
 
 ## Evidence collected
 
-- The full backend suite contains 159 tests. The audit coverage run measured
-  90% statement coverage across backend runtime modules.
+- The 2026-08-14 full backend suite contains 173 passing tests. Thirteen focused R3 tests cover 88.22%
+  of `generate_r3_nemo.py`, above the enforced 75% research gate. The earlier whole-runtime audit
+  measured 90% statement coverage before the R3 package entered the configured source set.
 - The frontend suite contains 72 unit/component tests, and the repository keeps
   a separate browser workflow for the principal synthetic-data path. The
   browser workflow was not rerun here because `make test-e2e` reseeds the demo
@@ -43,19 +45,21 @@ surfaces.
 - Advisory complexity findings are concentrated in guided trial-criterion
   compilation, the deterministic rule engine, PDF/OCR parsing, and bounded
   provider clients rather than spread throughout the repository.
-- The new rule validator is covered by focused tests but currently has 71%
-  statement coverage; the overall backend remains at 90%.
-- `pip-audit --local` is clean. The transitive `brace-expansion` advisories
-  reported by the initial JavaScript audit are resolved in the lockfile. npm
-  still reports the [React Router RSC advisory](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
-  for the current 7.x DOM package and a moderate transitive PostCSS advisory;
-  this SPA does not use the unstable RSC APIs. React Router v8.3 is the patched
-  line, and [the v8 upgrade guide](https://reactrouter.com/upgrading/v7)
-  documents that v8 intentionally removes the `react-router-dom` re-export package;
-  the eventual migration must move ordinary imports to `react-router`,
-  DOM-specific imports such as `RouterProvider` to `react-router/dom`, and raise
-  React/React DOM to the v8 minimum. Keep this as a tracked migration item
-  rather than forcing a failing CI gate.
+- Strict mypy now checks 51 application/research source files, Ruff includes research code, and
+  missing Data Designer dependencies can no longer silently skip R3 tests.
+- The R3 artifact contract freezes seven source tables and three derived views. The accepted
+  400-row artifact passes exact schema, foreign-key, immutable-snapshot, chronology, censoring,
+  participant-split, and leakage checks; its 64/400 (16%) dropout prevalence is recorded as an
+  observed synthetic result rather than a forced target.
+- The 4,000-row experiment review candidate contains 702 synthetic dropouts (17.55%) across a
+  frozen 2,800/600/600 split. Its generator validation, EDA, directional relationship checks,
+  leakage audit, linkage manifest, dataset card, feature dictionary, and checksums pass.
+- Dependency remediation upgraded `pypdf` to 6.15.0 and refreshed frontend `js-yaml`, `nanoid`,
+  and PostCSS to patched lockfile versions. npm reports zero vulnerabilities. Python reports no
+  findings except the explicitly reviewed `PYSEC-2026-3552`: Data Designer 0.8.0 and the latest
+  checked 0.9.1 cap transitive `cryptography` at 49 while the fix requires 50.0.0. The non-exposed
+  PKCS#7-decryption path, controls, and removal condition are recorded in
+  `dependency-security-exceptions.md`.
 
 ## Cleanup completed at this checkpoint
 
@@ -66,6 +70,14 @@ surfaces.
 3. The unreachable `FoundationPage` and `PlaceholderPage` modules were removed.
 4. Migration-contract tests now prevent application imports from revisions and
    verify the frozen 25-concept seed against the approved PD0 inventory.
+5. Research dependencies are declared and exercised in CI; the current Data Designer
+   sampler/expression route has no API-key gate and makes zero hosted model requests.
+6. Confirmed dead/unreachable generator and rule-validation paths were removed, and legacy
+   persisted string enums now use `StrEnum` without a data migration.
+7. The R3 machine contract records exact ordered schemas, immutable enrollment-snapshot semantics,
+   `site_region`, provenance, schema fingerprints, and run metadata for future generations.
+8. `make audit` and CI now check Python plus frontend dependencies at moderate-or-higher severity,
+   with only the named Data Designer/cryptography exception permitted.
 
 ## Maintainability priorities
 
@@ -99,8 +111,8 @@ dead-code detection is not mechanically proven because `knip`, `vulture`,
 `jscpd`, and an import-boundary checker are not maintained project gates; the
 CSS and copy cleanup above is limited to confirmed unreferenced selectors and
 stale wording. Add one of those tools only when its check can be maintained as a
-quality gate. npm audit remains a manual review until the React Router v8 import
-migration is scheduled and completed.
+quality gate. Python and npm advisory checks are now unified under `make audit` and run in CI;
+temporary ignores require a dedicated bounded exception record.
 
 Repeat this audit when a runtime page or API module exceeds roughly 1,000 lines,
 when a new dependency layer is introduced, or after the research-extension

@@ -93,6 +93,31 @@ Sources: [NCT02054715-D1 data dictionary](https://nctn-data-archive.nci.nih.gov/
 
 For future multi-study work, [Project Data Sphere](https://data.projectdatasphere.org/) provides de-identified patient-level randomized cancer-trial datasets. A dataset is suitable only after its study documentation confirms a usable completion/discontinuation outcome and baseline or pre-horizon predictors. When data are in CDISC SDTM form, inspect the Disposition (`DS`) domain: its standard fields record completion/discontinuation status, date, and primary reason. Do not assume every Project Data Sphere study includes a usable `DS` domain or compatible follow-up window. [CDISC disposition guidance](https://www.cdisc.org/standards/foundational/cdash/cdashig-v2-0)
 
+### Brunalos clinical-trials-ml reference
+
+The public [brunalos/clinical-trials-ml repository](https://github.com/brunalos/clinical-trials-ml)
+is a methodological reference for vaccine clinical-trial dropout analysis. Its README
+describes gathering study-level information through the ClinicalTrials.gov API and the
+AACT database, joining records by `nct_id`, handling missing values and duplicates,
+encoding and scaling features, splitting data for machine learning, and comparing
+classical models including decision trees, random forests, KNN, linear regression, and
+XGBoost. It discusses trial duration, phase, participant count, demographics, location,
+sponsors, treatment information, and adverse-event summaries.
+
+It influenced the R3 protocol by reinforcing the value of explicit trial context,
+preprocessing provenance, and participant-level splitting. It does not provide
+TrialSync's required participant-level longitudinal dose/visit/dropout source, so it is
+not copied into the repository, used as ground truth, or treated as external validation.
+TrialSync instead uses a NeMo Data Designer sampler-backed event schema and a
+day-30-to-day-90 target. TrialSync owns relational schedules, censoring, splits, views, and
+validation; there is no duplicate offline simulator.
+
+The other reviewed candidates have different limitations: MIMIC-III is credentialed ICU
+data without trial-dropout labels; PRO-ACT is terms-restricted, single-condition ALS
+trial data; n2c2 data are challenge-specific confidential clinical notes; and Project
+Data Sphere requires registration and study-specific agreements. These sources informed
+the governance boundary but remain outside the public TrialSync generator and demo.
+
 ### Central label problem
 
 The proposed datasets do not support patient-level clinical-trial dropout prediction by themselves:
@@ -108,7 +133,7 @@ Therefore, “predict patient trial dropout” remains blocked for the originall
 
 | Feature | Feasibility | Recommendation |
 |---|---|---|
-| Patient dropout prediction | Feasible as a reproducible synthetic fixed-horizon experiment; NCT02054715-D1 publicly documents a genuine but study-specific outcome schema, not participant rows | Implement the public hybrid synthetic protocol; if rows become legitimately accessible, run NCT02054715-D1 as a separate external benchmark rather than merging or amplifying it |
+| Patient dropout prediction | Feasible as a versioned synthetic fixed-horizon experiment; NCT02054715-D1 publicly documents a genuine but study-specific outcome schema, not participant rows | Implement the public NeMo-backed synthetic protocol; if rows become legitimately accessible, run NCT02054715-D1 as a separate external benchmark rather than merging or amplifying it |
 | XGBoost/LightGBM | Feasible when labels exist | Use time-aware feature windows, leakage controls, calibration, and model-versioned inference |
 | SHAP explanations | Feasible | Explain predictive risk features only; do not call SHAP an eligibility score |
 | DBSCAN cohort discovery | Feasible research module | Build versioned patient-fact and screening-profile vectors from synthetic screening data and report stability and interpretable summaries |
@@ -295,7 +320,7 @@ The phase order is intentionally maintained only in
 
 Proceed with the selected scope: **LangChain candidate retrieval + complete approved-criteria
 expansion + Gemini structured eligibility summaries + deterministic screening + grounded
-reporting** as the product centerpiece, with **linked hybrid synthetic dropout modeling, MLflow, SHAP,
+reporting** as the product centerpiece, with **linked NeMo-backed synthetic dropout modeling, MLflow, SHAP,
 trial-grouped retention views, DBSCAN cohorts, and FAISS similarity** as the research analytics
 layer. GitHub Actions provides CI; manual Compose deployment remains the configured delivery path
 until automated CD is needed. BioBERT is deferred.

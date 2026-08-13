@@ -1,8 +1,8 @@
 # TrialSync
 
-TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with a planned research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
+TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with an incremental research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
 
-The deterministic matching result is the foundation. The research extension will add separately versioned dropout-risk predictions, scenario analysis, SHAP explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured eligibility summary.
+The deterministic matching result is the foundation. The research extension has implemented the R3 synthetic dataset generator; later phases will add separately versioned dropout-risk predictions, scenario analysis, SHAP explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured eligibility summary.
 
 ## Prerequisites
 
@@ -93,17 +93,30 @@ The current workspace supports the evidence-backed matching workflow:
 - Download a canonical, provider-free PDF report for any saved screening; it is assembled from
   the stored snapshot, approved trial version, and persisted criterion evaluations.
 
-## Planned research extension
+## Research extension status
 
-The approved research roadmap is not yet implemented in the running application. It proposes an
-audited statistical/synthetic longitudinal generator, optional NVIDIA NeMo Data Designer
-orchestration, separately versioned fixed-horizon dropout-risk predictions, scenario analysis,
-SHAP explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini eligibility-criteria
-workflow. The public NCT02054715-D1 dictionary and paper can inform a separate study-specific
-adapter, but the participant rows are not currently publicly downloadable or present in NCI's
-current dbGaP availability list. A real-data benchmark remains optional if those rows later become
-legitimately accessible; it is not a public-demo or clean-setup dependency. These
-research outputs will remain separate from the deterministic eligibility result.
+The full research roadmap is not yet implemented in the running application. R3 has produced its
+20-enrollment smoke, 400-enrollment demo, and 4,000-enrollment experiment cohorts. The experiment
+cohort contains 702 synthetic day-90 dropouts (17.55% observed prevalence) across a frozen
+2,800/600/600 participant-level split. Its EDA, dataset card, feature dictionary, linkage manifest,
+leakage report, and checksums are complete; the artifact is awaiting final review before R4 model
+comparison begins.
+
+The R3 generator uses the NVIDIA Data Designer 0.8.0 Python package locally with statistical
+samplers and dependent expressions. Its current recipe makes no hosted model requests, consumes no
+model tokens, and requires no NVIDIA API key. It exports seven linked Parquet source tables and
+three leakage-safe model views under the frozen `r3-dataset-contract-v1`; the primary classifier
+input is `landmark_day30_features.parquet`. Future fixed-horizon predictions, scenario analysis,
+SHAP explanations, DBSCAN/FAISS cohort exploration, and LangChain/Gemini eligibility-criteria work
+remain separate from deterministic eligibility.
+
+The public NCT02054715-D1 dictionary and paper can inform a separate study-specific adapter, but
+participant rows are not currently a public-demo or clean-setup dependency. Follow
+[`docs/nemo-dropout-dataset-generation.md`](docs/nemo-dropout-dataset-generation.md) for the current
+local generation workflow and artifact contract.
+
+For a concise explanation of which data will power dropout prediction, SHAP, DBSCAN, and FAISS,
+read [`docs/research-analysis-data-map.md`](docs/research-analysis-data-map.md).
 
 The public application, repository, automated tests, and demo are synthetic-data-only. A future
 offline benchmark may use NCT02054715-D1 if its participant rows become legitimately accessible
@@ -432,10 +445,13 @@ make audit
 `make audit` checks installed Python packages and the locked npm tree against current
 advisory data, so it requires network access.
 
-As of 2026-08-04, the Python dependency audit is clean. The npm audit still reports
-the tracked React Router RSC advisory and a transitive PostCSS advisory; neither is
-used by the deterministic screening engine, and the React Router migration remains
-separate compatibility work.
+As of 2026-08-13, patched `pypdf`, `js-yaml`, `nanoid`, and PostCSS versions clear
+their recorded advisories, and the npm audit reports zero vulnerabilities. One Python
+advisory is narrowly ignored by the project audit: Data Designer 0.8.0 (and the latest
+checked 0.9.1) requires `cryptography <=49`, while `PYSEC-2026-3552` is fixed in 50.0.0.
+The constraint, non-applicable PKCS#7-decryption path, controls, and mandatory review
+condition are recorded in
+[`agent-docs/dependency-security-exceptions.md`](agent-docs/dependency-security-exceptions.md).
 
 The backend import is intentionally side-effect free: it does not connect to PostgreSQL, create tables, or load models. Schema changes are made only through Alembic.
 
@@ -443,8 +459,9 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 
 The implemented application covers owner-scoped synthetic patient and trial records, deterministic
 single and batch screening, reviewed text/PDF imports, bounded Groq-assisted candidate extraction,
-and evidence-grounded screening conversations. The research extension described above remains
-planned and is not represented as a current product capability.
+and evidence-grounded screening conversations. The R3 synthetic dataset generator is implemented
+as an offline research tool; dropout models and all runtime research interfaces remain future work
+and are not represented as current product capabilities.
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.
 

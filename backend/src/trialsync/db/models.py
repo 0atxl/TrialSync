@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import enum
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 
 from sqlalchemy import (
     JSON,
@@ -28,52 +28,52 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from trialsync.db.base import Base
 
 
-class FactType(str, enum.Enum):
+class FactType(StrEnum):
     condition = "condition"
     medication = "medication"
     observation = "observation"
     demographic = "demographic"
 
 
-class Assertion(str, enum.Enum):
+class Assertion(StrEnum):
     present = "present"
     absent = "absent"
     unknown = "unknown"
 
 
-class VersionStatus(str, enum.Enum):
+class VersionStatus(StrEnum):
     draft = "draft"
     approved = "approved"
 
 
-class CriterionKind(str, enum.Enum):
+class CriterionKind(StrEnum):
     inclusion = "inclusion"
     exclusion = "exclusion"
 
 
-class OverallState(str, enum.Enum):
+class OverallState(StrEnum):
     potentially_eligible = "potentially_eligible"
     likely_ineligible = "likely_ineligible"
     needs_review = "needs_review"
 
 
-class EvaluationResult(str, enum.Enum):
+class EvaluationResult(StrEnum):
     pass_ = "pass"
     fail = "fail"
     unknown = "unknown"
 
 
-class DocumentKind(str, enum.Enum):
+class DocumentKind(StrEnum):
     patient = "patient"
     trial = "trial"
 
 
-class DocumentSourceType(str, enum.Enum):
+class DocumentSourceType(StrEnum):
     text = "text"
     pdf = "pdf"
 
 
-class DocumentStatus(str, enum.Enum):
+class DocumentStatus(StrEnum):
     needs_review = "needs_review"
     approved = "approved"
     rejected = "rejected"

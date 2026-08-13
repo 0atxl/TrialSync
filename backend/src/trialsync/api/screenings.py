@@ -329,9 +329,9 @@ def _message_read(
         )
     return ScreeningChatMessageRead(
         id=message.id,
-        role=message.role,  # type: ignore[arg-type]
+        role=message.role,
         content=message.content,
-        answer_state=message.answer_state,  # type: ignore[arg-type]
+        answer_state=message.answer_state,
         citations=[
             ScreeningChatCitationRead.model_validate(
                 {

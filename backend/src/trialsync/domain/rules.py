@@ -129,8 +129,8 @@ def _fact_path(
     return fact, spec
 
 
-def _check_fields(
-    expression: Mapping[str, object],
+def _check_fields[RuleField](
+    expression: Mapping[RuleField, object],
     *,
     allowed: set[str],
     path: str,

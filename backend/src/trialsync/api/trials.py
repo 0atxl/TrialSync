@@ -7,6 +7,7 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.interfaces import LoaderOption
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
@@ -223,7 +224,7 @@ async def guided_criterion_values(
     )
 
 
-def trial_options():
+def trial_options() -> LoaderOption:
     return selectinload(Trial.versions).selectinload(TrialVersion.criteria)
 
 

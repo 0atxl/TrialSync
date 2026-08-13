@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Response, status
-from sqlalchemy import desc, func, select, update
+from sqlalchemy import Select, desc, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -150,7 +150,7 @@ def active_duplicate_fact_query(
     entry: PatientFactCatalogEntry,
     effective_date: date | None,
     exclude_fact_id: uuid.UUID | None = None,
-):
+) -> Select[tuple[PatientFact]]:
     query = select(PatientFact).where(
         PatientFact.patient_id == patient_id,
         PatientFact.fact_type == entry.fact_type,

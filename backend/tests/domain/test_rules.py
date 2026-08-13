@@ -21,6 +21,15 @@ def test_rule_validator_rejects_misspelled_operator() -> None:
     assert '"presnet"' in issues[0].message
 
 
+def test_rule_validator_rejects_non_text_field_names() -> None:
+    issues = validate_rule(
+        {"op": "present", "fact": "condition.type2_diabetes", 1: "unexpected"},
+        fact_specs=FACT_SPECS,
+    )
+
+    assert [(issue.code, issue.path) for issue in issues] == [("RULE_FIELD_INVALID", "$")]
+
+
 def test_rule_validator_rejects_misspelled_catalog_fact() -> None:
     issues = validate_rule(
         {"op": "present", "fact": "condition.diabtes"},

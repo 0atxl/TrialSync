@@ -36,3 +36,6 @@ models/
 artifacts/
 mlruns/
 *.log
+
+# Personal reading notes, mentor preparation, and execution walkthroughs
+reading-material/

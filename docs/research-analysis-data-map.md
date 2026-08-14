@@ -48,6 +48,73 @@ Outcome details, events after day 30, hidden generator tiers, and random sampler
 model inputs. The accepted 400-enrollment demo is suitable for pipeline demonstrations; the
 4,000-enrollment experiment cohort will be used for the primary model comparison.
 
+### Reading guide: the three R3 modeling views
+
+The three views below are derived from the same seven longitudinal source tables:
+
+```text
+participants, enrollments, dose events, visit events, measurements,
+adverse events, and outcomes
+```
+
+They are different time-based representations of the same synthetic enrollment histories. They
+are not three independent datasets that must be joined into one model. The first model experiment
+uses only `landmark_day30_features.parquet`; the other two views support later analyses.
+
+| View | One row represents | Prediction or analysis question | Intended significance |
+|---|---|---|---|
+| `landmark_day30_features.parquet` | One enrollment at day 30 | Will dropout occur during days 31–90? | Primary fixed-horizon classification view for the BTech model comparison. |
+| `dynamic_landmarks.parquet` | One enrollment at a configured prediction landmark | Will dropout occur in the next 30 days? | Supports rolling risk updates as new visits, doses, or measurements arrive. |
+| `survival_features.parquet` | One enrollment | How long until dropout, or until observation is censored? | Preserves event timing for future time-to-event or survival analysis. |
+
+#### Fixed day-30 landmark
+
+The day-30 view creates one feature row per enrollment. Every predictor must be available on or
+before day 30, so the model sees a frozen snapshot of the participant's observed history:
+
+```text
+history through day 30 -> feature row -> dropout_by_day90
+```
+
+`dropout_by_day90` is the target, not a predictor. A value of `true` means that dropout occurred
+during days 31–90; `false` means that dropout did not occur by day 90. At inference time, the
+future outcome is unknown and the trained model returns a probability of dropout by day 90.
+
+#### Dynamic landmarks
+
+The dynamic view can contain multiple rows for one enrollment. Each row uses information only up
+to its own `prediction_day` and labels whether dropout occurs in the following 30-day window:
+
+```text
+history through prediction_day -> dropout_in_next_30_days
+```
+
+This is useful for a future scenario in which risk is recalculated after a new missed dose or visit.
+Because one enrollment can appear repeatedly, train/validation/test assignment must remain grouped
+by participant; rows must not be split independently at random.
+
+#### Survival view
+
+The survival view stores time-to-event information instead of reducing every outcome to a single
+yes/no label. Its key fields are `time_to_dropout_or_censor_days` and `event_observed`:
+
+```text
+dropout on day 58 -> time = 58, event_observed = true
+no dropout by day 90 -> time = 90, event_observed = false
+```
+
+This distinguishes an early dropout from a late dropout and represents participants who complete
+the observation window without an event. It is intended for a later survival-analysis extension,
+not the initial Logistic Regression, XGBoost, and LightGBM classification comparison.
+
+#### Recommended project order
+
+1. Train and evaluate the initial models with `landmark_day30_features.parquet`.
+2. Use SHAP on the selected model using the same day-30 feature representation.
+3. Present `dynamic_landmarks` as the rolling-prediction extension.
+4. Present `survival_features` as the time-to-event extension, implementing it only if the project
+   schedule permits.
+
 ## R4: SHAP explanations
 
 SHAP does not require another generated dataset. It explains the selected trained dropout model

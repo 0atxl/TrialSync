@@ -21,10 +21,11 @@ accepted 20-enrollment smoke cohort contains 4 synthetic dropouts (20%). The acc
 train/validation/test rows. Both runs produced seven linked source tables and three derived views
 with zero LLM/model requests.
 
-The 4,000-enrollment experiment candidate is now generated with 702 synthetic dropouts (17.55%)
+The accepted 4,000-enrollment experiment is generated with 702 synthetic dropouts (17.55%)
 and a 2,800/600/600 train/validation/test split. Its EDA, feature dictionary, dataset card, linkage
-manifest, leakage audit, and checksums are complete; final acceptance remains the R3 stop point.
-No dropout model has been trained or evaluated yet. The authoritative sequence remains the R3 section of
+manifest, leakage audit, checksums, and workflow diagram are complete. R4 subsequently used the
+frozen day-30 landmark view to compare dummy, logistic-regression, XGBoost, and LightGBM models,
+with bootstrap uncertainty, SHAP, and local MLflow tracking. The authoritative sequence remains the R3 section of
 the [research-extension implementation plan](../agent-docs/research-extension-implementation-plan.md#phase-r3--synthetic-longitudinal-dropout-protocol).
 
 Accepted artifact row counts:
@@ -397,7 +398,7 @@ from the seven exported source tables and three model views.
 | Smoke cohort | 20 enrollments | Accepted: 4 dropouts (20%) | End-to-end command and artifact check |
 | Tiny characterization run | 50 enrollments | Accepted: 11 dropouts (22%) | Credential-free protocol check |
 | Demo cohort | 400 enrollments | Accepted: 64 dropouts (16%) | Product-facing research demo |
-| Experiment cohort | 4,000 enrollments | Generated: 702 dropouts (17.55%); awaiting acceptance | Offline model comparison and stress evaluation |
+| Experiment cohort | 4,000 enrollments | Accepted: 702 dropouts (17.55%) | Completed R4 model comparison and stress evaluation |
 
 The generator does not force an exact cohort prevalence. It applies the frozen hidden-tier
 probabilities to independently sampled uniform draws and reports the resulting event count for

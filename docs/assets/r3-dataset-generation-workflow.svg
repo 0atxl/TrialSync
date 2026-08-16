@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1300" viewBox="0 0 1600 1300" role="img" aria-labelledby="title desc">
+  <title id="title">TrialSync dataset generation pipeline</title>
+  <desc id="desc">Configuration flows through NeMo Data Designer into linked participant, enrollment, longitudinal event, and outcome records. Parquet tables are validated and transformed into three analysis views.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#76B900" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="1300" fill="#0D0D0D"/>
+
+  <g font-family="Inter, Helvetica Neue, sans-serif">
+    <text x="50" y="58" fill="#F0F0F0" font-size="30" font-weight="600">TrialSync Dataset Generation Pipeline</text>
+
+    <!-- Configuration -->
+    <rect x="50" y="100" width="1500" height="180" rx="6" fill="#171717"/>
+    <text x="78" y="136" fill="#F0F0F0" font-size="18" font-weight="600">Configuration Layer</text>
+
+    <rect x="100" y="170" width="350" height="72" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <text x="275" y="199" text-anchor="middle" fill="#F0F0F0" font-size="17" font-weight="600">Schema + Rules</text>
+    <text x="275" y="222" text-anchor="middle" fill="#A6A6A6" font-size="12">Day 30 → Day 90</text>
+
+    <rect x="625" y="170" width="350" height="72" fill="#202020" stroke="#76B900" stroke-width="0.5"/>
+    <text x="800" y="199" text-anchor="middle" fill="#F0F0F0" font-size="17" font-weight="600">NeMo Data Designer</text>
+    <text x="800" y="222" text-anchor="middle" fill="#A6A6A6" font-size="12">Statistical Samplers</text>
+
+    <rect x="1150" y="170" width="350" height="72" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <text x="1325" y="199" text-anchor="middle" fill="#F0F0F0" font-size="17" font-weight="600">Dependent Expressions</text>
+    <text x="1325" y="222" text-anchor="middle" fill="#A6A6A6" font-size="12">Cross-field Logic</text>
+
+    <path d="M460 206 C520 206 555 206 615 206" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <path d="M985 206 C1045 206 1080 206 1140 206" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <path d="M1325 252 C1325 300 1065 300 1065 350" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+    <!-- Generation -->
+    <rect x="50" y="360" width="1500" height="470" rx="6" fill="#171717"/>
+    <text x="78" y="396" fill="#F0F0F0" font-size="18" font-weight="600">Generation Layer</text>
+
+    <rect x="90" y="500" width="260" height="150" rx="6" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <text x="115" y="535" fill="#F0F0F0" font-size="17" font-weight="600">Participants</text>
+    <text x="115" y="570" fill="#76B900" font-size="12" font-family="Courier New, monospace">research_participant_id</text>
+    <text x="115" y="598" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">age · condition_category</text>
+    <text x="115" y="626" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">burden · support</text>
+
+    <rect x="420" y="485" width="300" height="180" rx="6" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <text x="445" y="520" fill="#F0F0F0" font-size="17" font-weight="600">Enrollments</text>
+    <text x="445" y="555" fill="#76B900" font-size="12" font-family="Courier New, monospace">research_enrollment_id</text>
+    <text x="445" y="583" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">research_participant_id</text>
+    <text x="445" y="611" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">trial_version · treatment_arm</text>
+    <text x="445" y="639" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">cutoff_day · horizon_day</text>
+
+    <rect x="790" y="430" width="500" height="290" rx="6" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <text x="815" y="466" fill="#F0F0F0" font-size="17" font-weight="600">Longitudinal Events</text>
+
+    <rect x="820" y="495" width="205" height="82" rx="4" fill="#171717" stroke="#555555" stroke-width="0.5"/>
+    <text x="840" y="518" fill="#F0F0F0" font-size="14" font-weight="600">Dose Events</text>
+    <text x="840" y="543" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">event_day</text>
+    <text x="840" y="561" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">administered_count</text>
+
+    <rect x="1055" y="495" width="205" height="82" rx="4" fill="#171717" stroke="#555555" stroke-width="0.5"/>
+    <text x="1075" y="518" fill="#F0F0F0" font-size="14" font-weight="600">Visit Events</text>
+    <text x="1075" y="543" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">visit_status</text>
+    <text x="1075" y="561" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">delay_days</text>
+
+    <rect x="820" y="607" width="205" height="82" rx="4" fill="#171717" stroke="#555555" stroke-width="0.5"/>
+    <text x="840" y="630" fill="#F0F0F0" font-size="14" font-weight="600">Measurements</text>
+    <text x="840" y="655" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">measurement_day</text>
+    <text x="840" y="673" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">value</text>
+
+    <rect x="1055" y="607" width="205" height="82" rx="4" fill="#171717" stroke="#555555" stroke-width="0.5"/>
+    <text x="1075" y="630" fill="#F0F0F0" font-size="14" font-weight="600">Adverse Events</text>
+    <text x="1075" y="655" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">severity_grade</text>
+    <text x="1075" y="673" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">treatment_related</text>
+
+    <rect x="1330" y="485" width="180" height="180" rx="6" fill="#202020" stroke="#76B900" stroke-width="0.5"/>
+    <text x="1352" y="520" fill="#F0F0F0" font-size="17" font-weight="600">Outcomes</text>
+    <text x="1352" y="558" fill="#76B900" font-size="12" font-family="Courier New, monospace">dropout_by_day90</text>
+    <text x="1352" y="592" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">dropout_day</text>
+    <text x="1352" y="626" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">event_observed</text>
+
+    <path d="M360 575 C380 575 390 575 410 575" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <path d="M730 575 C750 575 760 575 780 575" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <path d="M1300 575 C1307 575 1313 575 1320 575" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <path d="M1420 675 C1420 790 230 760 230 870" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+    <!-- Data and validation -->
+    <rect x="50" y="880" width="1500" height="360" rx="6" fill="#171717"/>
+    <text x="78" y="916" fill="#F0F0F0" font-size="18" font-weight="600">Data + Validation Layer</text>
+
+    <rect x="100" y="1010" width="270" height="98" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <ellipse cx="235" cy="1010" rx="135" ry="19" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <ellipse cx="235" cy="1108" rx="135" ry="19" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <text x="235" y="1052" text-anchor="middle" fill="#F0F0F0" font-size="17" font-weight="600">7 Linked Tables</text>
+    <text x="235" y="1081" text-anchor="middle" fill="#A6A6A6" font-size="13">Parquet</text>
+
+    <rect x="470" y="980" width="300" height="160" rx="6" fill="#202020" stroke="#76B900" stroke-width="0.5"/>
+    <text x="495" y="1018" fill="#F0F0F0" font-size="17" font-weight="600">Validation</text>
+    <text x="495" y="1054" fill="#A6A6A6" font-size="13">IDs + Foreign Keys</text>
+    <text x="495" y="1082" fill="#A6A6A6" font-size="13">Chronology</text>
+    <text x="495" y="1110" fill="#A6A6A6" font-size="13">Leakage + Splits</text>
+
+    <rect x="870" y="940" width="630" height="270" fill="#202020" stroke="#666666" stroke-width="0.5"/>
+    <text x="895" y="978" fill="#F0F0F0" font-size="17" font-weight="600">Analysis Views</text>
+
+    <rect x="900" y="1002" width="570" height="54" fill="#1D2812" stroke="#76B900" stroke-width="0.5"/>
+    <text x="920" y="1025" fill="#F0F0F0" font-size="14" font-weight="600">Day-30 View</text>
+    <text x="1070" y="1025" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">missed_dose_rate · missed_visit_rate · dropout_by_day90</text>
+
+    <rect x="900" y="1072" width="570" height="54" fill="#171717" stroke="#555555" stroke-width="0.5"/>
+    <text x="920" y="1095" fill="#F0F0F0" font-size="14" font-weight="600">Dynamic View</text>
+    <text x="1070" y="1095" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">prediction_day · dropout_in_next_30_days</text>
+
+    <rect x="900" y="1142" width="570" height="54" fill="#171717" stroke="#555555" stroke-width="0.5"/>
+    <text x="920" y="1165" fill="#F0F0F0" font-size="14" font-weight="600">Survival View</text>
+    <text x="1070" y="1165" fill="#A6A6A6" font-size="12" font-family="Courier New, monospace">time_to_dropout_or_censor_days · event_observed</text>
+
+    <path d="M380 1059 C410 1059 430 1059 460 1059" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <path d="M780 1059 C815 1059 825 1059 860 1059" fill="none" stroke="#76B900" stroke-width="1.5" marker-end="url(#arrow)"/>
+  </g>
+</svg>

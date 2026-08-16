@@ -12,8 +12,8 @@ patient similarity answer different questions.
 
 | Analysis | Dataset | Unit represented by one row/vector | Current status |
 |---|---|---|---|
-| Dropout prediction | R3 longitudinal enrollment dataset | One trial enrollment at the day-30 landmark | 4,000-row experiment generated and awaiting final acceptance |
-| SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | Planned in R4 |
+| Dropout prediction | R3 longitudinal enrollment dataset | One trial enrollment at the day-30 landmark | R3 accepted; R4 offline model comparison complete |
+| SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | Completed for formal LightGBM and supplementary XGBoost models |
 | DBSCAN clustering | R6 screening-derived patient cohort | One unique synthetic patient | Planned in R6 |
 | FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | Planned in R6 |
 
@@ -46,7 +46,7 @@ Example model features include:
 
 Outcome details, events after day 30, hidden generator tiers, and random sampler draws are not
 model inputs. The accepted 400-enrollment demo is suitable for pipeline demonstrations; the
-4,000-enrollment experiment cohort will be used for the primary model comparison.
+4,000-enrollment experiment cohort was used for the completed primary model comparison.
 
 ### Reading guide: the three R3 modeling views
 
@@ -107,10 +107,10 @@ This distinguishes an early dropout from a late dropout and represents participa
 the observation window without an event. It is intended for a later survival-analysis extension,
 not the initial Logistic Regression, XGBoost, and LightGBM classification comparison.
 
-#### Recommended project order
+#### Project order
 
-1. Train and evaluate the initial models with `landmark_day30_features.parquet`.
-2. Use SHAP on the selected model using the same day-30 feature representation.
+1. Train and evaluate the initial models with `landmark_day30_features.parquet` — complete in R4.
+2. Use SHAP on the reviewed tree models with the same day-30 representation — complete in R4.
 3. Present `dynamic_landmarks` as the rolling-prediction extension.
 4. Present `survival_features` as the time-to-event extension, implementing it only if the project
    schedule permits.
@@ -120,7 +120,7 @@ not the initial Logistic Regression, XGBoost, and LightGBM classification compar
 SHAP does not require another generated dataset. It explains the selected trained dropout model
 using the same feature representation supplied to that model.
 
-Two explanation levels are planned:
+Two explanation levels were completed for both reviewed tree models:
 
 - **Global explanation:** summarizes which features generally have the largest influence across
   the evaluated cohort.

@@ -1,6 +1,6 @@
 # TrialSync architecture
 
-TrialSync is a controlled BTech research prototype for **Clinical Trial Patient Matching and Dropout Prediction**. Its repository and demo fixtures are synthetic by default, while a research experiment may use legitimately accessible deidentified data under its source terms. Its current operational core is explainable patient–trial matching. The R3 research generator, validated 400-enrollment demo, and reviewed 4,000-enrollment experiment artifact now exist; model training, runtime risk inference, cohort intelligence, and RAG over approved trial eligibility criteria remain future phases.
+TrialSync is a controlled BTech research prototype for **Clinical Trial Patient Matching and Dropout Prediction**. Its repository and demo fixtures are synthetic by default, while a research experiment may use legitimately accessible deidentified data under its source terms. Its current operational core is explainable patient–trial matching. The R3 dataset and R4 offline model evaluation are complete; runtime risk inference, cohort intelligence, and RAG over approved trial eligibility criteria remain future phases.
 
 ```text
 reviewed text/PDF -> deterministic text extraction -> optional local Tesseract OCR
@@ -25,7 +25,7 @@ Data Designer samplers/expressions (local CPU)
      participants -> enrollments -> doses / visits / measurements / adverse events -> outcomes
   -> TrialSync linkage, chronology, censoring, split, and leakage validation
   -> landmark_day30_features + dynamic_landmarks + survival_features
-  -> future R4 model training and evaluation
+  -> completed R4 model comparison, calibration, bootstrap uncertainty, SHAP, and MLflow record
 ```
 
 The physical enrollment table intentionally copies the participant baseline fields as an immutable
@@ -55,6 +55,15 @@ server, and returns a validated answer with criterion/evidence citations and
 replacement suggestions. The browser renders the persisted user question and
 assistant answer in an internally scrolling transcript; it never supplies
 authoritative history or screening state to the provider.
+
+The planned dropout-risk workflow begins from that same saved-screening detail rather than from a
+disconnected prediction page. A CRC selects **Predict dropout risk**; TrialSync resolves the
+immutable snapshot, approved trial version, screening, and versioned research-enrollment link.
+Baseline fields are prefilled from that context. Required day-30 adherence, visit, adverse-event,
+and updated-severity fields are loaded from linked research events or requested in the same panel.
+Unavailable follow-up values remain missing and are never silently interpreted as zero. The
+versioned research API validates the resulting feature snapshot and returns probability, threshold,
+horizon, model version, and SHAP contributions for display beside the unchanged eligibility result.
 
 The deterministic matching boundary is deliberate: parsing and approved rule
 evaluation produce the eligibility outcome, and persistence stores the

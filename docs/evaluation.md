@@ -25,17 +25,28 @@ contains 400 enrollments and 64 synthetic dropouts (16%). The experiment artifac
 enrollments and 702 synthetic dropouts (17.55%): 491/2,800 in training, 105/600 in validation, and
 106/600 in test. Its schema, linkage, chronology, censoring, relationship, split, and leakage
 checks pass. These values are generated-label prevalence, not model accuracy, prediction
-performance, a forced target, or a clinical estimate. Trained-model metrics remain pending.
+performance, a forced target, or a clinical estimate.
+
+R4 used the frozen 2,800/600/600 participant-level split to compare dummy, logistic-regression,
+XGBoost, and LightGBM classifiers. LightGBM remains the formal validation-selected model. XGBoost
+was the strongest observed frozen-test comparator with AUROC 0.6807, AUPRC 0.3617, Brier 0.1331,
+precision 0.3418, recall 0.5094, specificity 0.7895, and F1 0.4091. Both tree models received
+1,000-repeat bootstrap uncertainty estimates and global/local SHAP analysis. See
+[the R4 experiment report](r4-dropout-model-experiment.md) for the full protocol, comparison, and
+limitations.
 
 The 2026-08-14 local verification gate reports 173 backend tests, including 13 focused R3 tests
 with 88.22% generator coverage, plus 72 frontend tests, a successful frontend production build,
 Ruff, strict mypy, ESLint, TypeScript, migrations, Compose validation, and the held-out synthetic
 evaluation. The 4,000-row review candidate also passes the frozen schema, foreign-key, immutable
 snapshot, chronology, censoring, participant-split, and leakage checks. These counts are software
-and synthetic-data verification results, not clinical performance claims.
+and synthetic-data verification results, not clinical performance claims. The R4 model metrics are
+also synthetic-task results and do not establish clinical validity.
 
 R2 adds `.github/workflows/ci.yml`, which reproduces the verification gate on a clean GitHub
 Actions runner with PostgreSQL and builds both application images without provider credentials.
 Automated deployment and rollback are intentionally outside the current CI scope.
 
-These are software and fixture checks, not a clinical validation or trained-model evaluation. Live Groq measurements require a separately documented run with only synthetic data. OCR output is evaluated as reviewable source text, not as eligibility evidence or confidence.
+These are software, fixture, and synthetic-model checks, not clinical validation. Live Groq
+measurements require a separately documented run with only synthetic data. OCR output is evaluated
+as reviewable source text, not as eligibility evidence or confidence.

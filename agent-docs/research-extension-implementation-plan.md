@@ -1,13 +1,15 @@
 # TrialSync Research Extension: Phased Implementation Plan
 
 **Date:** 2026-07-24
-**Status:** R0 revised and re-locked on 2026-07-26 after alignment with the supplied
-LangChain/Gemini RAG and GitHub Actions brief; the R3 data strategy was clarified on
-2026-08-01; R1 completed on 2026-08-02; R2 CI completed on 2026-08-02; automated CD is
-deferred until the deployment target and release frequency justify it. R3 entered implementation
-on 2026-08-09. Its 20-enrollment smoke and 400-enrollment demo artifacts are generated and
-validated. The 4,000-enrollment experiment review candidate, EDA, dataset card, feature dictionary,
-linkage manifest, and checksums are complete; final acceptance remains pending.
+**Status:** R0 was revised and re-locked on 2026-07-26. R1 completed on 2026-08-02, and
+R2 CI completed on 2026-08-02; automated CD remains deferred. R3 is complete and accepted:
+the 20-enrollment smoke, 400-enrollment demo, and 4,000-enrollment experiment artifacts pass the
+declared schema, linkage, chronology, censoring, split, and leakage checks. R4's manual Kaggle
+experiment completed on 2026-08-15 with dummy, logistic-regression, XGBoost, and LightGBM
+comparisons, bootstrap uncertainty, SHAP explanations, and a local MLflow model record. LightGBM
+remains the protocol-selected model because selection was frozen on validation results; XGBoost is
+the strongest observed frozen-test comparator. The committed R4 experiment report records the
+selection, metrics, uncertainty, SHAP, reproducibility metadata, and R5 handoff.
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
@@ -74,10 +76,12 @@ Known extension gaps:
 
 - GitHub Actions CI is implemented; automated CD is deferred and manual Compose deployment
   remains the current delivery path.
-- The R3 generator, schema contract, 400-enrollment demo, and 4,000-enrollment experiment review
-  candidate exist and pass the declared invariants; only final R3 acceptance remains pending.
+- R3 is accepted and complete. Its generator, schema contract, smoke/demo/experiment artifacts,
+  EDA, dataset card, feature dictionary, linkage manifest, leakage audit, and checksums are frozen.
+- R4's offline experiment and repository-facing report are complete. The formal LightGBM selection,
+  supplementary XGBoost comparison, bootstrap intervals, SHAP artifacts, and MLflow record are
+  documented; runtime artifact packaging belongs to R5 and does not require retraining.
 - No screening-derived patient cohort/reference-trial matrix.
-- No dropout-risk model, model registry, calibration report, or SHAP explanation.
 - No research-risk inference API or UI.
 - No patient-fact or screening-profile clustering/similarity experiment.
 - No FAISS index.
@@ -127,7 +131,9 @@ These decisions apply to every phase unless the user explicitly changes them aft
 
 ### 3.3 Product boundary
 
-- Research analytics live in a visibly labelled research area.
+- Dropout-risk prediction is entered from the existing saved-screening workspace through a
+  visibly labelled research panel. Aggregate cohort and trial-level analytics may use dedicated
+  research pages, but prediction is not presented as a disconnected product feature.
 - The research frontend includes a **Trial Recruitment Overview** that groups saved screenings by approved trial version. Selecting a trial shows its potentially eligible, needs-review, and likely-ineligible counts, then a compact retention chart showing how many linked, potentially eligible research participants are in each dropout-risk band.
 - The retention chart is an operational planning view, not a new eligibility result. It requires an explicit, versioned linkage between a screening snapshot and the longitudinal research participant/trial context; no count may be inferred by joining unrelated screening and dropout cohorts.
 - Existing screening contracts remain backward compatible unless a phase explicitly documents a versioned addition.
@@ -172,7 +178,7 @@ Approved for inclusion:
 - An optional, separately versioned NCT02054715-D1 adapter and evaluation report if participant
   rows become legitimately accessible; the public application remains reproducible without it.
 - Logistic-regression, XGBoost, and LightGBM dropout-risk experiments with MLflow and SHAP.
-- A separate research-risk API and UI.
+- A separate, versioned research-risk API integrated into the existing screening UI.
 - A trial-centric recruitment and retention overview, including grouped screening counts and an aggregate dropout-risk chart for explicitly linked research participants.
 - DBSCAN cohort discovery and FAISS participant similarity.
 - LangChain retrieval over approved trial criteria plus a schema-validated Gemini eligibility summary.
@@ -236,6 +242,14 @@ dropout dataset, and R5 depends on an R4 model passing its declared acceptance c
 uses a different screening-derived patient cohort and does not depend on the dropout dataset.
 R7 is independent of both research datasets and uses the existing approved trial versions as
 its retrieval corpus.
+
+### Current implementation order
+
+The dependency map remains unchanged, but the next implementation pass will build the R6 data and
+backend work before the R5 runtime backend. This allows the R5 saved-screening risk panel and R6
+Cohort Atlas to be integrated into the frontend in one coordinated pass. This is an execution-order
+choice, not a postponement of R5: R5 still uses the accepted R4 model, and R6 remains independent of
+the dropout dataset.
 
 ## 6. Phase R0 — Scope lock and research protocol
 
@@ -799,12 +813,13 @@ Pause for review of the generated dataset report before implementing model exper
 
 ### Status
 
-In final review as of 2026-08-14. The table-aware Data Designer 0.8.0 configuration, frozen
+Complete and accepted as of 2026-08-15. The table-aware Data Designer 0.8.0 configuration, frozen
 `r3-dataset-contract-v1`, 20-enrollment smoke cohort, 400-enrollment demo cohort, and 4,000-row
 experiment candidate are complete. The experiment contains 702 synthetic dropouts (17.55%) and
 passes schema, linkage, immutable-snapshot, split, chronology, censoring, relationship, and leakage
 validation with zero hosted model requests. EDA, dataset card, feature dictionary, linkage
-manifest, and checksum evidence are complete. Final user acceptance remains required before R4.
+manifest, checksum evidence, and the dataset-generation workflow diagram are complete. The accepted
+day-30 landmark view was used for R4.
 
 ## 10. Phase R4 — Dropout model experiments, MLflow, and SHAP
 
@@ -936,11 +951,46 @@ performance but still cannot establish clinical validity or broad generalization
 
 Pause for user approval of metrics, model choice, threshold, and presentation wording before adding runtime inference.
 
+### Status
+
+The manual Kaggle experiment completed on 2026-08-15 over the frozen 2,800/600/600
+train/validation/test split. All four required model families were evaluated. LightGBM
+(`lightgbm-04`) remains the formal protocol-selected model because validation AUPRC was the primary
+selection metric with Brier score as the tie-breaker. XGBoost (`xgboost-05`) produced the strongest
+observed frozen-test results (AUROC 0.6807, AUPRC 0.3617, Brier 0.1331) and is retained as a clearly
+labelled supplementary comparator; it must not be retroactively described as validation-selected.
+
+Both tree models received 1,000-repeat bootstrap uncertainty estimates and global/local SHAP
+analysis. The formal LightGBM pipeline is registered in the local MLflow store with the `champion`
+alias, and its artifacts were reconciled with the reviewed final bundle. The experiment is complete;
+the committed experiment report records its protocol, results, limitations, and R5 handoff. Binary
+model/MLflow artifacts remain local and ignored until R5 explicitly packages the accepted runtime
+model.
+
 ## 11. Phase R5 — Versioned research-risk API and UI
 
 ### Objective
 
-Expose the accepted synthetic model through a separate authenticated research interface without coupling it to deterministic screening.
+Expose the accepted model through a versioned research API and an integrated action in the saved
+screening workspace, without coupling the prediction to the deterministic screening decision.
+
+### Screening-integrated interaction contract
+
+1. A CRC opens an existing saved screening and selects **Predict dropout risk**.
+2. TrialSync resolves the immutable patient snapshot, approved trial version, canonical screening,
+   and versioned research-enrollment link.
+3. Baseline fields already present in the snapshot and screening context are prefilled.
+4. Day-30 follow-up fields are loaded from linked research events when available; otherwise the
+   same panel requests the missing adherence, visit, adverse-event, and updated-severity inputs.
+5. Missing day-30 information remains explicitly missing. It must never be silently converted to
+   zero, because zero means an observed absence such as no missed visits.
+6. The backend constructs and validates the exact day-30 feature snapshot before inference.
+7. The screening workspace displays probability, threshold, horizon, model version, and top SHAP
+   contributions beside—but not inside—the eligibility result.
+
+The current model is a day-30 model. Screening data can start and prefill the workflow, but a
+prediction must not be described as an immediate day-0 prediction unless a separate baseline-only
+model is trained and versioned for that question.
 
 ### Data model
 
@@ -1059,21 +1109,29 @@ Example response:
 - Do not convert probability into `potentially_eligible`, `likely_ineligible`, or `needs_review`.
 - Do not permit prediction creation for arbitrary real records.
 - Resolve trial-overview risk aggregates only through the immutable research-enrollment linkage.
+- Prefill only fields resolved from the screening's immutable snapshot and approved trial version.
+- Require an explicit source for every day-30 follow-up field and preserve that source in the
+  versioned feature snapshot.
+- Reject incomplete feature snapshots rather than interpreting unavailable follow-up data as zero.
 
 ### Frontend
 
-Create a clearly labelled research area:
+Integrate dropout prediction into the existing saved-screening workspace:
 
-- Research overview with synthetic-data boundary.
+- **Predict dropout risk** action on an authorized saved screening.
+- Baseline fields prefilled from the immutable patient snapshot and trial-version context.
+- Day-30 follow-up form for fields that are not already available from linked research events.
+- Explicit incomplete-data state when required follow-up information is unavailable.
 - Model card with dataset, horizon, metrics, threshold, and limitations.
-- Synthetic participant selector or form.
 - Risk result with probability, threshold, and top SHAP contributions.
+- Eligibility result and evidence remain visible and unchanged in the same workflow.
 - Trial Recruitment Overview with a trial selector, total screening-state counts, and a compact
   chart of linked potentially eligible participants by dropout-risk band.
 - Visible numerator/denominator labels showing how many potentially eligible screenings have a
   linked research enrollment and prediction.
 - Link to model version and feature definitions.
-- Clear separation from the screening workspace.
+- Clear visual distinction between the deterministic eligibility result and the research-risk
+  panel within the screening workspace.
 
 Avoid:
 
@@ -1090,6 +1148,9 @@ Avoid:
 - Schema mismatch.
 - Stable prediction for fixed input.
 - Prediction persistence and version metadata.
+- Screening-to-enrollment link resolution and baseline prefill.
+- Missing day-30 inputs remain incomplete and are never silently zero-filled.
+- Submitted follow-up values produce the expected versioned feature snapshot.
 - SHAP contribution display.
 - Core screening equivalence before and after prediction.
 - Trial grouping uses approved trial-version IDs rather than mutable trial titles.
@@ -1103,6 +1164,9 @@ Avoid:
 ### Visual review
 
 - Research overview.
+- Saved screening before prediction, with baseline prefill and missing follow-up fields.
+- Saved screening after a completed day-30 prediction.
+- Screening with no research-enrollment link and screening with incomplete follow-up data.
 - Trial Recruitment Overview with no screenings, mixed eligibility states, no linked predictions,
   partial linkage, all risk bands, long trial names, and narrow layout.
 - Model card.
@@ -1115,6 +1179,10 @@ Avoid:
 ### Exit criteria
 
 - A prediction cannot mutate any screening record.
+- A CRC can initiate and review dropout prediction from the saved-screening workspace without
+  navigating to a disconnected prediction tool.
+- Screening context is prefilled, required day-30 information is explicit, and unavailable values
+  are never treated as observed zeros.
 - Every display says synthetic/research-only.
 - Model and feature versions are reproducible.
 - Every trial-overview risk count is traceable to a versioned enrollment, screening, and prediction.
@@ -1468,9 +1536,11 @@ Demonstrate the extension coherently, reproduce it from a clean environment, and
 3. Run or open a deterministic screening.
 4. Explain one pass, fail, and unknown criterion from stored evidence.
 5. Download the canonical PDF and show that it matches the result page.
-6. Open the research area and state the synthetic-data boundary.
-7. Show the approved dropout model card and comparison with the logistic baseline.
-8. Run one synthetic dropout-risk prediction.
+6. From the saved screening, open the integrated dropout-risk panel.
+7. Show the prefilled screening context, enter or load the required day-30 follow-up fields, and
+   run one dropout-risk prediction.
+8. Show the approved model card, probability, threshold, and top SHAP contributions beside the
+   unchanged eligibility result.
 9. Open the Trial Recruitment Overview, select one trial, and compare its canonical screening
    counts with the linked dropout-risk distribution.
 10. Explain the top SHAP contributions without causal language.
@@ -1635,7 +1705,8 @@ Commits are phase checkpoints, not permission to combine several phases into one
   synthetic cohort or its real-world evidence claim.
 - [x] Dummy, logistic, XGBoost, and LightGBM are compared before champion selection.
 - [x] MLflow uses a private optional Compose profile.
-- [x] Research analytics appear in labelled main navigation.
+- [x] Aggregate research analytics use clearly labelled research navigation; participant-level
+  dropout prediction is integrated into the saved-screening workspace.
 - [x] Dropout uses day 30 → day 90 over 50/400/4,000 synthetic enrollments.
 - [x] Cohort analysis uses 750 unique patients × 20 fixed reference trials.
 - [x] The Scenario Lab presents model sensitivity, never causality.
@@ -1655,8 +1726,8 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R0. Scope lock | Complete | Revised scope re-locked by user after final consistency audit, 2026-07-26 | This document |
 | R1. Canonical report PDF | Complete | User selected evidence-backed reporting, 2026-07-26 | Provider-free typed report assembler, owner-scoped PDF endpoint, complete evidence/missing-information/stale-evidence/ownership/long-text/determinism tests, frontend download states, production build, and visual review, 2026-08-02 |
 | R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
-| R3. Synthetic dropout protocol/dataset | Final review | User selected dropout-risk modeling on 2026-07-26 and clarified Data Designer sampler generation plus separate NCT02054715-D1 validation on 2026-08-01 | Frozen contract; accepted smoke/demo artifacts; 4,000-row experiment review candidate with 702 synthetic dropouts, EDA, dataset card, feature dictionary, leakage audit, linkage manifest, and checksums complete; final acceptance pending |
-| R4. Dropout models/MLflow/SHAP | Approved | User selected dropout-risk modeling, 2026-07-26 | |
+| R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
+| R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; formal validation-selected LightGBM champion; supplementary strongest-test XGBoost result; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |
 | R6. Screening-derived DBSCAN/FAISS cohorts | Approved | User selected cohort analytics, 2026-07-26 | |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
@@ -1664,7 +1735,9 @@ Commits are phase checkpoints, not permission to combine several phases into one
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R1 and R2 are complete. Continue R3 only and preserve every later stop point.
+R1–R4 are complete. Implement the R6 data/backend foundation, the R5 risk backend, and one
+coordinated R5/R6 frontend integration pass. Preserve the R7 and R8 stop points. There is no R9 in
+this extension plan.
 
 ## 22. Implementation handoff format
 

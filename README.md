@@ -2,7 +2,11 @@
 
 TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with an incremental research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
 
-The deterministic matching result is the foundation. The research extension has implemented the R3 synthetic dataset generator; later phases will add separately versioned dropout-risk predictions, scenario analysis, SHAP explanations, DBSCAN/FAISS cohort exploration, and a LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured eligibility summary.
+The deterministic matching result is the foundation. The research extension has completed the R3
+synthetic dataset and R4 offline model experiment. Later phases will add separately versioned
+runtime dropout-risk predictions, scenario analysis, DBSCAN/FAISS cohort exploration, and a
+LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured
+eligibility summary.
 
 ## Prerequisites
 
@@ -95,20 +99,28 @@ The current workspace supports the evidence-backed matching workflow:
 
 ## Research extension status
 
-The full research roadmap is not yet implemented in the running application. R3 has produced its
-20-enrollment smoke, 400-enrollment demo, and 4,000-enrollment experiment cohorts. The experiment
+The full research roadmap is not yet implemented in the running application. R3 has produced and
+accepted its 20-enrollment smoke, 400-enrollment demo, and 4,000-enrollment experiment cohorts. The
+experiment
 cohort contains 702 synthetic day-90 dropouts (17.55% observed prevalence) across a frozen
 2,800/600/600 participant-level split. Its EDA, dataset card, feature dictionary, linkage manifest,
-leakage report, and checksums are complete; the artifact is awaiting final review before R4 model
-comparison begins.
+leakage report, checksums, and dataset-generation workflow diagram are complete.
 
 The R3 generator uses the NVIDIA Data Designer 0.8.0 Python package locally with statistical
 samplers and dependent expressions. Its current recipe makes no hosted model requests, consumes no
 model tokens, and requires no NVIDIA API key. It exports seven linked Parquet source tables and
 three leakage-safe model views under the frozen `r3-dataset-contract-v1`; the primary classifier
-input is `landmark_day30_features.parquet`. Future fixed-horizon predictions, scenario analysis,
-SHAP explanations, DBSCAN/FAISS cohort exploration, and LangChain/Gemini eligibility-criteria work
-remain separate from deterministic eligibility.
+input is `landmark_day30_features.parquet`.
+
+R4 compared a dummy baseline, logistic regression, XGBoost, and LightGBM on the frozen split.
+LightGBM remains the formal validation-selected model, while XGBoost is recorded as the strongest
+observed frozen-test comparator. Calibration, threshold metrics, 1,000-repeat bootstrap intervals,
+global/local SHAP explanations, reproducibility metadata, and local MLflow artifacts are complete.
+Runtime prediction, the Scenario Lab, DBSCAN/FAISS cohort exploration, and LangChain/Gemini
+eligibility-criteria work remain separate from deterministic eligibility.
+
+See [`docs/r4-dropout-model-experiment.md`](docs/r4-dropout-model-experiment.md) for the frozen
+experiment contract, model comparison, uncertainty intervals, SHAP interpretation, and R5 handoff.
 
 The public NCT02054715-D1 dictionary and paper can inform a separate study-specific adapter, but
 participant rows are not currently a public-demo or clean-setup dependency. Follow

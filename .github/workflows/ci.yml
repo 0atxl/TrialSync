@@ -62,7 +62,7 @@ jobs:
         run: |
           python -m venv backend/.venv
           backend/.venv/bin/python -m pip install --upgrade pip
-          backend/.venv/bin/python -m pip install --editable "backend[dev,research]"
+          backend/.venv/bin/python -m pip install --editable "backend[dev,research,research-r6]"
 
       - name: Install frontend dependencies
         run: npm ci --prefix web

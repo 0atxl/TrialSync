@@ -3,8 +3,9 @@
 TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with an incremental research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
 
 The deterministic matching result is the foundation. The research extension has completed the R3
-synthetic dataset and R4 offline model experiment. Later phases will add separately versioned
-runtime dropout-risk predictions, scenario analysis, DBSCAN/FAISS cohort exploration, and a
+dataset, R4 offline model experiment, and R6 cohort/similarity backend. The bounded R6 V2
+representation experiment is complete and retained as a reviewed comparison. Later phases add
+separately versioned runtime dropout-risk predictions, scenario analysis, Cohort Atlas UI, and a
 LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured
 eligibility summary.
 
@@ -116,11 +117,22 @@ R4 compared a dummy baseline, logistic regression, XGBoost, and LightGBM on the 
 LightGBM remains the formal validation-selected model, while XGBoost is recorded as the strongest
 observed frozen-test comparator. Calibration, threshold metrics, 1,000-repeat bootstrap intervals,
 global/local SHAP explanations, reproducibility metadata, and local MLflow artifacts are complete.
-Runtime prediction, the Scenario Lab, DBSCAN/FAISS cohort exploration, and LangChain/Gemini
-eligibility-criteria work remain separate from deterministic eligibility.
+The R6 backend now provides two versioned patient-level representations, bounded DBSCAN evaluation,
+and two brute-force-verified exact FAISS indexes over 750 unique patient snapshots. Runtime risk
+prediction, the coordinated R5/R6 frontend, and LangChain/Gemini eligibility-criteria work remain
+separate from deterministic eligibility.
 
 See [`docs/r4-dropout-model-experiment.md`](docs/r4-dropout-model-experiment.md) for the frozen
 experiment contract, model comparison, uncertainty intervals, SHAP interpretation, and R5 handoff.
+
+See [`docs/r6-cohort-analysis.md`](docs/r6-cohort-analysis.md) for the accepted cohort contract,
+DBSCAN parameters and limitations, exact-neighbor verification, runtime APIs, and frontend handoff.
+The predeclared V2 feature-balancing comparison is documented separately in
+[`docs/r6-v2-representation-experiment.md`](docs/r6-v2-representation-experiment.md).
+The implemented one-run protocol for testing cluster recovery against a separately sealed answer
+key completed with intact seals but below-threshold DBSCAN and FAISS recovery metrics. Its final
+result is documented in
+[`docs/r6-controlled-cluster-recovery-benchmark.md`](docs/r6-controlled-cluster-recovery-benchmark.md).
 
 The public NCT02054715-D1 dictionary and paper can inform a separate study-specific adapter, but
 participant rows are not currently a public-demo or clean-setup dependency. Follow

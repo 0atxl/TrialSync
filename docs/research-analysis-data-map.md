@@ -7,15 +7,16 @@ not a replacement for it.
 
 ## One project, two research datasets
 
-TrialSync intentionally uses two separate synthetic datasets because dropout prediction and
+TrialSync intentionally uses two separate generated research datasets because dropout prediction and
 patient similarity answer different questions.
 
 | Analysis | Dataset | Unit represented by one row/vector | Current status |
 |---|---|---|---|
 | Dropout prediction | R3 longitudinal enrollment dataset | One trial enrollment at the day-30 landmark | R3 accepted; R4 offline model comparison complete |
 | SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | Completed for formal LightGBM and supplementary XGBoost models |
-| DBSCAN clustering | R6 screening-derived patient cohort | One unique synthetic patient | Planned in R6 |
-| FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | Planned in R6 |
+| DBSCAN clustering | R6 screening-derived patient cohort | One unique generated patient | V1 baseline accepted; V2 completed and rejected by frozen criteria |
+| FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | V1 active; V2 exact sensitivity indexes verified |
+| Controlled cluster recovery | Separate frozen R6 recovery population | One unique generated patient plus a sealed evaluation-only answer key | One run completed; DBSCAN and FAISS thresholds not met; no activation |
 
 ```text
 R3 longitudinal enrollments
@@ -23,7 +24,7 @@ R3 longitudinal enrollments
   -> dropout model
   -> SHAP explanations
 
-R6 unique synthetic patients × fixed trial panel
+R6 unique generated patients × fixed trial panel
   -> patient-fact vectors ---------> DBSCAN + FAISS
   -> screening-profile vectors ----> DBSCAN + FAISS
 ```
@@ -31,7 +32,7 @@ R6 unique synthetic patients × fixed trial panel
 ## R3: dropout prediction data
 
 The dropout model uses the R3 longitudinal dataset. Its primary training input is
-`landmark_day30_features.parquet`, with one row per synthetic enrollment and features available
+`landmark_day30_features.parquet`, with one row per generated enrollment and features available
 through day 30. The target is `dropout_by_day90`.
 
 Example model features include:
@@ -57,7 +58,7 @@ participants, enrollments, dose events, visit events, measurements,
 adverse events, and outcomes
 ```
 
-They are different time-based representations of the same synthetic enrollment histories. They
+They are different time-based representations of the same generated enrollment histories. They
 are not three independent datasets that must be joined into one model. The first model experiment
 uses only `landmark_day30_features.parquet`; the other two views support later analyses.
 
@@ -133,10 +134,10 @@ a feature caused dropout, and it is never an eligibility score.
 
 ## R6: screening-derived cohort data
 
-Clustering and similarity do not use the R3 dropout dataset. R6 will create a separate cohort of:
+Clustering and similarity do not use the R3 dropout dataset. The accepted R6 backend run contains:
 
-- 750 unique synthetic patient snapshots;
-- a fixed panel of 20 approved synthetic trial versions;
+- 750 unique generated patient snapshots;
+- a fixed panel of 20 approved generated trial versions;
 - 15,000 deterministic patient × trial evaluations;
 - one final patient-level sample for each of the 750 patients.
 
@@ -174,30 +175,94 @@ This supports the question:
 
 ## DBSCAN clustering
 
-DBSCAN will run independently in patient-fact space and screening-profile space. It groups dense
+DBSCAN runs independently in patient-fact space and screening-profile space. It groups dense
 regions of each feature space and may leave unusual patients labelled as noise. Cluster labels will
 use neutral names such as `fact_cluster_0`; they are not diagnoses or clinical phenotypes.
 
 A seeded two-dimensional PCA projection may be displayed in the Cohort Atlas, but clustering will
 operate on the complete feature vectors rather than the simplified display coordinates.
 
+### What DBSCAN solves
+
+DBSCAN provides a population-level view. It examines all 750 patient vectors together, identifies
+dense regions, and may leave a patient unassigned as noise when that patient does not have a
+sufficiently dense neighborhood. It answers:
+
+> What broad evidence or recorded-fact patterns exist across the whole cohort?
+
+DBSCAN returns group membership, group sizes, core members, and noise. It does not rank the exact
+nearest patients to one selected patient.
+
 ## FAISS similarity indexing
 
-FAISS will build one exact CPU cosine-similarity index for each representation:
+FAISS builds one exact CPU cosine-similarity index for each representation:
 
 1. patient-fact similarity index;
 2. screening-profile similarity index.
 
-A result will include the neighboring patient identifiers, similarity values, and a transparent
+A result includes the neighboring patient identifiers, similarity values, and a transparent
 comparison of the facts or criterion states that made them similar. The query patient is excluded
 from its own result list. Similarity is a research navigation aid, not screening evidence or a
 recommendation that two patients should enter the same trial.
 
+### What FAISS solves
+
+FAISS provides a patient-level retrieval view. Given one selected patient vector, it returns the
+closest individual vectors in descending cosine-similarity order. It answers:
+
+> Which specific cohort members are most similar to this selected member in the chosen space?
+
+FAISS does not create population groups and is not a predictive model. A patient labelled as
+DBSCAN noise can still have a valid ranked FAISS neighbor list because "closest available members"
+does not mean that enough nearby members exist to form a dense cluster.
+
+### DBSCAN and FAISS compared
+
+Think of cohort members as houses on a map: DBSCAN identifies neighborhoods across the complete
+map, while FAISS starts at one house and returns the closest houses.
+
+| Question | DBSCAN | FAISS |
+|---|---|---|
+| Scope | Whole cohort | One selected member at a time |
+| Purpose | Discover dense population structure | Retrieve exact nearest neighbors |
+| Output | Cluster label or noise | Ranked member IDs and cosine similarities |
+| Requires a requested patient | No | Yes |
+| Can leave a patient ungrouped | Yes | Not applicable; it returns the nearest available members |
+| Changes deterministic eligibility | No | No |
+
+TrialSync runs each method separately in patient-fact space and screening-profile space. This
+allows the project to compare similarity in recorded facts with similarity in deterministic
+eligibility-evidence patterns. The same pair of patients need not be close in both spaces.
+
+### V1 baseline and V2 decision
+
+The accepted V1 DBSCAN reports are reproducible but weakly separated. Patient-fact V1 has a
+silhouette of -0.0510 with low subsample and nearby-parameter stability. Screening-profile V1 is
+more stable but has a silhouette of 0.0032. Both V1 exact similarity indexes passed all-member
+brute-force verification.
+
+V1 remains the immutable baseline. The completed one-shot V2 experiment reused the same patients,
+facts, trial panel, criterion results, and DBSCAN grid while testing transparent robust
+preprocessing, semantic feature-block balancing, and repeated-rule weighting. Patient-fact V2
+improved stability but failed silhouette and cluster-balance criteria; screening-profile V2 formed
+only one cluster. Both were rejected without further tuning. The two V2 exact indexes passed
+brute-force verification and remain sensitivity comparators. See the
+[V2 protocol and observed result](r6-v2-representation-experiment.md).
+
+The [controlled cluster-recovery benchmark](r6-controlled-cluster-recovery-benchmark.md)
+does not replace either result. It defines one frozen 750-member positive-control population with
+four predeclared overlapping groups and heterogeneous background members. The hidden assignment is
+physically separated from representation building, DBSCAN selection, and FAISS retrieval, then
+revealed only after those outputs are sealed. This distinguishes population-specific weak
+separation from a pipeline that cannot recover known structure. The one-run workflow is implemented
+and completed at full scale with intact seals. It did not meet the frozen recovery thresholds and
+can never become the active runtime cohort.
+
 ## Separation rules
 
-The R6 clustering and similarity vectors must not contain:
+The R6 clustering and similarity vectors do not contain:
 
-- actual or synthetic dropout outcomes;
+- dropout outcomes;
 - dropout-model probabilities or risk bands;
 - SHAP values;
 - hidden generator tiers or random draws;
@@ -213,9 +278,9 @@ When these phases are complete, interpret each output as follows:
 
 | Output | Safe interpretation | Unsafe interpretation |
 |---|---|---|
-| Dropout probability | Model-estimated risk in the synthetic R3 task | Real clinical dropout probability |
+| Dropout probability | Model-estimated risk in the generated R3 task | Real clinical dropout probability |
 | SHAP contribution | Feature contribution to this model's output | Cause of dropout |
-| DBSCAN cluster | Dense group in a documented synthetic feature space | Medical phenotype or diagnosis |
+| DBSCAN cluster | Dense group in a versioned generated feature space | Medical phenotype or diagnosis |
 | FAISS neighbor | Similar vector under one frozen representation | Eligibility evidence or treatment recommendation |
 
 The deterministic TrialSync screening engine remains the only source of the stored eligibility

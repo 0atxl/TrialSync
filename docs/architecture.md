@@ -1,6 +1,6 @@
 # TrialSync architecture
 
-TrialSync is a controlled BTech research prototype for **Clinical Trial Patient Matching and Dropout Prediction**. Its repository and demo fixtures are synthetic by default, while a research experiment may use legitimately accessible deidentified data under its source terms. Its current operational core is explainable patient–trial matching. The R3 dataset and R4 offline model evaluation are complete; runtime risk inference, cohort intelligence, and RAG over approved trial eligibility criteria remain future phases.
+TrialSync is a controlled research prototype for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. The R3 dataset, R4 offline model evaluation, and R6 cohort/similarity backend including the reviewed V2 comparison are complete. Runtime risk inference, the coordinated R5/R6 frontend, and RAG over approved trial eligibility criteria remain future work.
 
 ```text
 reviewed text/PDF -> deterministic text extraction -> optional local Tesseract OCR
@@ -10,6 +10,10 @@ structured records -> immutable patient snapshot + approved trial version
                    -> deterministic rule engine -> stored criterion evidence/result
 stored screening + authoritative evidence -> canonical PDF report
 stored screening + authoritative evidence -> bounded explanation conversation
+750 versioned patient snapshots × 20 approved trial versions
+                   -> 15,000 pure deterministic evaluations
+                   -> patient-fact + screening-profile representations
+                   -> DBSCAN reports + exact FAISS indexes -> read-only research APIs
 ```
 
 The implemented R3 longitudinal generator uses the NVIDIA Data Designer 0.8.0 Python package

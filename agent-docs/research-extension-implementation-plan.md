@@ -1328,6 +1328,52 @@ GET  /api/v1/research/similarity/queries/{query_id}
 - No cluster or neighbor is used as screening evidence.
 - Research disclaimers remain visible.
 
+### V1 baseline and authorized V2 addendum
+
+The 2026-08-16 V1 backend run is retained as the immutable baseline. Its exact indexes passed
+all-member brute-force verification, while DBSCAN showed weak separation: patient-fact silhouette
+`-0.0510` with low stability and screening-profile silhouette `0.0032` with moderate stability.
+This is a reportable limited clustering result, not an execution failure.
+
+The user authorized one bounded V2 representation experiment before Cohort Atlas implementation.
+V2 reuses the exact 750 patients, 20 trial versions, 15,000 screening pairs, criterion results,
+member order, and semantic checksums. It changes only predeclared robust preprocessing,
+semantic-block balancing, and repeated-rule weighting; it does not regenerate records, plant
+cluster labels, add prohibited features, or expand the DBSCAN grid after results are seen. V1 and
+V2 are evaluated independently for patient-fact and screening-profile space, and both V2 FAISS
+indexes must again match brute-force cosine neighbors for all members.
+
+The experiment completed on 2026-08-16. Patient-fact V2 improved stability but failed the frozen
+silhouette and cluster-balance criteria; screening-profile V2 formed only one cluster. Both V2
+DBSCAN representations were rejected without further tuning. Both V2 exact indexes passed
+all-member brute-force verification and remain non-active sensitivity comparators.
+
+The complete frozen protocol, observed metrics, and decision are maintained in
+[`docs/r6-v2-representation-experiment.md`](../docs/r6-v2-representation-experiment.md).
+
+### Controlled recovery benchmark addendum
+
+On 2026-08-16 the user requested a documentation-first positive-control benchmark to distinguish
+population-specific weak separation from failure of the clustering pipeline to recover known
+structure. The accepted contract preserves the accepted V1 run and rejected V2 result, generates one frozen
+750-member population with four overlapping latent groups plus heterogeneous background members,
+and reuses the same frozen 20-version trial panel and deterministic screening engine.
+
+The answer key is isolated from patient facts, screening profiles, DBSCAN selection, FAISS indexes,
+APIs, and frontend payloads. Label-free analysis outputs must be sealed before the answer key is
+opened for ARI, noise-recovery, and same-group-neighbor evaluation. The accepted protocol also uses
+a predeclared scale-adaptive DBSCAN grid, seeded subsample and nearby-parameter stability checks,
+and a non-activating K-means diagnostic. It cannot change the active V1 run or retroactively
+promote V2.
+
+The generation schema, leakage boundary, acceptance criteria, and interpretation matrix are in
+[`docs/r6-controlled-cluster-recovery-benchmark.md`](../docs/r6-controlled-cluster-recovery-benchmark.md).
+The user accepted the single-run contract and authorized implementation on 2026-08-18. Generation,
+separate answer-key sealing, label-free adaptive DBSCAN/K-means/FAISS analysis, post-seal evaluation,
+and reduced-size tests are implemented. The one full 750-member run completed with intact seals but
+failed the frozen DBSCAN/FAISS recovery criteria. This is an R6 addendum and does not create an R9
+or change the active V1 run.
+
 ## 13. Phase R7 — Eligibility-criteria RAG with LangChain and Gemini
 
 ### Objective
@@ -1729,15 +1775,15 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
 | R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; formal validation-selected LightGBM champion; supplementary strongest-test XGBoost result; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |
-| R6. Screening-derived DBSCAN/FAISS cohorts | Approved | User selected cohort analytics, 2026-07-26 | |
+| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized one bounded V2 representation experiment after V1 review, requested a documentation-first controlled recovery proposal on 2026-08-16, and accepted one frozen recovery run on 2026-08-18 | Data/backend complete: V1 baseline accepted; V2 completed and rejected for DBSCAN by frozen criteria; all four existing exact indexes verified against brute force for all 750 members; controlled-recovery generation, sealing, label-free analysis, evaluation, and reduced-size tests complete; the positive control failed its frozen DBSCAN/FAISS recovery thresholds with intact seals; authenticated read-only V1 APIs and degraded-state handling complete; coordinated R5/R6 frontend remains |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
 | R8. Evaluation/final delivery | Approved | User selected supporting engineering/evaluation, 2026-07-26 | |
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R1–R4 are complete. Implement the R6 data/backend foundation, the R5 risk backend, and one
-coordinated R5/R6 frontend integration pass. Preserve the R7 and R8 stop points. There is no R9 in
-this extension plan.
+R1–R4 and the R6 data/backend foundation, including the reviewed V2 comparison, are complete.
+Implement the R5 risk backend, then complete one coordinated R5/R6 frontend integration pass.
+Preserve the R7 and R8 stop points. There is no R9 in this extension plan.
 
 ## 22. Implementation handoff format
 

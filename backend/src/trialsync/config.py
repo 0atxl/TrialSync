@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
@@ -42,6 +43,11 @@ class Settings(BaseSettings):
     terminology_max_results: int = Field(default=5, ge=1, le=10)
     loinc_username: SecretStr = Field(default=SecretStr(""))
     loinc_password: SecretStr = Field(default=SecretStr(""))
+    research_cohort_artifact_root: Path = Path("artifacts/r6")
+    research_cohort_active_run: str | None = Field(
+        default=None,
+        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$",
+    )
 
     @field_validator("database_url")
     @classmethod

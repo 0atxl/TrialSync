@@ -34,6 +34,18 @@ dev = [
 research = [
   "data-designer==0.8.0",
 ]
+research-r6 = [
+  "faiss-cpu==1.15.0",
+  "numpy==2.5.1",
+  "pandas==2.3.3",
+  "pyarrow==24.0.0",
+  "scikit-learn==1.9.0",
+  "scipy==1.18.0",
+]
+research-runtime = [
+  "faiss-cpu==1.15.0",
+  "numpy==2.5.1",
+]
 
 [project.scripts]
 trialsync-demo = "trialsync.demo:main"
@@ -63,5 +75,16 @@ plugins = ["pydantic.mypy"]
 mypy_path = ["$MYPY_CONFIG_FILE_DIR/src", "$MYPY_CONFIG_FILE_DIR"]
 
 [[tool.mypy.overrides]]
-module = ["data_designer", "data_designer.*", "pandas", "pandas.*"]
+module = [
+  "data_designer",
+  "data_designer.*",
+  "faiss",
+  "faiss.*",
+  "pandas",
+  "pandas.*",
+  "pyarrow",
+  "pyarrow.*",
+  "sklearn",
+  "sklearn.*",
+]
 ignore_missing_imports = true

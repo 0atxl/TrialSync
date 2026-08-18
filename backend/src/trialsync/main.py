@@ -11,11 +11,13 @@ from trialsync.api.imports import router as imports_router
 from trialsync.api.middleware import TraceIdMiddleware
 from trialsync.api.patient_fact_catalog import router as patient_fact_catalog_router
 from trialsync.api.patients import router as patients_router
+from trialsync.api.research_cohorts import router as research_cohorts_router
 from trialsync.api.screenings import router as screenings_router
 from trialsync.api.trials import router as trials_router
 from trialsync.config import Settings, get_settings
 from trialsync.nlp.chat import build_chat_provider
 from trialsync.nlp.extraction import build_extractor
+from trialsync.research.artifacts import CohortArtifactService
 from trialsync.terminology.suggestions import build_terminology_suggestion_service
 
 
@@ -32,6 +34,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.extractor = build_extractor(resolved_settings)
     app.state.chat_provider = build_chat_provider(resolved_settings)
     app.state.terminology_suggestions = build_terminology_suggestion_service(resolved_settings)
+    app.state.research_cohorts = CohortArtifactService(
+        resolved_settings.research_cohort_artifact_root,
+        resolved_settings.research_cohort_active_run,
+    )
 
     if resolved_settings.cors_origins:
         app.add_middleware(
@@ -52,4 +58,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(trials_router)
     app.include_router(screenings_router)
     app.include_router(imports_router)
+    app.include_router(research_cohorts_router)
     return app

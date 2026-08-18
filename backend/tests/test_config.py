@@ -32,3 +32,22 @@ def test_groq_extraction_is_the_default_when_a_key_is_configured() -> None:
     )
 
     assert settings.extraction_provider == "groq"
+
+
+def test_research_cohort_artifact_defaults_are_safe() -> None:
+    settings = Settings(
+        _env_file=None,
+        DATABASE_URL="postgresql+psycopg://user:password@localhost/test",
+    )
+
+    assert str(settings.research_cohort_artifact_root) == "artifacts/r6"
+    assert settings.research_cohort_active_run is None
+
+
+def test_research_cohort_run_rejects_path_segments() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            DATABASE_URL="postgresql+psycopg://user:password@localhost/test",
+            research_cohort_active_run="../outside",
+        )

@@ -15,6 +15,7 @@ from uuid import UUID
 import numpy as np
 
 from research.configs.r6_cohort import R6_CONTRACT_VERSION
+from research.configs.r6_v3 import V3_CONTRACT_VERSION
 from research.schemas.r6_dataset import (
     ARTIFACT_FILENAMES,
     MANIFEST_FILENAME,
@@ -22,6 +23,7 @@ from research.schemas.r6_dataset import (
     semantic_checksum,
     validate_forbidden_feature_leakage,
 )
+from research.schemas.r6_v3 import validate_private_source_absent
 from trialsync.research.cohort_profiles import (
     R6CriterionResultRecord,
     R6FactRecord,
@@ -40,6 +42,8 @@ from trialsync.research.similarity import (
     build_exact_faiss_index,
     verify_exact_neighbors,
 )
+
+_SUPPORTED_CONTRACT_VERSIONS = frozenset({R6_CONTRACT_VERSION, V3_CONTRACT_VERSION})
 
 DEFAULT_DBSCAN_CONFIG = DBSCANConfig(
     eps_values=(0.45, 0.6, 0.75, 0.9, 1.05, 1.2),
@@ -113,7 +117,7 @@ def load_materialized_cohort(
     required_run_id = expected_run_id or run_directory.name
     if not isinstance(manifest, dict) or manifest.get("run_id") != required_run_id:
         raise ValueError("R6 manifest run_id does not match its directory")
-    if manifest.get("contract_version") != R6_CONTRACT_VERSION:
+    if manifest.get("contract_version") not in _SUPPORTED_CONTRACT_VERSIONS:
         raise ValueError("R6 cohort contract version is unsupported")
     if manifest.get("artifact_format") != R6_ARTIFACT_FORMAT:
         raise ValueError("R6 artifact format is unsupported")
@@ -135,6 +139,9 @@ def load_materialized_cohort(
     screening_pairs = _read_records(paths["screening_pairs"])
     criterion_rows = _read_records(paths["criterion_results"])
     validate_forbidden_feature_leakage(
+        (*patient_rows, *fact_rows, *screening_pairs, *criterion_rows, reference_panel)
+    )
+    validate_private_source_absent(
         (*patient_rows, *fact_rows, *screening_pairs, *criterion_rows, reference_panel)
     )
     expected_semantic = manifest["semantic_checksums"]

@@ -258,6 +258,14 @@ separation from a pipeline that cannot recover known structure. The one-run work
 and completed at full scale with intact seals. It did not meet the frozen recovery thresholds and
 can never become the active runtime cohort.
 
+The separately versioned [R6 V3 controlled cohort](r6-v3-controlled-cohort.md) changes only the
+population design: correlated fact bundles and cohesive encounter timing provide a controlled
+case with recoverable structure. The reference panel, patient-fact and screening-profile feature
+contracts, bounded DBSCAN grid, and exact FAISS implementation remain unchanged. Its private
+answer key is sealed outside all feature, analysis-selection, runtime API, and frontend paths.
+Purity, assignment coverage, group recall, background-noise recall, and neighbor relevance are
+calculated only after label-free analysis is complete.
+
 ## Separation rules
 
 The R6 clustering and similarity vectors do not contain:

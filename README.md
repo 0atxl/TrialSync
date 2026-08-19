@@ -133,6 +133,12 @@ The implemented one-run protocol for testing cluster recovery against a separate
 key completed with intact seals but below-threshold DBSCAN and FAISS recovery metrics. Its final
 result is documented in
 [`docs/r6-controlled-cluster-recovery-benchmark.md`](docs/r6-controlled-cluster-recovery-benchmark.md).
+A separately versioned V3 controlled-cohort contract now tests the same feature builders, DBSCAN
+analysis, and exact FAISS retrieval against stronger correlated patient groups while keeping its
+answer key outside all analysis inputs. The generator, seals, evaluator, and atomic runner are
+implemented. The sealed 750-member repository run passed review and is the approved R6 runtime
+cohort. See
+[`docs/r6-v3-controlled-cohort.md`](docs/r6-v3-controlled-cohort.md).
 
 The public NCT02054715-D1 dictionary and paper can inform a separate study-specific adapter, but
 participant rows are not currently a public-demo or clean-setup dependency. Follow

@@ -1374,6 +1374,28 @@ and reduced-size tests are implemented. The one full 750-member run completed wi
 failed the frozen DBSCAN/FAISS recovery criteria. This is an R6 addendum and does not create an R9
 or change the active V1 run.
 
+### V3 controlled cohort addendum
+
+On 2026-08-20 the user authorized a separately versioned V3 cohort after reviewing an external
+implementation. V3 changes the population design, not the analysis method: it defines four correlated
+patient groups plus a heterogeneous background group and cohesive encounter timing, while reusing
+the same 20-version reference panel, patient-fact and screening-profile feature builders, bounded
+DBSCAN analysis, and exact CPU FAISS implementation.
+
+The group assignment is a separately sealed answer key. It is prohibited from patient facts,
+screening results, feature matrices, DBSCAN selection, FAISS construction, runtime APIs, and
+frontend payloads. Post-analysis evaluation must report both purity and assignment coverage,
+per-group recovery, background-noise recovery, stability, and same-group neighbor relevance.
+These results establish controlled pipeline behavior only; clusters are not diagnoses or evidence
+of naturally occurring patient phenotypes, and similarity never changes eligibility.
+
+The V3.1 generator, public/private seals, post-analysis evaluator, atomic runner, and reduced-size
+tests are implemented. The full 750-member by 20-trial repository run completed and passed seal,
+DBSCAN, FAISS, and runtime-readability review on 2026-08-20. Run
+`r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` is approved as the R6 runtime cohort. The contract
+and reviewed metrics are maintained in
+[`docs/r6-v3-controlled-cohort.md`](../docs/r6-v3-controlled-cohort.md).
+
 ## 13. Phase R7 — Eligibility-criteria RAG with LangChain and Gemini
 
 ### Objective
@@ -1775,7 +1797,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
 | R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; formal validation-selected LightGBM champion; supplementary strongest-test XGBoost result; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |
-| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized one bounded V2 representation experiment after V1 review, requested a documentation-first controlled recovery proposal on 2026-08-16, and accepted one frozen recovery run on 2026-08-18 | Data/backend complete: V1 baseline accepted; V2 completed and rejected for DBSCAN by frozen criteria; all four existing exact indexes verified against brute force for all 750 members; controlled-recovery generation, sealing, label-free analysis, evaluation, and reduced-size tests complete; the positive control failed its frozen DBSCAN/FAISS recovery thresholds with intact seals; authenticated read-only V1 APIs and degraded-state handling complete; coordinated R5/R6 frontend remains |
+| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized one bounded V2 representation experiment after V1 review, accepted one controlled-recovery run on 2026-08-18, and authorized the separately versioned V3 controlled cohort on 2026-08-20 | V1 baseline accepted; V2 rejected for DBSCAN; controlled recovery completed below its thresholds with intact seals; full V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, stable-cluster, exact-index, neighbor-relevance, and runtime-readability review and is approved as the runtime cohort; authenticated read-only APIs and degraded-state handling complete; coordinated R5/R6 frontend remains |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
 | R8. Evaluation/final delivery | Approved | User selected supporting engineering/evaluation, 2026-07-26 | |
 

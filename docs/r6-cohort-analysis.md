@@ -109,14 +109,27 @@ implemented. The one full run completed with intact seals, no DBSCAN structural 
 moderate but below-threshold patient-fact V2 FAISS recovery. It cannot activate a runtime cohort
 and adds no API or frontend surface. The detailed result is recorded in the benchmark report.
 
+## V3 controlled cohort transfer
+
+The completed recovery benchmark showed that its deliberately overlapping population did not
+retain enough separable structure under the approved representations. The user subsequently
+authorized a new, separately versioned controlled cohort with correlated groups and cohesive
+encounter timing while keeping the reference panel, feature builders, DBSCAN grid, and FAISS
+implementation unchanged.
+
+The [R6 V3 controlled cohort contract](r6-v3-controlled-cohort.md) records the final `v3.1`
+generator, complete configuration seal, private answer-key boundary, post-analysis evaluator,
+atomic publication rule, and correct purity/coverage interpretation. The authoritative repository
+run completed, passed seal and runtime-readability review, and is approved as the R6 runtime cohort.
+
 ## Exact FAISS indexes
 
 R6 builds two CPU `IndexFlatIP` indexes over L2-normalized `float32` vectors. Inner product on unit
 vectors is cosine similarity. The observed norm range in both representations was
 `0.99999988–1.00000012`.
 
-Verification queried every one of the 750 members in each index and compared the ordered neighbors
-and scores with brute-force cosine search:
+Verification queried every one of the 750 members in each index and compared its neighbors and
+scores with brute-force cosine search:
 
 | Representation | Vectors | Dimensions | Members checked | Mismatches |
 |---|---:|---:|---:|---:|
@@ -129,8 +142,9 @@ eligibility evidence, a cluster assignment, or a recommendation.
 
 FAISS and the NumPy brute-force reference can accumulate float32 dot products a few ULPs apart.
 Scores within the verification tolerance (`rtol=1e-5`, `atol=1e-6`) are treated as one numerical
-tie group and ordered by member identifier, including when the tie crosses the requested-neighbor
-boundary.
+tie group. Verification accepts an identifier substitution at the requested-neighbor boundary only
+when the scores are equivalent within that tolerance; it still requires matching scores, every
+strictly higher-scoring member, unique results, and self-exclusion.
 
 ## Runtime contract
 
@@ -152,14 +166,14 @@ POST /api/v1/research/similarity/queries
 The local accepted run is selected with:
 
 ```dotenv
-TRIALSYNC_RESEARCH_COHORT_ACTIVE_RUN=r6-c21e487e-3b0d-5562-b7ad-3c7e7bbfdf2f
+TRIALSYNC_RESEARCH_COHORT_ACTIVE_RUN=r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d
 ```
 
 Regenerate and verify from the repository root with:
 
 ```bash
 backend/.venv/bin/python -m pip install --editable './backend[dev,research,research-r6]'
-backend/.venv/bin/python -m research.run_r6_pipeline --output-root artifacts/r6
+backend/.venv/bin/python -m research.run_r6_v3_pipeline --output-root artifacts/r6
 backend/.venv/bin/pytest backend/tests/research -q
 ```
 
@@ -169,6 +183,6 @@ the contracts, builders, tests, and aggregate evidence in this report.
 ## Remaining R6 delivery
 
 The R6 data/backend foundation, V1 baseline, bounded V2 comparison, and one-run controlled-recovery
-benchmark are complete. The benchmark is a failed positive control under its frozen criteria, not
-an implementation error. Cohort Atlas frontend work remains intentionally deferred to the
-coordinated R5/R6 integration pass after the R5 risk backend is implemented.
+benchmark are complete. The V3 controlled-cohort generator, seals, evaluator, and atomic runner are
+implemented, and its full repository run is reviewed and approved. Cohort Atlas frontend work
+remains deferred to the coordinated R5/R6 integration pass after the R5 risk backend is implemented.

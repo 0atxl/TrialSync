@@ -1,6 +1,6 @@
 # TrialSync architecture
 
-TrialSync is a controlled research prototype for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. The R3 dataset, R4 offline model evaluation, and R6 cohort/similarity backend including the reviewed V2 comparison are complete. Runtime risk inference, the coordinated R5/R6 frontend, and RAG over approved trial eligibility criteria remain future work.
+TrialSync is a controlled research system for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. The R3 dataset, R4 offline model evaluation, and R6 cohort/similarity backend are complete through the reviewed V3 controlled cohort. Runtime risk inference, the coordinated R5/R6 frontend, and RAG over approved trial eligibility criteria remain future work.
 
 ```text
 reviewed text/PDF -> deterministic text extraction -> optional local Tesseract OCR

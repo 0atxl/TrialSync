@@ -85,6 +85,34 @@ def test_numerically_tied_scores_use_member_identifier_order() -> None:
 @pytest.mark.skipif(
     find_spec("faiss") is None, reason="R6 exact-index test requires optional faiss-cpu"
 )
+def test_verifier_accepts_only_score_equivalent_top_k_boundary_ties() -> None:
+    artifact = _artifact()
+    vectors = np.zeros_like(artifact.normalized_matrix, dtype=np.float32)
+    vectors[0, 0] = 1.0
+    vectors[1, :2] = (0.899991, np.sqrt(1.0 - 0.899991**2))
+    vectors[2, :2] = (0.9, np.sqrt(1.0 - 0.9**2))
+    exact = build_exact_faiss_index(replace(artifact, normalized_matrix=vectors))
+
+    class BoundaryTieIndex:
+        def search(self, queries: np.ndarray, count: int) -> tuple[np.ndarray, np.ndarray]:
+            query = queries[0]
+            query_index = int(np.argmin(np.linalg.norm(exact.vectors - query, axis=1)))
+            scores = exact.vectors @ query
+            if query_index == 0:
+                # Both perturbations remain within the verifier's score tolerance, but they make
+                # FAISS and NumPy choose different identifiers at the one-neighbor tie boundary.
+                scores[1] -= np.float32(2e-6)
+                scores[2] += np.float32(1e-6)
+            positions = np.argsort(-scores)[:count].astype(np.int64)
+            return scores[positions][None, :], positions[None, :]
+
+    index = replace(exact, index=BoundaryTieIndex())
+    assert verify_exact_neighbors(index, neighbor_count=1).passed
+
+
+@pytest.mark.skipif(
+    find_spec("faiss") is None, reason="R6 exact-index test requires optional faiss-cpu"
+)
 def test_exact_faiss_neighbors_exclude_self_match_brute_force_and_reject_mismatch() -> None:
     artifact = _artifact()
     index = build_exact_faiss_index(artifact)

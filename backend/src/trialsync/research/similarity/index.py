@@ -241,24 +241,65 @@ def brute_force_neighbors(
 def verify_exact_neighbors(
     index: ExactSimilarityIndex, *, neighbor_count: int = 10
 ) -> SimilarityVerification:
-    """Compare every stored vector's FAISS result with brute-force cosine similarity."""
+    """Compare FAISS with brute force, accepting only score-equivalent boundary ties."""
 
     mismatches: list[str] = []
     for member_id in index.member_ids:
         observed = query_neighbors(index, member_id, neighbor_count).neighbors
-        expected = brute_force_neighbors(index, member_id, neighbor_count)
-        if len(observed) != len(expected):
+        query_index = _member_index(index, member_id)
+        limit = min(neighbor_count, len(index.member_ids) - 1)
+        if limit == 0:
+            if observed:
+                mismatches.append(f"{member_id}: neighbor count differs")
+            continue
+        reference_scores = index.vectors @ index.vectors[query_index]
+        reference_scores[query_index] = -np.inf
+        finite_scores = reference_scores[np.isfinite(reference_scores)]
+        if len(observed) != limit or finite_scores.size != len(index.member_ids) - 1:
             mismatches.append(f"{member_id}: neighbor count differs")
             continue
-        for found, wanted in zip(observed, expected, strict=True):
-            if found.member_id != wanted.member_id or not np.isclose(
+        threshold = float(np.sort(finite_scores)[::-1][limit - 1])
+        observed_ids = [neighbor.member_id for neighbor in observed]
+        if len(set(observed_ids)) != len(observed_ids) or member_id in observed_ids:
+            mismatches.append(f"{member_id}: duplicate or self neighbor")
+            continue
+        invalid_score = False
+        for found in observed:
+            found_index = _member_index(index, found.member_id)
+            reference_score = float(reference_scores[found_index])
+            if not np.isclose(
                 found.cosine_similarity,
-                wanted.cosine_similarity,
+                reference_score,
                 rtol=_SCORE_RTOL,
                 atol=_SCORE_ATOL,
+            ) or (
+                reference_score < threshold
+                and not np.isclose(
+                    reference_score,
+                    threshold,
+                    rtol=_SCORE_RTOL,
+                    atol=_SCORE_ATOL,
+                )
             ):
-                mismatches.append(f"{member_id}: FAISS result differs from brute force")
+                invalid_score = True
                 break
+        if invalid_score:
+            mismatches.append(f"{member_id}: FAISS score differs from brute force")
+            continue
+        mandatory_ids = {
+            candidate_id
+            for candidate_index, candidate_id in enumerate(index.member_ids)
+            if candidate_index != query_index
+            and reference_scores[candidate_index] > threshold
+            and not np.isclose(
+                reference_scores[candidate_index],
+                threshold,
+                rtol=_SCORE_RTOL,
+                atol=_SCORE_ATOL,
+            )
+        }
+        if not mandatory_ids.issubset(observed_ids):
+            mismatches.append(f"{member_id}: FAISS omitted a higher-scoring neighbor")
     return SimilarityVerification(
         checked_member_count=len(index.member_ids),
         passed=not mismatches,

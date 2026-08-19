@@ -1,7 +1,8 @@
 # TrialSync Codebase Remediation Plan
 
 **Date:** 2026-08-13
-**Status:** Phases 1–7 complete; Phase 8 evidence complete and awaiting dataset acceptance
+**Status:** Historical R3 remediation record. Phases 1–8 are complete; the R3 experiment dataset
+was later accepted for R4.
 **Scope:** Repository health work required before freezing and generating the
 4,000-enrollment R3 experiment cohort. This plan does not replace the active
 research-extension plan or authorize later R4 model implementation.
@@ -287,11 +288,12 @@ Review evidence:
   generator coverage, 72 frontend tests, Ruff, strict mypy, migrations, Compose validation,
   held-out evaluation, lint/typecheck, and the production build.
 
-## Phase 9 — R4 model-scope checkpoint
+## Historical R4 model-scope checkpoint
 
-Retain the existing R4 comparison selected for the project: dummy prevalence, logistic
-regression, XGBoost, and LightGBM. The mentor did not explicitly require Random Forest; do not add
-it unless a later experiment needs that extra benchmark.
+The historical R4 comparison covered dummy prevalence, logistic regression, XGBoost, and LightGBM.
+It does not determine the later R5 runtime selection; the active research plan records the
+user-selected XGBoost product decision. The mentor did not explicitly require Random Forest; do not
+add it unless a later experiment needs that extra benchmark.
 
 ## Deferred maintainability work
 

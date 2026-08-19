@@ -13,10 +13,10 @@ patient similarity answer different questions.
 | Analysis | Dataset | Unit represented by one row/vector | Current status |
 |---|---|---|---|
 | Dropout prediction | R3 longitudinal enrollment dataset | One trial enrollment at the day-30 landmark | R3 accepted; R4 offline model comparison complete |
-| SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | Completed for formal LightGBM and supplementary XGBoost models |
-| DBSCAN clustering | R6 screening-derived patient cohort | One unique generated patient | V1 baseline accepted; V2 completed and rejected by frozen criteria |
-| FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | V1 active; V2 exact sensitivity indexes verified |
-| Controlled cluster recovery | Separate frozen R6 recovery population | One unique generated patient plus a sealed evaluation-only answer key | One run completed; DBSCAN and FAISS thresholds not met; no activation |
+| SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | Completed for both evaluated tree models; XGBoost is the selected R5 runtime/product model |
+| DBSCAN clustering | R6 screening-derived patient cohort | One unique generated patient | V3 is active; V1 is limited historical baseline and V2 was rejected |
+| FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | V3 exact indexes are active; V1/V2 are historical sensitivity evidence |
+| Controlled cluster recovery | Separate frozen R6 recovery population | One unique generated patient plus a sealed evaluation-only answer key | One sealed run completed below thresholds; retired and non-active |
 
 ```text
 R3 longitudinal enrollments
@@ -246,17 +246,12 @@ facts, trial panel, criterion results, and DBSCAN grid while testing transparent
 preprocessing, semantic feature-block balancing, and repeated-rule weighting. Patient-fact V2
 improved stability but failed silhouette and cluster-balance criteria; screening-profile V2 formed
 only one cluster. Both were rejected without further tuning. The two V2 exact indexes passed
-brute-force verification and remain sensitivity comparators. See the
-[V2 protocol and observed result](r6-v2-representation-experiment.md).
+brute-force verification but remain retired sensitivity evidence.
 
-The [controlled cluster-recovery benchmark](r6-controlled-cluster-recovery-benchmark.md)
-does not replace either result. It defines one frozen 750-member positive-control population with
-four predeclared overlapping groups and heterogeneous background members. The hidden assignment is
-physically separated from representation building, DBSCAN selection, and FAISS retrieval, then
-revealed only after those outputs are sealed. This distinguishes population-specific weak
-separation from a pipeline that cannot recover known structure. The one-run workflow is implemented
-and completed at full scale with intact seals. It did not meet the frozen recovery thresholds and
-can never become the active runtime cohort.
+A separate frozen 750-member controlled-recovery population used a sealed evaluation-only answer
+key, revealed only after DBSCAN and FAISS outputs were sealed. Its one full run completed with
+intact seals but did not meet the frozen recovery thresholds, so it is retired and can never become
+the active runtime cohort.
 
 The separately versioned [R6 V3 controlled cohort](r6-v3-controlled-cohort.md) changes only the
 population design: correlated fact bundles and cohesive encounter timing provide a controlled

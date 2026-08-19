@@ -8,10 +8,6 @@ from .contracts import (
     RepresentationContext,
 )
 from .features import build_patient_fact_representation, build_screening_profile_representation
-from .v2 import (
-    build_patient_fact_representation_v2,
-    build_screening_profile_representation_v2,
-)
 
 __all__ = [
     "R6CriterionResultRecord",
@@ -20,7 +16,5 @@ __all__ = [
     "RepresentationArtifact",
     "RepresentationContext",
     "build_patient_fact_representation",
-    "build_patient_fact_representation_v2",
     "build_screening_profile_representation",
-    "build_screening_profile_representation_v2",
 ]

@@ -1,10 +1,10 @@
 # TrialSync Codebase Health Audit
 
 **Date:** 2026-08-13
-**Status:** Repository-health snapshot after PD6, R1/R2, and codebase-remediation
-Phases 1–7, updated for the Phase 8 review candidate. The R3 generator contract, 400-enrollment
-demo, and 4,000-enrollment experiment artifact are validated; final dataset acceptance is pending.
-This is supporting guidance, not a replacement for the active research and patient-data plans.
+**Status:** Historical repository-health snapshot after PD6, R1/R2, and codebase remediation.
+It was updated for the Phase 8 review candidate; the R3 experiment dataset was subsequently
+accepted for R4. This is supporting history, not current guidance or a replacement for the active
+research and patient-data plans.
 
 ## Scope and measurements
 

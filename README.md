@@ -3,11 +3,10 @@
 TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with an incremental research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
 
 The deterministic matching result is the foundation. The research extension has completed the R3
-dataset, R4 offline model experiment, and R6 cohort/similarity backend. The bounded R6 V2
-representation experiment is complete and retained as a reviewed comparison. Later phases add
-separately versioned runtime dropout-risk predictions, scenario analysis, Cohort Atlas UI, and a
-LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured
-eligibility summary.
+dataset, R4 offline model experiment, and R6 cohort/similarity backend. Later phases add a
+separately versioned XGBoost runtime dropout-risk prediction, scenario analysis, Cohort Atlas UI,
+and a LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a
+structured eligibility summary.
 
 ## Prerequisites
 
@@ -102,8 +101,7 @@ The current workspace supports the evidence-backed matching workflow:
 
 The full research roadmap is not yet implemented in the running application. R3 has produced and
 accepted its 20-enrollment smoke, 400-enrollment demo, and 4,000-enrollment experiment cohorts. The
-experiment
-cohort contains 702 synthetic day-90 dropouts (17.55% observed prevalence) across a frozen
+experiment cohort contains 702 synthetic day-90 dropouts (17.55% observed prevalence) across a frozen
 2,800/600/600 participant-level split. Its EDA, dataset card, feature dictionary, linkage manifest,
 leakage report, checksums, and dataset-generation workflow diagram are complete.
 
@@ -114,9 +112,11 @@ three leakage-safe model views under the frozen `r3-dataset-contract-v1`; the pr
 input is `landmark_day30_features.parquet`.
 
 R4 compared a dummy baseline, logistic regression, XGBoost, and LightGBM on the frozen split.
-LightGBM remains the formal validation-selected model, while XGBoost is recorded as the strongest
-observed frozen-test comparator. Calibration, threshold metrics, 1,000-repeat bootstrap intervals,
-global/local SHAP explanations, reproducibility metadata, and local MLflow artifacts are complete.
+The original frozen validation rule selected LightGBM; that historical result remains documented.
+The user-selected R5 runtime/product model is XGBoost (`xgboost-05`), informed by its strongest
+observed frozen-test results but not described as validation-selected. Calibration, threshold
+metrics, 1,000-repeat bootstrap intervals, global/local SHAP explanations, reproducibility
+metadata, and local MLflow artifacts are complete.
 The R6 backend now provides two versioned patient-level representations, bounded DBSCAN evaluation,
 and two brute-force-verified exact FAISS indexes over 750 unique patient snapshots. Runtime risk
 prediction, the coordinated R5/R6 frontend, and LangChain/Gemini eligibility-criteria work remain
@@ -125,20 +125,12 @@ separate from deterministic eligibility.
 See [`docs/r4-dropout-model-experiment.md`](docs/r4-dropout-model-experiment.md) for the frozen
 experiment contract, model comparison, uncertainty intervals, SHAP interpretation, and R5 handoff.
 
-See [`docs/r6-cohort-analysis.md`](docs/r6-cohort-analysis.md) for the accepted cohort contract,
-DBSCAN parameters and limitations, exact-neighbor verification, runtime APIs, and frontend handoff.
-The predeclared V2 feature-balancing comparison is documented separately in
-[`docs/r6-v2-representation-experiment.md`](docs/r6-v2-representation-experiment.md).
-The implemented one-run protocol for testing cluster recovery against a separately sealed answer
-key completed with intact seals but below-threshold DBSCAN and FAISS recovery metrics. Its final
-result is documented in
-[`docs/r6-controlled-cluster-recovery-benchmark.md`](docs/r6-controlled-cluster-recovery-benchmark.md).
-A separately versioned V3 controlled-cohort contract now tests the same feature builders, DBSCAN
-analysis, and exact FAISS retrieval against stronger correlated patient groups while keeping its
-answer key outside all analysis inputs. The generator, seals, evaluator, and atomic runner are
-implemented. The sealed 750-member repository run passed review and is the approved R6 runtime
-cohort. See
-[`docs/r6-v3-controlled-cohort.md`](docs/r6-v3-controlled-cohort.md).
+The approved R6 runtime cohort is the sealed V3 750-member run
+`r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d`. Its generator, seals, evaluator, atomic runner,
+DBSCAN analysis, and exact FAISS retrieval passed review. See
+[`docs/r6-cohort-analysis.md`](docs/r6-cohort-analysis.md) for the concise V1/V2/recovery history,
+current runtime contract, and limitations, and [`docs/r6-v3-controlled-cohort.md`](docs/r6-v3-controlled-cohort.md)
+for the sealed V3 contract.
 
 The public NCT02054715-D1 dictionary and paper can inform a separate study-specific adapter, but
 participant rows are not currently a public-demo or clean-setup dependency. Follow

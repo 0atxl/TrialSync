@@ -28,10 +28,11 @@ checks pass. These values are generated-label prevalence, not model accuracy, pr
 performance, a forced target, or a clinical estimate.
 
 R4 used the frozen 2,800/600/600 participant-level split to compare dummy, logistic-regression,
-XGBoost, and LightGBM classifiers. LightGBM remains the formal validation-selected model. XGBoost
-was the strongest observed frozen-test comparator with AUROC 0.6807, AUPRC 0.3617, Brier 0.1331,
-precision 0.3418, recall 0.5094, specificity 0.7895, and F1 0.4091. Both tree models received
-1,000-repeat bootstrap uncertainty estimates and global/local SHAP analysis. See
+XGBoost, and LightGBM classifiers. The original validation rule selected LightGBM; XGBoost was the
+strongest observed frozen-test comparator and is the user-selected R5 runtime/product model, not a
+retroactive validation selection. Its observed metrics were AUROC 0.6807, AUPRC 0.3617, Brier
+0.1331, precision 0.3418, recall 0.5094, specificity 0.7895, and F1 0.4091. Both tree models
+received 1,000-repeat bootstrap uncertainty estimates and global/local SHAP analysis. See
 [the R4 experiment report](r4-dropout-model-experiment.md) for the full protocol, comparison, and
 limitations.
 

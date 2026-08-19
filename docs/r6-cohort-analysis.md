@@ -1,10 +1,10 @@
-# R6 V1 cohort-analysis baseline and exact similarity
+# R6 cohort history and active V3 runtime
 
 R6 materializes a separate screening-derived cohort for population exploration and exact
 participant-neighbor retrieval. It does not use the R3 longitudinal enrollment data, dropout
 outcomes, risk predictions, SHAP values, chat content, or RAG output.
 
-## Accepted V1 backend run
+## Historical V1 baseline
 
 | Field | Value |
 |---|---|
@@ -80,36 +80,33 @@ This behavior is consistent with the observed geometry rather than an execution 
 The V1 run is therefore retained as an immutable baseline, not promoted as evidence of strong
 natural patient categories.
 
-## Reviewed V2 experiment
+## Retired V2 comparison
 
 A single bounded V2 representation experiment reused the exact accepted cohort,
 reference panel, screening pairs, criterion results, member order, and semantic checksums. It may
 change only transparent preprocessing and feature-block weighting. It may not regenerate records,
 plant cluster labels, add outcome-derived fields, or expand the DBSCAN grid after viewing results.
 
-The [R6 V2 representation report](r6-v2-representation-experiment.md) records the frozen
-transformations, acceptance criteria, and observed result. Patient-fact V2 improved stability but
-collapsed 604 of 610 assigned members into one cluster and missed the silhouette threshold.
-Screening-profile V2 collapsed all 750 members into one cluster. Both V2 DBSCAN representations
-were rejected without relaxing the predeclared criteria. Both exact V2 indexes passed brute-force
-verification and remain sensitivity comparators; neither replaces active V1.
+Patient-fact V2 improved stability but collapsed 604 of 610 assigned members into one cluster and
+missed the silhouette threshold. Screening-profile V2 collapsed all 750 members into one cluster.
+Both V2 DBSCAN representations were rejected without relaxing the predeclared criteria. Both exact
+V2 indexes passed brute-force verification. The experiment implementation and local sensitivity
+artifacts were retired after review; neither representation is active.
 
-## Controlled recovery benchmark
+## Retired controlled-recovery benchmark
 
 The V1 and V2 results show that the accepted population does not contain robust density-separated
 groups under the evaluated representations and protocols. They do not prove whether the pipeline
 can recover groups when a separate population contains predeclared latent structure.
 
-The [controlled cluster-recovery benchmark](r6-controlled-cluster-recovery-benchmark.md)
-defines that positive-control test with one frozen 750-member population. It preserves V1 and V2,
-reuses the same frozen trial panel and screening engine, isolates a sealed answer key from all
-feature and selection paths, and reveals the answer only after DBSCAN and FAISS outputs are sealed.
-Its generator, label-free adaptive analysis, exact-index verification, and post-seal evaluator are
-implemented. The one full run completed with intact seals, no DBSCAN structural candidate, and
-moderate but below-threshold patient-fact V2 FAISS recovery. It cannot activate a runtime cohort
-and adds no API or frontend surface. The detailed result is recorded in the benchmark report.
+The one frozen 750-member positive-control run
+`r6-recovery-9023c03a-30d8-5665-9016-ef8b537e29d0` reused the trial panel and screening engine,
+kept its answer key sealed until after label-free DBSCAN and FAISS analysis, and completed with
+intact seals. It produced no qualifying DBSCAN structural candidate and below-threshold
+patient-fact V2 FAISS recovery. It never activated a runtime cohort or added an API/frontend
+surface; its implementation and local artifacts were retired after review.
 
-## V3 controlled cohort transfer
+## Active V3 controlled cohort
 
 The completed recovery benchmark showed that its deliberately overlapping population did not
 retain enough separable structure under the approved representations. The user subsequently
@@ -120,7 +117,8 @@ implementation unchanged.
 The [R6 V3 controlled cohort contract](r6-v3-controlled-cohort.md) records the final `v3.1`
 generator, complete configuration seal, private answer-key boundary, post-analysis evaluator,
 atomic publication rule, and correct purity/coverage interpretation. The authoritative repository
-run completed, passed seal and runtime-readability review, and is approved as the R6 runtime cohort.
+run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` completed, passed seal and runtime-readability
+review, and is the only approved R6 runtime cohort.
 
 ## Exact FAISS indexes
 

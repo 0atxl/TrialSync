@@ -43,16 +43,16 @@ The dummy model predicts the training prevalence for every row. It is not a regr
 does not learn feature relationships; it establishes the minimum baseline that a useful classifier
 must beat.
 
-## Selection decision
+## Historical selection and product decision
 
-LightGBM is the formal protocol-selected model. Its validation AUPRC was 0.342054, narrowly above
-XGBoost's 0.341860, so the frozen selection rule chose `lightgbm-04`. Its stored threshold is
+The original frozen validation rule selected LightGBM. Its validation AUPRC was 0.342054, narrowly
+above XGBoost's 0.341860, so that historical rule chose `lightgbm-04`; its stored threshold is
 0.171399.
 
-XGBoost produced the strongest observed frozen-test results and is retained as a supplementary
-post-hoc comparator. Its stored threshold is 0.213477. The test result is useful evidence for the
-later R5 product-model acceptance decision, but XGBoost must not be described as though it won the
-original validation selection.
+XGBoost produced the strongest observed frozen-test results and has been selected by the project
+owner as the R5 runtime/product model (`xgboost-05`). Its stored threshold is 0.213477. This is a
+later product decision informed by the comparison; it does not rewrite the original validation
+selection or make XGBoost validation-selected.
 
 The two tree models are practically close. The experiment supports a moderate synthetic signal,
 not a claim that either model is clinically strong.
@@ -93,11 +93,11 @@ The final metadata records the dataset checksum, schema fingerprints, generator 
 versions, code commit, dependency versions, seed, thresholds, selected candidate, and intended and
 prohibited uses. Reloaded predictions matched with a maximum probability difference of `0.0`.
 
-The formal LightGBM pipeline is registered locally as:
+The historical LightGBM pipeline is registered locally as:
 
 - model: `trialsync_dropout_track_a`;
 - version: `2`;
-- alias: `champion`;
+- alias: `champion` (historical experiment alias; not the R5 runtime model);
 - run: `6e1fa44c84994c7f90ffb1b9756669fa`.
 
 Model binaries, the SQLite MLflow store, and the complete Kaggle output bundle remain local/ignored
@@ -112,5 +112,5 @@ enrollment or requested explicitly. Missing values are never converted to zero. 
 probability, threshold, day-90 horizon, model version, and bounded SHAP contributions beside the
 unchanged deterministic eligibility result.
 
-R5 must record the final runtime-model decision explicitly. The formal R4 LightGBM selection and
-the supplementary stronger-test XGBoost result must both remain visible in that decision record.
+R5 will package XGBoost `xgboost-05` as the runtime model. The historical LightGBM validation
+selection and XGBoost frozen-test comparison remain visible for provenance.

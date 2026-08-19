@@ -6,10 +6,11 @@ R2 CI completed on 2026-08-02; automated CD remains deferred. R3 is complete and
 the 20-enrollment smoke, 400-enrollment demo, and 4,000-enrollment experiment artifacts pass the
 declared schema, linkage, chronology, censoring, split, and leakage checks. R4's manual Kaggle
 experiment completed on 2026-08-15 with dummy, logistic-regression, XGBoost, and LightGBM
-comparisons, bootstrap uncertainty, SHAP explanations, and a local MLflow model record. LightGBM
-remains the protocol-selected model because selection was frozen on validation results; XGBoost is
-the strongest observed frozen-test comparator. The committed R4 experiment report records the
-selection, metrics, uncertainty, SHAP, reproducibility metadata, and R5 handoff.
+comparisons, bootstrap uncertainty, SHAP explanations, and a local MLflow model record. The
+original frozen validation rule selected LightGBM; the user selected XGBoost (`xgboost-05`) as the
+R5 runtime/product model based on the reviewed comparison. XGBoost is not described as
+validation-selected. The committed R4 experiment report records the selection, metrics,
+uncertainty, SHAP, reproducibility metadata, and R5 handoff.
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
@@ -78,9 +79,9 @@ Known extension gaps:
   remains the current delivery path.
 - R3 is accepted and complete. Its generator, schema contract, smoke/demo/experiment artifacts,
   EDA, dataset card, feature dictionary, linkage manifest, leakage audit, and checksums are frozen.
-- R4's offline experiment and repository-facing report are complete. The formal LightGBM selection,
-  supplementary XGBoost comparison, bootstrap intervals, SHAP artifacts, and MLflow record are
-  documented; runtime artifact packaging belongs to R5 and does not require retraining.
+- R4's offline experiment and repository-facing report are complete. The historical LightGBM
+  validation selection, XGBoost comparison, bootstrap intervals, SHAP artifacts, and MLflow record
+  are documented; R5 packages the user-selected XGBoost runtime artifact without retraining.
 - No screening-derived patient cohort/reference-trial matrix.
 - No research-risk inference API or UI.
 - No patient-fact or screening-profile clustering/similarity experiment.
@@ -261,7 +262,7 @@ Record the approved extension boundaries and prevent later phases from silently 
 
 | Decision | Approved choice |
 |---|---|
-| Model comparison | Dummy, logistic regression, XGBoost, and LightGBM; deploy only the accepted winner |
+| Model comparison | Dummy, logistic regression, XGBoost, and LightGBM; package user-selected XGBoost for R5 runtime |
 | MLflow | Private, local SQLite-backed tracking through an optional Compose profile |
 | Research navigation | Visible, clearly labelled main-navigation area |
 | Dropout data | NVIDIA NeMo Data Designer-backed multi-condition longitudinal synthetic dataset with explicit TrialSync validation and outcome definitions |
@@ -548,7 +549,7 @@ Primary:
 
 Scenario:
 
-> How does the accepted model's output change when a plausible pre-cutoff dose event is changed
+> How does the configured runtime model's output change when a plausible pre-cutoff dose event is changed
 > from administered to missed, with every dependent feature recomputed?
 
 External benchmark, conditional on access:
@@ -837,8 +838,8 @@ Track A.
 3. XGBoost classifier.
 4. LightGBM classifier.
 
-Run both locked tree-model comparisons. Only the accepted winner is exposed through the later
-risk API.
+Run both locked tree-model comparisons. The later R5 risk API packages the user-selected XGBoost
+runtime model after review; it does not retroactively change the frozen validation selection.
 
 ### Pipeline requirements
 
@@ -901,7 +902,7 @@ Do not add a remote tracking service as a hidden requirement.
 Model aliases:
 
 - `candidate` for models under evaluation.
-- `champion` only after acceptance criteria pass.
+- `r5_runtime` for the separately approved runtime package.
 
 ### SHAP
 
@@ -925,8 +926,8 @@ performance but still cannot establish clinical validity or broad generalization
 - SHAP contributions reconcile with the model output within library tolerance.
 - A simple logistic baseline remains visible beside the tree model.
 - Known generator signal recovery is discussed without claiming real-world validity.
-- No Track B model can become the champion for the multi-condition Scenario Lab, and no Track A
-  model can be reported as externally validated.
+- No Track B model can become the configured runtime model for the multi-condition Scenario Lab,
+  and no Track A model can be reported as externally validated.
 
 ### Tests
 
@@ -942,7 +943,7 @@ performance but still cannot establish clinical validity or broad generalization
 
 ### Exit criteria
 
-- One model is promoted to the local `champion` alias.
+- The separately approved runtime model has immutable package and threshold metadata.
 - The evaluation report includes all required metrics and limitations.
 - The model can be loaded in a clean process and reproduce inference.
 - No prediction is described as clinically validated.
@@ -954,25 +955,26 @@ Pause for user approval of metrics, model choice, threshold, and presentation wo
 ### Status
 
 The manual Kaggle experiment completed on 2026-08-15 over the frozen 2,800/600/600
-train/validation/test split. All four required model families were evaluated. LightGBM
-(`lightgbm-04`) remains the formal protocol-selected model because validation AUPRC was the primary
-selection metric with Brier score as the tie-breaker. XGBoost (`xgboost-05`) produced the strongest
-observed frozen-test results (AUROC 0.6807, AUPRC 0.3617, Brier 0.1331) and is retained as a clearly
-labelled supplementary comparator; it must not be retroactively described as validation-selected.
+train/validation/test split. All four required model families were evaluated. The original frozen
+validation rule selected LightGBM (`lightgbm-04`) because validation AUPRC was the primary metric
+with Brier score as the tie-breaker. XGBoost (`xgboost-05`) produced the strongest observed
+frozen-test results (AUROC 0.6807, AUPRC 0.3617, Brier 0.1331) and is the user-selected R5
+runtime/product model. That product decision does not retroactively make XGBoost
+validation-selected.
 
 Both tree models received 1,000-repeat bootstrap uncertainty estimates and global/local SHAP
-analysis. The formal LightGBM pipeline is registered in the local MLflow store with the `champion`
-alias, and its artifacts were reconciled with the reviewed final bundle. The experiment is complete;
-the committed experiment report records its protocol, results, limitations, and R5 handoff. Binary
-model/MLflow artifacts remain local and ignored until R5 explicitly packages the accepted runtime
-model.
+analysis. The local LightGBM MLflow record retains its historical `champion` alias but is not the
+R5 runtime model. The experiment is complete; the committed experiment report records its protocol,
+results, limitations, and R5 handoff. Binary model/MLflow artifacts remain local and ignored until
+R5 explicitly packages XGBoost.
 
 ## 11. Phase R5 — Versioned research-risk API and UI
 
 ### Objective
 
-Expose the accepted model through a versioned research API and an integrated action in the saved
-screening workspace, without coupling the prediction to the deterministic screening decision.
+Expose the user-selected XGBoost runtime model through a versioned research API and an integrated
+action in the saved screening workspace, without coupling the prediction to the deterministic
+screening decision.
 
 ### Screening-integrated interaction contract
 
@@ -1065,7 +1067,7 @@ Example overview fields:
       "near_threshold": 4,
       "higher": 5
     },
-    "model_version": "dropout-lightgbm:1",
+    "model_version": "dropout-xgboost:1",
     "horizon_day": 90,
     "band_policy_version": "1"
   }
@@ -1082,9 +1084,9 @@ Example response:
   "research_label": "higher_synthetic_risk",
   "horizon_day": 90,
   "model": {
-    "name": "dropout-lightgbm",
+    "name": "dropout-xgboost",
     "version": "1",
-    "alias": "champion"
+    "alias": "r5_runtime"
   },
   "top_contributions": [
     {
@@ -1103,7 +1105,7 @@ Example response:
 - Validate the feature schema before inference.
 - Fail readiness only for the optional research capability, not the core API.
 - Record model/dataset/feature versions with every prediction.
-- Derive chart bands from the accepted model's versioned threshold/band policy.
+- Derive chart bands from the configured runtime model's versioned threshold/band policy.
 - Do not call Gemini or Groq.
 - Do not trigger screening.
 - Do not convert probability into `potentially_eligible`, `likely_ineligible`, or `needs_review`.
@@ -1328,73 +1330,24 @@ GET  /api/v1/research/similarity/queries/{query_id}
 - No cluster or neighbor is used as screening evidence.
 - Research disclaimers remain visible.
 
-### V1 baseline and authorized V2 addendum
+### Historical V1/V2/recovery and active V3
 
-The 2026-08-16 V1 backend run is retained as the immutable baseline. Its exact indexes passed
-all-member brute-force verification, while DBSCAN showed weak separation: patient-fact silhouette
-`-0.0510` with low stability and screening-profile silhouette `0.0032` with moderate stability.
-This is a reportable limited clustering result, not an execution failure.
+The 2026-08-16 V1 backend run is retained as an immutable, limited baseline: its exact indexes
+passed all-member brute-force verification, while DBSCAN showed weak separation. One bounded V2
+representation comparison reused the frozen V1 population; its DBSCAN representations were
+rejected under predeclared criteria, although both exact indexes passed verification. One separate
+controlled-recovery run used a sealed answer key but finished below its DBSCAN/FAISS thresholds.
+Both superseded experiment implementations are retired and neither can activate a runtime cohort.
 
-The user authorized one bounded V2 representation experiment before Cohort Atlas implementation.
-V2 reuses the exact 750 patients, 20 trial versions, 15,000 screening pairs, criterion results,
-member order, and semantic checksums. It changes only predeclared robust preprocessing,
-semantic-block balancing, and repeated-rule weighting; it does not regenerate records, plant
-cluster labels, add prohibited features, or expand the DBSCAN grid after results are seen. V1 and
-V2 are evaluated independently for patient-fact and screening-profile space, and both V2 FAISS
-indexes must again match brute-force cosine neighbors for all members.
-
-The experiment completed on 2026-08-16. Patient-fact V2 improved stability but failed the frozen
-silhouette and cluster-balance criteria; screening-profile V2 formed only one cluster. Both V2
-DBSCAN representations were rejected without further tuning. Both V2 exact indexes passed
-all-member brute-force verification and remain non-active sensitivity comparators.
-
-The complete frozen protocol, observed metrics, and decision are maintained in
-[`docs/r6-v2-representation-experiment.md`](../docs/r6-v2-representation-experiment.md).
-
-### Controlled recovery benchmark addendum
-
-On 2026-08-16 the user requested a documentation-first positive-control benchmark to distinguish
-population-specific weak separation from failure of the clustering pipeline to recover known
-structure. The accepted contract preserves the accepted V1 run and rejected V2 result, generates one frozen
-750-member population with four overlapping latent groups plus heterogeneous background members,
-and reuses the same frozen 20-version trial panel and deterministic screening engine.
-
-The answer key is isolated from patient facts, screening profiles, DBSCAN selection, FAISS indexes,
-APIs, and frontend payloads. Label-free analysis outputs must be sealed before the answer key is
-opened for ARI, noise-recovery, and same-group-neighbor evaluation. The accepted protocol also uses
-a predeclared scale-adaptive DBSCAN grid, seeded subsample and nearby-parameter stability checks,
-and a non-activating K-means diagnostic. It cannot change the active V1 run or retroactively
-promote V2.
-
-The generation schema, leakage boundary, acceptance criteria, and interpretation matrix are in
-[`docs/r6-controlled-cluster-recovery-benchmark.md`](../docs/r6-controlled-cluster-recovery-benchmark.md).
-The user accepted the single-run contract and authorized implementation on 2026-08-18. Generation,
-separate answer-key sealing, label-free adaptive DBSCAN/K-means/FAISS analysis, post-seal evaluation,
-and reduced-size tests are implemented. The one full 750-member run completed with intact seals but
-failed the frozen DBSCAN/FAISS recovery criteria. This is an R6 addendum and does not create an R9
-or change the active V1 run.
-
-### V3 controlled cohort addendum
-
-On 2026-08-20 the user authorized a separately versioned V3 cohort after reviewing an external
-implementation. V3 changes the population design, not the analysis method: it defines four correlated
-patient groups plus a heterogeneous background group and cohesive encounter timing, while reusing
-the same 20-version reference panel, patient-fact and screening-profile feature builders, bounded
-DBSCAN analysis, and exact CPU FAISS implementation.
-
-The group assignment is a separately sealed answer key. It is prohibited from patient facts,
-screening results, feature matrices, DBSCAN selection, FAISS construction, runtime APIs, and
-frontend payloads. Post-analysis evaluation must report both purity and assignment coverage,
-per-group recovery, background-noise recovery, stability, and same-group neighbor relevance.
-These results establish controlled pipeline behavior only; clusters are not diagnoses or evidence
-of naturally occurring patient phenotypes, and similarity never changes eligibility.
-
-The V3.1 generator, public/private seals, post-analysis evaluator, atomic runner, and reduced-size
-tests are implemented. The full 750-member by 20-trial repository run completed and passed seal,
-DBSCAN, FAISS, and runtime-readability review on 2026-08-20. Run
-`r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` is approved as the R6 runtime cohort. The contract
-and reviewed metrics are maintained in
-[`docs/r6-v3-controlled-cohort.md`](../docs/r6-v3-controlled-cohort.md).
+On 2026-08-20 the user authorized V3, a separately versioned controlled cohort with correlated
+patient groups, a heterogeneous background group, and cohesive encounter timing. It retains the
+reference panel, feature builders, bounded DBSCAN analysis, and exact CPU FAISS implementation.
+Its group assignment is sealed outside patient facts, feature matrices, selection, runtime APIs,
+and frontend payloads. The full 750-member by 20-trial V3.1 run
+`r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, DBSCAN, FAISS, and runtime-readability
+review and is the approved R6 runtime cohort. See
+[`docs/r6-cohort-analysis.md`](../docs/r6-cohort-analysis.md) for concise experiment history and
+[`docs/r6-v3-controlled-cohort.md`](../docs/r6-v3-controlled-cohort.md) for the V3 contract.
 
 ## 13. Phase R7 — Eligibility-criteria RAG with LangChain and Gemini
 
@@ -1771,7 +1724,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
   validation. No duplicate offline Python simulator is maintained.
 - [x] NCT02054715-D1 is a future, separate study-specific adapter and never inflates the public
   synthetic cohort or its real-world evidence claim.
-- [x] Dummy, logistic, XGBoost, and LightGBM are compared before champion selection.
+- [x] Dummy, logistic, XGBoost, and LightGBM are compared before the runtime-model decision.
 - [x] MLflow uses a private optional Compose profile.
 - [x] Aggregate research analytics use clearly labelled research navigation; participant-level
   dropout prediction is integrated into the saved-screening workspace.
@@ -1795,16 +1748,16 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R1. Canonical report PDF | Complete | User selected evidence-backed reporting, 2026-07-26 | Provider-free typed report assembler, owner-scoped PDF endpoint, complete evidence/missing-information/stale-evidence/ownership/long-text/determinism tests, frontend download states, production build, and visual review, 2026-08-02 |
 | R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
-| R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; formal validation-selected LightGBM champion; supplementary strongest-test XGBoost result; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
-| R5. Research-risk API/UI | Approved | User selected research delivery surface, 2026-07-26 | |
-| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized one bounded V2 representation experiment after V1 review, accepted one controlled-recovery run on 2026-08-18, and authorized the separately versioned V3 controlled cohort on 2026-08-20 | V1 baseline accepted; V2 rejected for DBSCAN; controlled recovery completed below its thresholds with intact seals; full V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, stable-cluster, exact-index, neighbor-relevance, and runtime-readability review and is approved as the runtime cohort; authenticated read-only APIs and degraded-state handling complete; coordinated R5/R6 frontend remains |
+| R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; original validation rule selected LightGBM, while the user selected XGBoost `xgboost-05` for R5 runtime; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
+| R5. Research-risk API/UI | Approved | User selected research delivery surface and XGBoost runtime model | Package `xgboost-05` without changing deterministic eligibility or claiming it was validation-selected |
+| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized the separately versioned V3 controlled cohort on 2026-08-20 | V1 remains limited historical baseline; V2 and controlled recovery are retired after their reviewed below-threshold results; full V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, stable-cluster, exact-index, neighbor-relevance, and runtime-readability review and is approved as the runtime cohort; authenticated read-only APIs and degraded-state handling complete; coordinated R5/R6 frontend remains |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
 | R8. Evaluation/final delivery | Approved | User selected supporting engineering/evaluation, 2026-07-26 | |
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R1–R4 and the R6 data/backend foundation, including the reviewed V2 comparison, are complete.
-Implement the R5 risk backend, then complete one coordinated R5/R6 frontend integration pass.
+R1–R4 and the R6 data/backend foundation are complete. Implement the XGBoost R5 risk backend,
+then complete one coordinated R5/R6 frontend integration pass.
 Preserve the R7 and R8 stop points. There is no R9 in this extension plan.
 
 ## 22. Implementation handoff format

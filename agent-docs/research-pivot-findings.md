@@ -1,8 +1,8 @@
 # TrialSync Research Pivot: Feasibility Findings and Recommended Scope
 
 **Date:** 2026-07-19
-**Status:** Feasibility findings; implementation scope selected on 2026-07-26 and dropout-data
-strategy clarified on 2026-08-01
+**Status:** Historical feasibility findings; implementation scope selected on 2026-07-26 and
+dropout-data strategy clarified on 2026-08-01
 **Relationship to existing project:** Incremental extension of the completed TrialSync application; not a replacement or total rewrite.
 
 This document preserves the feasibility evidence behind the pivot. The locked scope, phase order, dataset sizes, and exit criteria live in
@@ -179,9 +179,9 @@ Add a separate research prediction response, for example:
   "risk_type": "retention_risk",
   "risk_probability": 0.64,
   "horizon_days": 90,
-  "model_name": "retention-risk-lightgbm",
+  "model_name": "retention-risk-xgboost",
   "model_version": "7",
-  "model_alias": "champion",
+  "model_alias": "r5_runtime",
   "explanations": [
     {"feature": "missed_followup_count_30d", "contribution": 0.21}
   ],
@@ -191,7 +191,8 @@ Add a separate research prediction response, for example:
 
 This endpoint must not mutate the screening result or convert a risk probability into eligibility.
 
-MLflow currently recommends model aliases and tags for references such as `champion` and `challenger`. [MLflow Model Registry workflows](https://mlflow.org/docs/latest/ml/model-registry/workflow/)
+The active implementation plan uses a dedicated `r5_runtime` alias so an experiment-time registry
+alias cannot be confused with the configured product model.
 
 ## B. Cohort clustering and patient similarity
 

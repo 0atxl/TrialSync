@@ -7,7 +7,7 @@ import math
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 
@@ -108,7 +108,9 @@ def _transform(raw: np.ndarray, metadata: dict[str, Any]) -> np.ndarray:
         raise ProjectionError("R6 query contains unsupported non-finite values")
     standardized = ((transformed - means) / scales).astype(np.float32)
     norm = float(np.linalg.norm(standardized))
-    return standardized / norm if norm > 0 else np.zeros_like(standardized)
+    return cast(
+        np.ndarray, standardized / norm if norm > 0 else np.zeros_like(standardized)
+    )
 
 
 def _age_band(born: date | None, as_of: date) -> str:

@@ -45,6 +45,10 @@ from trialsync.research.risk.service import (
 
 router = APIRouter(prefix="/api/v1/research", tags=["research risk"])
 
+EventRecord = (
+    ResearchDoseEvent | ResearchVisitEvent | ResearchMeasurement | ResearchAdverseEvent
+)
+
 
 class SourcedInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -366,16 +370,19 @@ async def list_enrollment_events(
         ("measurements", ResearchMeasurement),
         ("adverse_events", ResearchAdverseEvent),
     ):
-        rows = list(
-            await session.scalars(
-                select(model)
-                .where(
-                    model.owner_id == user.id,
-                    model.research_enrollment_id == enrollment_id,
-                    model.event_day <= through_day,
+        rows = cast(
+            list[EventRecord],
+            list(
+                await session.scalars(
+                    select(model)
+                    .where(
+                        model.owner_id == user.id,
+                        model.research_enrollment_id == enrollment_id,
+                        model.event_day <= through_day,
+                    )
+                    .order_by(model.event_day, model.recorded_at, model.id)
                 )
-                .order_by(model.event_day, model.recorded_at, model.id)
-            )
+            ),
         )
         superseded = {
             row.supersedes_event_id for row in rows if row.supersedes_event_id is not None

@@ -3,10 +3,10 @@
 TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with an incremental research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
 
 The deterministic matching result is the foundation. The research extension has completed the R3
-dataset, R4 offline model experiment, and R6 cohort/similarity backend. Later phases add a
-separately versioned XGBoost runtime dropout-risk prediction, scenario analysis, Cohort Atlas UI,
-and a LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a
-structured eligibility summary.
+dataset and R4 offline model experiment. R5 model-serving and R6 reference-artifact foundations are
+implemented; their platform enrollment/event and saved-screening projection bridges are the next
+backend work before a coordinated frontend pass. Later work adds a LangChain/Gemini RAG workflow that
+retrieves approved trial criteria and generates a structured eligibility summary.
 
 ## Prerequisites
 
@@ -117,10 +117,20 @@ The user-selected R5 runtime/product model is XGBoost (`xgboost-05`), informed b
 observed frozen-test results but not described as validation-selected. Calibration, threshold
 metrics, 1,000-repeat bootstrap intervals, global/local SHAP explanations, reproducibility
 metadata, and local MLflow artifacts are complete.
-The R6 backend now provides two versioned patient-level representations, bounded DBSCAN evaluation,
-and two brute-force-verified exact FAISS indexes over 750 unique patient snapshots. Runtime risk
-prediction, the coordinated R5/R6 frontend, and LangChain/Gemini eligibility-criteria work remain
-separate from deterministic eligibility.
+R5 packages the reviewed `xgboost-05` pipeline without retraining and has a checksum-verified,
+owner-scoped platform enrollment, longitudinal event, day-30 snapshot, inference, and API
+foundation. Every
+prediction preserves the exact sourced day-30 feature snapshot, threshold, day-90 horizon, model
+version, and native XGBoost Tree SHAP contributions. Missing follow-up values are rejected rather
+than interpreted as zero. See [`docs/r5-risk-backend.md`](docs/r5-risk-backend.md).
+
+The R6 foundation provides two versioned patient-level representations, bounded DBSCAN evaluation,
+and two brute-force-verified exact FAISS indexes over 750 unique patient snapshots. The backend
+projects an authorized saved screening into either frozen space for independent out-of-sample
+cohort-context and exact similarity requests. Regenerate the active V3 run once to publish the new
+core-member, PCA-transform, and patient-fact unit metadata. See
+[`docs/research-integration-contract.md`](docs/research-integration-contract.md) for the shared
+ingestion-to-research boundary. All research tools remain separate from deterministic eligibility.
 
 For completed milestones and remaining work, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -128,7 +138,7 @@ See [`docs/r4-dropout-model-experiment.md`](docs/r4-dropout-model-experiment.md)
 experiment contract, model comparison, uncertainty intervals, SHAP interpretation, and R5 handoff.
 
 The approved R6 runtime cohort is the sealed V3 750-member run
-`r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d`. Its generator, seals, evaluator, atomic runner,
+`r6-v3-6091f06c-542d-5b00-8bdc-6fbd782c9510`. Its generator, seals, evaluator, atomic runner,
 DBSCAN analysis, and exact FAISS retrieval passed review. See
 [`docs/r6-cohort-analysis.md`](docs/r6-cohort-analysis.md) for the current runtime contract and
 limitations, and [`docs/r6-v3-controlled-cohort.md`](docs/r6-v3-controlled-cohort.md) for the
@@ -484,10 +494,10 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 The implemented application covers owner-scoped synthetic patient and trial records, deterministic
 single and batch screening, reviewed text/PDF imports, bounded Groq-assisted candidate extraction,
 and evidence-grounded screening conversations. The R3 synthetic dataset generator is implemented
-as an offline research tool, and R4's model comparison is complete. The R6 cohort/similarity
-backend and its read-only research APIs are complete. The R5 runtime-risk backend, coordinated
-R5/R6 frontend, and eligibility-criteria RAG remain pending and are not represented as current
-product capabilities.
+as an offline research tool, and R4's model comparison is complete. R5 inference and R6 artifact
+serving foundations are implemented, but their platform-owned enrollment/event and live-screening
+projection bridges remain pending. The coordinated research frontend and eligibility-criteria RAG
+are not represented as current product capabilities.
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.
 

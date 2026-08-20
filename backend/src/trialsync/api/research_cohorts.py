@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
-from trialsync.api.deps import CurrentUser
+from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.research.artifacts import CohortArtifactService
+from trialsync.research.risk.service import owned_screening
 
 RepresentationName = Literal["patient_fact", "screening_profile"]
 
@@ -76,6 +78,16 @@ class SimilarityQueryResponse(BaseModel):
     query_member_id: str
     index_metadata: dict[str, Any]
     neighbors: list[dict[str, Any]]
+
+
+class ScreeningRepresentationQuery(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    representation: RepresentationName = "patient_fact"
+
+
+class ScreeningSimilarityQuery(ScreeningRepresentationQuery):
+    neighbor_count: int = Field(default=10, ge=1, le=20)
 
 
 def get_cohort_service(request: Request) -> CohortArtifactService:
@@ -157,4 +169,37 @@ def query_similarity(
         payload.representation,
         payload.member_id,
         payload.neighbor_count,
+    )
+
+
+@router.post("/screenings/{screening_id}/cohort-context")
+async def query_screening_cohort_context(
+    screening_id: uuid.UUID,
+    payload: ScreeningRepresentationQuery,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    screening, _version = await owned_screening(session, user.id, screening_id)
+    return get_cohort_service(request).screening_cohort_context(
+        screening.patient_snapshot,
+        screening_date=screening.screening_date,
+        representation=payload.representation,
+    )
+
+
+@router.post("/screenings/{screening_id}/similarity")
+async def query_screening_similarity(
+    screening_id: uuid.UUID,
+    payload: ScreeningSimilarityQuery,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    screening, _version = await owned_screening(session, user.id, screening_id)
+    return get_cohort_service(request).screening_similarity(
+        screening.patient_snapshot,
+        screening_date=screening.screening_date,
+        representation=payload.representation,
+        neighbor_count=payload.neighbor_count,
     )

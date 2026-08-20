@@ -112,7 +112,7 @@ activation occurs only after the generated report and API behavior have been rev
 
 ## Reviewed repository result
 
-Run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` produced four patient-fact cluster cores with
+Run `r6-v3-6091f06c-542d-5b00-8bdc-6fbd782c9510` produced four patient-fact cluster cores with
 silhouette `0.4042`, subsample stability `0.9990`, nearby-parameter stability `0.9805`, and 100%
 weighted purity among 465 assigned members. Assignment coverage was 62.0%, with 285 members
 treated as noise. All 110 background members were noise in patient-fact space.
@@ -140,7 +140,7 @@ The command prints the run identifier, public manifest, evaluation report, and t
 `TRIALSYNC_RESEARCH_COHORT_ACTIVE_RUN` setting. The reviewed setting is:
 
 ```bash
-export TRIALSYNC_RESEARCH_COHORT_ACTIVE_RUN=r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d
+export TRIALSYNC_RESEARCH_COHORT_ACTIVE_RUN=r6-v3-6091f06c-542d-5b00-8bdc-6fbd782c9510
 ```
 
 Generated artifacts remain excluded from Git.

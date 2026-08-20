@@ -419,6 +419,16 @@ def write_analysis_artifacts(
                 "feature_order_checksum": artifact.feature_order_checksum,
                 "dimension": len(artifact.feature_names),
                 "member_count": len(artifact.member_ids),
+                "fact_units": (
+                    {
+                        fact.concept: fact.unit
+                        for patient in cohort.patients
+                        for fact in patient.facts
+                        if fact.fact_type == "observation" and fact.unit is not None
+                    }
+                    if artifact.name == "patient_fact"
+                    else {}
+                ),
             },
         )
         report = run_dbscan_analysis(

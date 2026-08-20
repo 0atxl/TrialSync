@@ -1,6 +1,6 @@
 # Scope and reliability boundaries
 
-These boundaries keep TrialSync’s current patient matching workflow and planned dropout-risk research interpretable and reproducible rather than reducing the project to generic automation.
+These boundaries keep TrialSync’s patient matching and dropout-risk research interpretable and reproducible rather than reducing the project to generic automation.
 
 - Public repository, tests, screenshots, and demo data are synthetic only; no EHR integration,
   clinical validation, or compliance claim.
@@ -19,10 +19,17 @@ These boundaries keep TrialSync’s current patient matching workflow and planne
   participant rows. Unless the rows become legitimately accessible and a separate evaluation is
   completed, it is a future adapter rather than evidence for TrialSync. NCT-inspired synthetic
   rows must not be counted as additional real participants.
-- Planned dropout-risk outputs will be versioned fixed-horizon research predictions. They will not
-  be eligibility scores or alter deterministic patient–trial matching.
-- Planned trial-level dropout charts will cover only potentially eligible demo enrollments with an explicit
+- Dropout-risk outputs are versioned day-30-to-day-90 research predictions from the generated R3
+  task. They are not day-0 or clinical probabilities, eligibility scores, or evidence that the
+  model generalizes to another population. They do not alter deterministic patient–trial matching.
+- The planned trial-level dropout chart will cover only potentially eligible enrollments with an explicit
   versioned screening/enrollment/prediction linkage; linked and unlinked denominators must be shown.
+- The R5 platform enrollment/event/follow-up and inference backend is implemented, but dropout
+  prediction is not yet exposed through the saved-screening frontend.
+- The R6 V3 run is a fixed 750-member reference landscape. The saved-screening projection backend
+  is implemented, but the active run must be regenerated once to publish core-member, PCA-transform,
+  and patient-fact unit metadata before live queries become ready. External patients remain
+  out-of-sample overlays and never mutate the reference landscape.
 - The planned RAG workflow will use LangChain to rank candidate trials, expand each bounded
   candidate to its complete approved criteria set, and use Gemini for the structured summary.
   Ranked candidates will remain available when generation is unavailable.

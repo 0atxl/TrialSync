@@ -48,6 +48,11 @@ class Settings(BaseSettings):
         default=None,
         pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$",
     )
+    research_risk_artifact_root: Path = Path("artifacts/r5")
+    research_risk_active_model: str | None = Field(
+        default=None,
+        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$",
+    )
 
     @field_validator("database_url")
     @classmethod

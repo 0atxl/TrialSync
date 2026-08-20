@@ -1,6 +1,6 @@
 # TrialSync architecture
 
-TrialSync is a controlled research system for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. The R3 dataset, R4 offline model evaluation, and R6 cohort/similarity backend are complete through the reviewed V3 controlled cohort. Runtime risk inference, the coordinated R5/R6 frontend, and RAG over approved trial eligibility criteria remain future work.
+TrialSync is a controlled research system for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. The R3 dataset and R4 offline model evaluation are complete. R5 platform enrollment/event/model-serving and R6 saved-screening projection/artifact-serving backend bridges are implemented; their coordinated frontend remains. RAG over approved trial eligibility criteria remains future work.
 
 ```text
 reviewed text/PDF -> deterministic text extraction -> optional local Tesseract OCR
@@ -10,10 +10,17 @@ structured records -> immutable patient snapshot + approved trial version
                    -> deterministic rule engine -> stored criterion evidence/result
 stored screening + authoritative evidence -> canonical PDF report
 stored screening + authoritative evidence -> bounded explanation conversation
+stored screening -> platform-owned research enrollment
+                 -> append-only dose / visit / measurement / adverse-event records
+                 -> immutable sourced day-30 feature snapshot
+                   -> checksum-verified XGBoost inference + Tree SHAP
+                   -> immutable research prediction + trial overview API
 750 versioned patient snapshots × 20 approved trial versions
                    -> 15,000 pure deterministic evaluations
                    -> patient-fact + screening-profile representations
                    -> DBSCAN reports + exact FAISS indexes -> read-only research APIs
+stored screening -> frozen R6 feature projection
+                 -> out-of-sample cluster association and exact reference-neighbor query
 ```
 
 The implemented R3 longitudinal generator uses the NVIDIA Data Designer 0.8.0 Python package
@@ -60,19 +67,29 @@ replacement suggestions. The browser renders the persisted user question and
 assistant answer in an internally scrolling transcript; it never supplies
 authoritative history or screening state to the provider.
 
-The planned dropout-risk workflow begins from that same saved-screening detail rather than from a
-disconnected prediction page. A CRC selects **Predict dropout risk**; TrialSync resolves the
-immutable snapshot, approved trial version, screening, and versioned research-enrollment link.
-Baseline fields are prefilled from that context. Required day-30 adherence, visit, adverse-event,
-and updated-severity fields are loaded from linked research events or requested in the same panel.
+The dropout workflow begins from that same saved-screening context rather than from a disconnected
+training record. The frontend exposes **Start research follow-up** and, once the day-30 snapshot is
+ready, **Predict dropout risk**. TrialSync resolves the immutable snapshot, approved trial version,
+screening, and platform-owned research enrollment. Baseline fields are prefilled from that context.
+Required day-30 adherence, visit, adverse-event, and updated-severity fields are derived from linked,
+append-only research events or requested in the same panel.
 Unavailable follow-up values remain missing and are never silently interpreted as zero. The
-versioned research API validates the resulting feature snapshot and returns probability, threshold,
+accepted versioned research API validates the resulting feature snapshot and returns probability, threshold,
 horizon, model version, and SHAP contributions for display beside the unchanged eligibility result.
+
+The same saved screening independently exposes **View cohort context** and **Find similar
+participants**. The server projects its immutable facts and deterministic evidence pattern through
+the active R6 run's frozen transforms. The patient is an out-of-sample overlay on the sealed
+reference landscape: it does not mutate the 750 reference members, DBSCAN clusters, or FAISS
+indexes. DBSCAN association, FAISS neighbors, and dropout prediction are separate requests and
+never consume one another's output. The authoritative identity, longitudinal-event, projection,
+API, and acceptance boundaries are defined in
+[`research-integration-contract.md`](research-integration-contract.md).
 
 The deterministic matching boundary is deliberate: parsing and approved rule
 evaluation produce the eligibility outcome, and persistence stores the
-reproducible evidence-backed result. The planned dropout model is versioned and
-evaluated independently, allowing TrialSync to offer a forward-looking retention
+reproducible evidence-backed result. The dropout model is separately versioned and
+evaluated independently, allowing TrialSync to expose a forward-looking retention
 signal without turning a risk score into a match decision. Groq may propose
 reviewable import candidates or provide an AI explanation of a stored result,
 but it cannot approve candidates, create evidence, change a criterion result, or

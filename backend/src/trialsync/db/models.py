@@ -400,9 +400,7 @@ class Screening(TimestampMixin, Base):
     trial_registry_id: Mapped[str] = mapped_column(String(64))
     trial_title: Mapped[str] = mapped_column(String(240))
     trial_version_number: Mapped[int] = mapped_column(Integer)
-    overall_state: Mapped[OverallState] = mapped_column(
-        Enum(OverallState, name="overall_state")
-    )
+    overall_state: Mapped[OverallState] = mapped_column(Enum(OverallState, name="overall_state"))
     screening_date: Mapped[date] = mapped_column(Date)
     engine_version: Mapped[str] = mapped_column(String(40))
     dsl_version: Mapped[str] = mapped_column(String(20))
@@ -486,3 +484,320 @@ class ScreeningChatMessage(Base):
         DateTime(timezone=True), server_default=func.now(), index=False
     )
     screening: Mapped[Screening] = relationship(back_populates="chat_messages")
+
+
+class ResearchModelVersion(Base):
+    """Immutable metadata for an explicitly approved local research model package."""
+
+    __tablename__ = "research_model_versions"
+    __table_args__ = (
+        CheckConstraint("threshold > 0 AND threshold < 1", name="ck_research_model_threshold"),
+        CheckConstraint("horizon_day > 0", name="ck_research_model_horizon"),
+        UniqueConstraint("model_name", "version"),
+        UniqueConstraint("candidate_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    model_name: Mapped[str] = mapped_column(String(80))
+    version: Mapped[str] = mapped_column(String(40))
+    alias: Mapped[str] = mapped_column(String(40))
+    candidate_id: Mapped[str] = mapped_column(String(80))
+    training_dataset_version: Mapped[str] = mapped_column(String(80))
+    training_dataset_checksum: Mapped[str] = mapped_column(String(64))
+    feature_schema_version: Mapped[str] = mapped_column(String(80))
+    feature_schema_checksum: Mapped[str] = mapped_column(String(64))
+    threshold: Mapped[Decimal] = mapped_column(Numeric(18, 16))
+    horizon_day: Mapped[int] = mapped_column(Integer)
+    validation_status: Mapped[str] = mapped_column(String(80))
+    metrics_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    artifact_locator: Mapped[str] = mapped_column(String(240))
+    artifact_checksum: Mapped[str] = mapped_column(String(64))
+    band_policy_version: Mapped[str] = mapped_column(String(80))
+    disclaimer_version: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResearchEnrollment(Base):
+    """Platform-owned participant/trial episode rooted in one saved screening."""
+
+    __tablename__ = "research_enrollments"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "screening_id"),
+        UniqueConstraint("owner_id", "patient_snapshot_id", "trial_version_id"),
+        CheckConstraint("observation_cutoff_day > 0", name="ck_research_enrollment_cutoff"),
+        CheckConstraint(
+            "prediction_horizon_day > observation_cutoff_day",
+            name="ck_research_enrollment_horizon",
+        ),
+        CheckConstraint(
+            "tracking_status IN ('active', 'closed')",
+            name="ck_research_enrollment_tracking_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    patient_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("patient_snapshots.id", ondelete="RESTRICT"), index=True
+    )
+    trial_version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trial_versions.id", ondelete="RESTRICT"), index=True
+    )
+    screening_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("screenings.id", ondelete="RESTRICT"), index=True
+    )
+    research_context_checksum: Mapped[str] = mapped_column(String(64), unique=True)
+    enrollment_date: Mapped[date] = mapped_column(Date)
+    observation_cutoff_day: Mapped[int] = mapped_column(Integer, default=30)
+    prediction_horizon_day: Mapped[int] = mapped_column(Integer, default=90)
+    baseline_values_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    baseline_sources_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    baseline_snapshot_hash: Mapped[str] = mapped_column(String(64))
+    feature_contract_version: Mapped[str] = mapped_column(String(80))
+    tracking_status: Mapped[str] = mapped_column(String(16), default="active")
+    created_by_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResearchDoseEvent(Base):
+    __tablename__ = "research_dose_events"
+    __table_args__ = (
+        CheckConstraint("event_day >= 0", name="ck_research_dose_event_day"),
+        CheckConstraint("scheduled_count >= 1", name="ck_research_dose_scheduled"),
+        CheckConstraint(
+            "administered_count >= 0 AND administered_count <= scheduled_count",
+            name="ck_research_dose_administered",
+        ),
+        CheckConstraint(
+            "status IN ('scheduled', 'administered', 'partially_administered', 'missed', 'held')",
+            name="ck_research_dose_status",
+        ),
+        UniqueConstraint("supersedes_event_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_enrollments.id", ondelete="CASCADE"), index=True
+    )
+    event_day: Mapped[int] = mapped_column(Integer)
+    medication_concept: Mapped[str] = mapped_column(String(160))
+    scheduled_date: Mapped[date] = mapped_column(Date)
+    scheduled_count: Mapped[int] = mapped_column(Integer)
+    administered_count: Mapped[int] = mapped_column(Integer)
+    dose_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
+    dose_unit: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    route: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    status: Mapped[str] = mapped_column(String(32))
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_label: Mapped[str] = mapped_column(String(120))
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+    recorded_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    supersedes_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_dose_events.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ResearchVisitEvent(Base):
+    __tablename__ = "research_visit_events"
+    __table_args__ = (
+        CheckConstraint("event_day >= 0", name="ck_research_visit_event_day"),
+        CheckConstraint(
+            "status IN ('scheduled', 'completed', 'delayed', 'missed')",
+            name="ck_research_visit_status",
+        ),
+        CheckConstraint("delay_days IS NULL OR delay_days >= 0", name="ck_research_visit_delay"),
+        UniqueConstraint("supersedes_event_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_enrollments.id", ondelete="CASCADE"), index=True
+    )
+    event_day: Mapped[int] = mapped_column(Integer)
+    visit_type: Mapped[str] = mapped_column(String(120))
+    scheduled_date: Mapped[date] = mapped_column(Date)
+    completed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(16))
+    delay_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_label: Mapped[str] = mapped_column(String(120))
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+    recorded_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    supersedes_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_visit_events.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ResearchMeasurement(Base):
+    __tablename__ = "research_measurements"
+    __table_args__ = (
+        CheckConstraint("event_day >= 0", name="ck_research_measurement_event_day"),
+        CheckConstraint(
+            "(observed AND value_numeric IS NOT NULL AND unit IS NOT NULL) OR "
+            "(NOT observed AND value_numeric IS NULL)",
+            name="ck_research_measurement_observed_value",
+        ),
+        UniqueConstraint("supersedes_event_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_enrollments.id", ondelete="CASCADE"), index=True
+    )
+    event_day: Mapped[int] = mapped_column(Integer)
+    concept: Mapped[str] = mapped_column(String(160))
+    value_numeric: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    observed: Mapped[bool] = mapped_column(Boolean, default=True)
+    observed_date: Mapped[date] = mapped_column(Date)
+    method: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reference_range_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    source_label: Mapped[str] = mapped_column(String(120))
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+    recorded_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    supersedes_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_measurements.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ResearchAdverseEvent(Base):
+    __tablename__ = "research_adverse_events"
+    __table_args__ = (
+        CheckConstraint("event_day >= 0", name="ck_research_adverse_event_day"),
+        CheckConstraint("severity_grade BETWEEN 1 AND 4", name="ck_research_adverse_severity"),
+        CheckConstraint(
+            "relatedness IN ('unrelated', 'unlikely', 'possible', 'probable', "
+            "'definite', 'unknown')",
+            name="ck_research_adverse_relatedness",
+        ),
+        CheckConstraint(
+            "outcome IN ('ongoing', 'resolved', 'resolved_with_sequelae', 'unknown')",
+            name="ck_research_adverse_outcome",
+        ),
+        UniqueConstraint("supersedes_event_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_enrollments.id", ondelete="CASCADE"), index=True
+    )
+    event_day: Mapped[int] = mapped_column(Integer)
+    event_concept: Mapped[str] = mapped_column(String(160))
+    onset_date: Mapped[date] = mapped_column(Date)
+    severity_grade: Mapped[int] = mapped_column(Integer)
+    resolved_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    serious: Mapped[bool] = mapped_column(Boolean, default=False)
+    relatedness: Mapped[str] = mapped_column(String(16))
+    action_taken: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(32))
+    source_label: Mapped[str] = mapped_column(String(120))
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+    recorded_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    supersedes_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_adverse_events.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ResearchFollowUpSnapshot(Base):
+    __tablename__ = "research_follow_up_snapshots"
+    __table_args__ = (
+        CheckConstraint("cutoff_day > 0", name="ck_research_follow_up_cutoff"),
+        CheckConstraint("status IN ('incomplete', 'ready')", name="ck_research_follow_up_status"),
+        UniqueConstraint("research_enrollment_id", "cutoff_day", "event_set_checksum"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_enrollments.id", ondelete="CASCADE"), index=True
+    )
+    cutoff_day: Mapped[int] = mapped_column(Integer)
+    feature_schema_version: Mapped[str] = mapped_column(String(80))
+    feature_values_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    feature_sources_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    feature_snapshot_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_set_checksum: Mapped[str] = mapped_column(String(64))
+    missing_features_json: Mapped[list[str]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResearchPrediction(Base):
+    """Immutable, versioned R5 output; never part of deterministic screening state."""
+
+    __tablename__ = "research_predictions"
+    __table_args__ = (
+        CheckConstraint(
+            "probability >= 0 AND probability <= 1", name="ck_research_prediction_probability"
+        ),
+        CheckConstraint(
+            "research_label IN ('lower', 'near_threshold', 'higher')",
+            name="ck_research_prediction_label",
+        ),
+        UniqueConstraint(
+            "owner_id", "research_enrollment_id", "model_version_id", "feature_snapshot_hash"
+        ),
+        Index("ix_research_predictions_owner_created", "owner_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_enrollments.id", ondelete="RESTRICT"), index=True
+    )
+    follow_up_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_follow_up_snapshots.id", ondelete="RESTRICT"), index=True
+    )
+    model_version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_model_versions.id", ondelete="RESTRICT"), index=True
+    )
+    feature_snapshot_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    feature_snapshot_hash: Mapped[str] = mapped_column(String(64))
+    probability: Mapped[Decimal] = mapped_column(Numeric(18, 16))
+    research_label: Mapped[str] = mapped_column(String(32))
+    top_contributions_json: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

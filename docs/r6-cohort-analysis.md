@@ -4,7 +4,7 @@ R6 materializes a screening-derived cohort for population exploration and exact 
 retrieval. It does not use R3 longitudinal data, dropout outcomes, risk predictions, SHAP values,
 chat content, or RAG output.
 
-The active cohort is the sealed V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d`: 750 unique
+The active cohort is the sealed V3.1 run `r6-v3-6091f06c-542d-5b00-8bdc-6fbd782c9510`: 750 unique
 patient snapshots evaluated against 20 approved reference-trial versions, producing 15,000
 deterministic screening pairs and 60,000 criterion results. Its patient-fact and screening-profile
 matrices each contain one row per snapshot, so repeated trial evaluation does not increase a
@@ -62,7 +62,7 @@ POST /api/v1/research/similarity/queries
 The local accepted run is selected with:
 
 ```dotenv
-TRIALSYNC_RESEARCH_COHORT_ACTIVE_RUN=r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d
+TRIALSYNC_RESEARCH_COHORT_ACTIVE_RUN=r6-v3-6091f06c-542d-5b00-8bdc-6fbd782c9510
 ```
 
 Regenerate and verify from the repository root with:
@@ -78,5 +78,9 @@ the contracts, builders, tests, and aggregate evidence in this report.
 
 ## Remaining R6 delivery
 
-The R6 backend is complete. Cohort Atlas frontend work remains pending for the coordinated R5/R6
-integration pass after the R5 risk backend is implemented.
+The sealed reference artifacts and artifact-backed read APIs are implemented. Before Cohort Atlas
+frontend work, add the saved-screening projection adapter defined in
+[`research-integration-contract.md`](research-integration-contract.md): frozen patient-fact and
+screening-profile transforms, out-of-sample DBSCAN association, exact external-vector FAISS
+queries, and PCA overlay coordinates. Cohort context and similarity remain separate user actions;
+neither depends on dropout prediction or changes eligibility.

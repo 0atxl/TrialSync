@@ -281,9 +281,7 @@ def build_patients_v3(
                 ordinal += 1
                 continue
 
-            sampled = rng.gauss(
-                group.observation_centers[obs], group.observation_spreads[obs]
-            )
+            sampled = rng.gauss(group.observation_centers[obs], group.observation_spreads[obs])
             clamped = min(max(sampled, minimum), maximum)
             value = Decimal(str(round(clamped, 2)))
 
@@ -346,6 +344,7 @@ def materialize_v3(
 
     generation_config = config.contract_payload()
     answer_key = _answer_key_payload(group_assignments)
+    implementation_checksums = _implementation_checksums()
 
     checksums = {
         "patient_snapshots": semantic_checksum(patient_records),
@@ -373,6 +372,10 @@ def materialize_v3(
     run_payload = {
         "config": generation_config,
         "checksums": checksums,
+        # A V3 run is an immutable analysis bundle, not merely a source cohort. Include the
+        # artifact-producing implementation boundary so a metadata-format change publishes a new
+        # run instead of colliding with a previously sealed directory.
+        "implementation_checksums": implementation_checksums,
     }
     run_id = f"r6-v3-{uuid5(V3_UUID_NAMESPACE, canonical_json(run_payload))}"
     if not _SAFE_RUN_ID.fullmatch(run_id):
@@ -389,7 +392,7 @@ def materialize_v3(
         screening_pairs=pairs,
         criterion_results=criterion_results,
         semantic_checksums=checksums,
-        implementation_checksums=_implementation_checksums(),
+        implementation_checksums=implementation_checksums,
     )
 
     return cohort, group_assignments
@@ -435,9 +438,7 @@ def write_artifacts_v3(
         "contract_version": V3_ANSWER_KEY_VERSION,
         "sealed_at": _sealed_timestamp(cohort.config.screening_date),
         "cohort_semantic_checksum": cohort.semantic_checksums["cohort"],
-        "generation_config_semantic_checksum": cohort.semantic_checksums[
-            "generation_config"
-        ],
+        "generation_config_semantic_checksum": cohort.semantic_checksums["generation_config"],
         "answer_key_semantic_checksum": cohort.semantic_checksums["answer_key"],
         "member_count": len(group_assignments),
         "group_counts": dict(sorted(Counter(group_assignments.values()).items())),

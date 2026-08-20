@@ -80,10 +80,13 @@ Known extension gaps:
 - R4's offline experiment and repository-facing report are complete. The historical LightGBM
   validation selection, XGBoost comparison, bootstrap intervals, SHAP artifacts, and MLflow record
   are documented; R5 packages the user-selected XGBoost runtime artifact without retraining.
-- No screening-derived patient cohort/reference-trial matrix.
-- No research-risk inference API or UI.
-- No patient-fact or screening-profile clustering/similarity experiment.
-- No FAISS index.
+- R5 packaging, inference, and API foundations exist, but their uncommitted training-row linkage
+  must be replaced by the approved platform enrollment/event/follow-up contract before frontend
+  integration.
+- R6's sealed reference cohort, DBSCAN reports, exact FAISS indexes, and artifact read APIs exist,
+  but saved-screening projection and out-of-sample query bridges remain.
+- No integrated research-tools UI yet; dropout, cohort context, and similarity must be independently
+  selectable from a saved screening.
 - No LangChain eligibility-criteria retriever, Gemini structured-summary provider, or RAG evaluation.
 - No research-extension evaluation/reporting package.
 
@@ -974,11 +977,17 @@ Expose the user-selected XGBoost runtime model through a versioned research API 
 action in the saved screening workspace, without coupling the prediction to the deterministic
 screening decision.
 
+The authoritative ingestion-to-runtime bridge for R5 and R6 is
+[`docs/research-integration-contract.md`](../docs/research-integration-contract.md). It supersedes
+the earlier proposal to select or link an R3 artifact row at runtime. R3 rows remain model-training
+and evaluation lineage only.
+
 ### Screening-integrated interaction contract
 
-1. A CRC opens an existing saved screening and selects **Predict dropout risk**.
+1. A CRC opens an existing saved screening and independently selects **Start research follow-up**
+   or **Predict dropout risk**.
 2. TrialSync resolves the immutable patient snapshot, approved trial version, canonical screening,
-   and versioned research-enrollment link.
+   and platform-owned research enrollment.
 3. Baseline fields already present in the snapshot and screening context are prefilled.
 4. Day-30 follow-up fields are loaded from linked research events when available; otherwise the
    same panel requests the missing adherence, visit, adverse-event, and updated-severity inputs.
@@ -994,16 +1003,14 @@ model is trained and versioned for that question.
 
 ### Data model
 
-Candidate entities:
+Required entities:
 
-- `research_enrollment_links`
-  - owner;
-  - R3 research enrollment ID;
-  - immutable patient snapshot ID;
-  - approved trial version ID;
-  - canonical screening ID;
-  - dataset/linkage version and checksum;
-  - unique constraints on the enrollment and exact snapshot × trial-version context.
+- `research_enrollments`, joining one owner-scoped saved screening to its immutable patient
+  snapshot and approved trial version, with day-0 baseline values and explicit sources;
+- append-only `research_dose_events`, `research_visit_events`, `research_measurements`, and
+  `research_adverse_events`, including correction provenance through `supersedes_event_id`;
+- immutable `research_follow_up_snapshots`, containing the exact derived 22-feature values,
+  sources, missing fields, contributing-event checksum, and cutoff;
 - `research_model_versions`
   - model name/version/alias;
   - dataset and feature schema versions;
@@ -1014,7 +1021,7 @@ Candidate entities:
   - created timestamp.
 - `research_predictions`
   - owner;
-  - research enrollment link ID;
+  - research enrollment and follow-up snapshot IDs;
   - model version;
   - feature snapshot JSON/hash;
   - probability;
@@ -1023,8 +1030,11 @@ Candidate entities:
   - prediction timestamp;
   - synthetic/research disclaimer version.
 
-The enrollment-link record provides the immutable join to its patient snapshot, approved trial
-version, and canonical screening. Do not attach mutable risk fields to `screenings` or `patients`.
+The enrollment record provides the immutable join to its patient snapshot, approved trial version,
+and canonical screening. The 4,000-row training checksum stays in model provenance and never
+identifies a runtime participant. Dose/visit rates and follow-up aggregates are server-derived from
+events; missing denominators remain incomplete. Do not attach mutable risk fields to `screenings`
+or `patients`.
 
 ### API
 
@@ -1033,6 +1043,15 @@ Candidate routes:
 ```text
 GET  /api/v1/research/risk/models
 GET  /api/v1/research/risk/models/{model_version}
+GET  /api/v1/research/screenings/{screening_id}/capabilities
+POST /api/v1/research/screenings/{screening_id}/enrollment
+GET  /api/v1/research/enrollments/{enrollment_id}
+GET  /api/v1/research/enrollments/{enrollment_id}/events
+POST /api/v1/research/enrollments/{enrollment_id}/dose-events
+POST /api/v1/research/enrollments/{enrollment_id}/visit-events
+POST /api/v1/research/enrollments/{enrollment_id}/measurements
+POST /api/v1/research/enrollments/{enrollment_id}/adverse-events
+POST /api/v1/research/enrollments/{enrollment_id}/follow-up-snapshots
 POST /api/v1/research/risk/predictions
 GET  /api/v1/research/risk/predictions
 GET  /api/v1/research/risk/predictions/{prediction_id}
@@ -1197,6 +1216,10 @@ Build a research-only cohort explorer from unique synthetic patient snapshots an
 deterministic evidence profiles across a fixed panel of approved trial versions. This phase
 does not use the R3 dropout dataset.
 
+The active 750-member run is a stable reference landscape. Ordinary saved screenings query that
+landscape through the projection contract; they are not manually mapped to a generated member and
+do not mutate the sealed run.
+
 ### Cohort materialization
 
 1. Generate 750 unique multi-condition synthetic patients through the existing patient/fact
@@ -1274,9 +1297,18 @@ Candidate routes:
 GET  /api/v1/research/cohorts/runs
 GET  /api/v1/research/cohorts/runs/{run_id}
 GET  /api/v1/research/cohorts/runs/{run_id}/clusters
+POST /api/v1/research/screenings/{screening_id}/cohort-context
 POST /api/v1/research/similarity/queries
+POST /api/v1/research/screenings/{screening_id}/similarity
 GET  /api/v1/research/similarity/queries/{query_id}
 ```
+
+Saved-screening requests build patient-fact and, when selected, screening-profile vectors with the
+active run's frozen preprocessing. Screening-profile construction calls the pure engine against
+the 20-trial panel in memory. DBSCAN has no native prediction method, so external association uses
+the versioned core-sample/`eps` rule and can return `unassigned`. FAISS accepts the external
+normalized vector directly. Both responses retain feature, preprocessing, subject-order, and
+reference-panel checksums.
 
 ### Frontend
 
@@ -1287,6 +1319,8 @@ GET  /api/v1/research/similarity/queries/{query_id}
 - Cluster-size and noise summary.
 - Structured participant table with cluster filters.
 - Similar-patient side panel with exact fact or criterion-state differences.
+- Three separate saved-screening actions for dropout prediction, cohort context, and similarity;
+  choosing one does not execute or require either of the others.
 - Links from screening-profile dimensions to canonical criterion evidence.
 - Prominent statement that similarity is not eligibility evidence.
 
@@ -1295,6 +1329,10 @@ GET  /api/v1/research/similarity/queries/{query_id}
 - Same patient/reference-panel seeds produce identical matrix checksums.
 - 15,000 evaluations collapse to exactly 750 cohort members.
 - Materialized results agree with direct calls to the single-screening engine.
+- Saved-screening projections agree with direct feature construction and do not create ordinary
+  screening rows for the reference panel.
+- Out-of-sample DBSCAN association returns a deterministic cluster or explicit unassigned state.
+- External-vector FAISS results agree with brute-force cosine neighbors.
 - Patient-fact and screening-profile representations remain distinct.
 - `unknown` is one-hot encoded.
 - No dropout, risk, SHAP, chat, or RAG leakage.
@@ -1333,7 +1371,7 @@ GET  /api/v1/research/similarity/queries/{query_id}
 The separately versioned V3 controlled cohort keeps the reference panel, feature builders,
 bounded DBSCAN analysis, and exact CPU FAISS implementation fixed. Its group assignment is sealed
 outside patient facts, feature matrices, selection, runtime APIs, and frontend payloads. The
-750-member by 20-trial V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, DBSCAN,
+750-member by 20-trial V3.1 run `r6-v3-6091f06c-542d-5b00-8bdc-6fbd782c9510` passed seal, DBSCAN,
 FAISS, and runtime-readability review and is the approved R6 runtime cohort. Earlier R6 experiments
 are retired provenance. See [`docs/r6-v3-controlled-cohort.md`](../docs/r6-v3-controlled-cohort.md)
 for the contract.
@@ -1738,15 +1776,16 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
 | R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; original validation rule selected LightGBM, while the user selected XGBoost `xgboost-05` for R5 runtime; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
-| R5. Research-risk API/UI | Approved | User selected research delivery surface and XGBoost runtime model | Package `xgboost-05` without changing deterministic eligibility or claiming it was validation-selected |
-| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized the separately versioned V3 controlled cohort on 2026-08-20 | The V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, stable-cluster, exact-index, neighbor-relevance, and runtime-readability review; authenticated read-only APIs and degraded-state handling are complete; coordinated R5/R6 frontend remains |
+| R5. Research-risk API/UI | In progress | User selected the XGBoost runtime model and requested a full platform enrollment/event integration contract, 2026-08-21 | `xgboost-05` packaging, platform enrollment, append-only longitudinal events, immutable day-30 snapshots, prediction APIs, and focused backend tests implemented; frontend remains |
+| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, authorized V3, and requested saved-screening integration | V3.1 passed review; saved-screening projection, external DBSCAN association, external-vector FAISS query, and focused backend tests implemented; regenerate active run and build frontend |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
 | R8. Evaluation/final delivery | Approved | User selected supporting engineering/evaluation, 2026-07-26 | |
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R1–R4 and the R6 backend are complete. Implement the XGBoost R5 risk backend, then complete one
-coordinated R5/R6 frontend integration pass.
+R1–R4 are complete. The R5/R6 backend integration bridge is implemented. Next regenerate the
+active V3 artifact with its added out-of-sample metadata, then complete one coordinated frontend
+pass with three independently selectable research tools.
 Preserve the R7 and R8 stop points. There is no R9 in this extension plan.
 
 ## 22. Implementation handoff format

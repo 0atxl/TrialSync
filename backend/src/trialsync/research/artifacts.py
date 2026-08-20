@@ -5,10 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import date
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from trialsync.api.errors import ApplicationError
+from trialsync.db.models import PatientSnapshot
+
+if TYPE_CHECKING:
+    from trialsync.research.projection import ProjectedScreening
 
 RepresentationName = Literal["patient_fact", "screening_profile"]
 _SAFE_RUN_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$")
@@ -83,9 +88,7 @@ class CohortArtifactService:
             raise _degraded("The cohort representation metadata is invalid.")
         return manifest
 
-    def _artifact_path(
-        self, run_id: str, manifest: dict[str, Any], logical_name: str
-    ) -> Path:
+    def _artifact_path(self, run_id: str, manifest: dict[str, Any], logical_name: str) -> Path:
         record = manifest["files"].get(logical_name)
         if not isinstance(record, dict) or "path" not in record:
             raise _degraded(f"The cohort run is missing the {logical_name} artifact.")
@@ -139,9 +142,7 @@ class CohortArtifactService:
                     manifest = self._manifest(path.name)
                 except ApplicationError:
                     continue
-                runs.append(
-                    self._run_summary(manifest, active=path.name == self.active_run_id)
-                )
+                runs.append(self._run_summary(manifest, active=path.name == self.active_run_id))
         if self.active_run_id is None:
             return {
                 "status": "degraded",
@@ -165,9 +166,98 @@ class CohortArtifactService:
         }
 
     def get_run(self, run_id: str) -> dict[str, Any]:
-        return self._run_summary(
-            self._manifest(run_id), active=run_id == self.active_run_id
+        return self._run_summary(self._manifest(run_id), active=run_id == self.active_run_id)
+
+    def _active_manifest(self) -> tuple[str, dict[str, Any]]:
+        if self.active_run_id is None:
+            raise _degraded("No active cohort reference run is configured.")
+        manifest = self._manifest(self.active_run_id)
+        if manifest.get("analysis_status") != "ready":
+            raise _degraded("The active cohort reference run is not ready.")
+        return self.active_run_id, manifest
+
+    def _project_saved_snapshot(
+        self,
+        snapshot: PatientSnapshot,
+        *,
+        screening_date: date,
+        representation: RepresentationName,
+    ) -> tuple[str, dict[str, Any], dict[str, Any], ProjectedScreening]:
+        from trialsync.research.projection import (
+            ProjectionError,
+            project_patient_fact,
+            project_screening_profile,
         )
+
+        run_id, manifest = self._active_manifest()
+        metadata = self._read_json(
+            self._artifact_path(run_id, manifest, f"{representation}_representation_metadata")
+        )
+        if not isinstance(metadata, dict):
+            raise _degraded("The active cohort representation metadata is invalid.")
+        try:
+            if representation == "patient_fact":
+                projected = project_patient_fact(
+                    snapshot,
+                    screening_date=screening_date,
+                    metadata=metadata,
+                )
+            else:
+                panel = self._read_json(self._artifact_path(run_id, manifest, "reference_panel"))
+                if not isinstance(panel, dict):
+                    raise _degraded("The active cohort reference panel is invalid.")
+                projected = project_screening_profile(
+                    snapshot,
+                    screening_date=screening_date,
+                    metadata=metadata,
+                    reference_panel=panel,
+                    engine_version=str(manifest["engine_version"]),
+                    terminology_version=str(manifest.get("terminology_version", "local-1")),
+                    unit_version=str(manifest.get("unit_version", "units-1")),
+                )
+        except ProjectionError as exc:
+            raise _degraded(str(exc)) from exc
+        return run_id, manifest, metadata, projected
+
+    def live_query_status(self) -> dict[str, Any]:
+        try:
+            run_id, manifest = self._active_manifest()
+            for representation in ("patient_fact", "screening_profile"):
+                metadata = self._read_json(
+                    self._artifact_path(
+                        run_id,
+                        manifest,
+                        f"{representation}_representation_metadata",
+                    )
+                )
+                report = self._read_json(
+                    self._artifact_path(run_id, manifest, f"{representation}_clusters")
+                )
+                projection = self._read_json(
+                    self._artifact_path(run_id, manifest, f"{representation}_projection")
+                )
+                if not isinstance(metadata, dict) or not isinstance(report, dict):
+                    raise _degraded("Live-query metadata is invalid.")
+                selected = report.get("selected")
+                if not isinstance(selected, dict) or not isinstance(
+                    selected.get("core_indices"), list
+                ):
+                    raise _degraded("The active run predates out-of-sample DBSCAN metadata.")
+                if not isinstance(projection, dict) or not all(
+                    name in projection for name in ("mean", "components")
+                ):
+                    raise _degraded("The active run predates out-of-sample projection metadata.")
+                if representation == "patient_fact" and not isinstance(
+                    metadata.get("fact_units"), dict
+                ):
+                    raise _degraded("The active run predates patient-fact unit metadata.")
+            return {"status": "ready", "run_id": run_id, "message": None}
+        except ApplicationError as exc:
+            return {
+                "status": "degraded",
+                "run_id": self.active_run_id,
+                "message": exc.message,
+            }
 
     def _members(self, run_id: str, manifest: dict[str, Any]) -> list[dict[str, Any]]:
         value = self._read_json(self._artifact_path(run_id, manifest, "members"))
@@ -208,15 +298,12 @@ class CohortArtifactService:
         )
         if (
             report.get("representation") != representation
-            or report.get("representation_version")
-            != representation_metadata.get("version")
-            or report.get("cohort_checksum")
-            != manifest.get("semantic_checksums", {}).get("cohort")
+            or report.get("representation_version") != representation_metadata.get("version")
+            or report.get("cohort_checksum") != manifest.get("semantic_checksums", {}).get("cohort")
             or report.get("feature_order_checksum")
             != representation_metadata.get("feature_order_checksum")
             or projection.get("representation") != representation
-            or projection.get("representation_version")
-            != representation_metadata.get("version")
+            or projection.get("representation_version") != representation_metadata.get("version")
             or projection.get("member_ids") != member_ids
             or projection.get("display_only") is not True
         ):
@@ -414,9 +501,7 @@ class CohortArtifactService:
             "dimension": representation_metadata.get("dimension"),
             "vector_count": representation_metadata.get("member_count"),
         }
-        if any(
-            getattr(metadata, name) != expected for name, expected in expected_metadata.items()
-        ):
+        if any(getattr(metadata, name) != expected for name, expected in expected_metadata.items()):
             raise _degraded("The exact similarity metadata does not match the cohort run.")
         if not isinstance(metadata.built_at, str) or not metadata.built_at:
             raise _degraded("The exact similarity index has no build timestamp.")
@@ -476,9 +561,240 @@ class CohortArtifactService:
             ],
         }
 
+    def screening_cohort_context(
+        self,
+        snapshot: PatientSnapshot,
+        *,
+        screening_date: date,
+        representation: RepresentationName,
+    ) -> dict[str, Any]:
+        import numpy as np
+
+        run_id, manifest, metadata, projected = self._project_saved_snapshot(
+            snapshot,
+            screening_date=screening_date,
+            representation=representation,
+        )
+        report = self._read_json(
+            self._artifact_path(run_id, manifest, f"{representation}_clusters")
+        )
+        display = self._read_json(
+            self._artifact_path(run_id, manifest, f"{representation}_projection")
+        )
+        try:
+            vectors = np.load(
+                self._artifact_path(run_id, manifest, f"{representation}_vectors"),
+                allow_pickle=False,
+            )
+            selected = report["selected"]
+            labels = np.asarray(selected["labels"], dtype=np.int64)
+            core_indices = np.asarray(selected["core_indices"], dtype=np.int64)
+            eps = float(selected["eps"])
+            member_ids = tuple(str(value) for value in metadata["member_ids"])
+            mean = np.asarray(display["mean"], dtype=np.float32)
+            components = np.asarray(display["components"], dtype=np.float32)
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            raise _degraded("The out-of-sample cohort artifacts are invalid.") from exc
+        expected_shape = (len(member_ids), len(projected.feature_names))
+        if (
+            vectors.shape != expected_shape
+            or labels.shape != (len(member_ids),)
+            or mean.shape != (expected_shape[1],)
+            or components.ndim != 2
+            or components.shape[1] != expected_shape[1]
+            or np.any(core_indices < 0)
+            or np.any(core_indices >= len(member_ids))
+        ):
+            raise _degraded("The out-of-sample cohort artifacts do not align.")
+        assigned_label: int | None = None
+        nearest_core_member_id: str | None = None
+        nearest_core_distance: float | None = None
+        competing_labels: list[dict[str, Any]] = []
+        if len(core_indices):
+            distances = np.linalg.norm(
+                vectors[core_indices] - projected.normalized_vector,
+                axis=1,
+            )
+            candidates = [
+                (float(distance), member_ids[int(index)], int(labels[int(index)]))
+                for distance, index in zip(distances, core_indices, strict=True)
+                if int(labels[int(index)]) != -1 and float(distance) <= eps + 1e-7
+            ]
+            if candidates:
+                nearest_core_distance, nearest_core_member_id, assigned_label = min(candidates)
+                by_label: dict[int, float] = {}
+                for distance, _member_id, label in candidates:
+                    by_label[label] = min(distance, by_label.get(label, float("inf")))
+                competing_labels = [
+                    {
+                        "cluster_label": (
+                            f"{'fact' if representation == 'patient_fact' else 'screening'}"
+                            f"_cluster_{label}"
+                        ),
+                        "nearest_core_distance": distance,
+                    }
+                    for label, distance in sorted(by_label.items())
+                ]
+        prefix = "fact" if representation == "patient_fact" else "screening"
+        coordinates = (projected.normalized_vector - mean) @ components.T
+        x = float(coordinates[0]) if len(coordinates) else 0.0
+        y = float(coordinates[1]) if len(coordinates) > 1 else 0.0
+        return {
+            "run_id": run_id,
+            "representation": representation,
+            "representation_version": metadata["version"],
+            "out_of_sample": True,
+            "association": {
+                "cluster_label": (
+                    f"{prefix}_cluster_{assigned_label}" if assigned_label is not None else None
+                ),
+                "is_unassigned": assigned_label is None,
+                "eps": eps,
+                "nearest_core_member_id": nearest_core_member_id,
+                "nearest_core_distance": nearest_core_distance,
+                "competing_labels": competing_labels,
+                "method": "dbscan_core_radius_v1",
+            },
+            "projection": {"x": x, "y": y, "display_only": True},
+            "vector_checksum": projected.vector_checksum,
+            "unsupported_concepts": list(projected.unsupported_concepts),
+            "disclaimer": "Exploratory cohort context; not a diagnosis or eligibility result.",
+        }
+
+    def screening_similarity(
+        self,
+        snapshot: PatientSnapshot,
+        *,
+        screening_date: date,
+        representation: RepresentationName,
+        neighbor_count: int,
+    ) -> dict[str, Any]:
+        try:
+            import faiss
+            import numpy as np
+
+            from trialsync.research.similarity.index import SimilarityIndexMetadata
+        except ImportError as exc:
+            raise _degraded("The exact similarity capability is not installed.") from exc
+        run_id, manifest, metadata, projected = self._project_saved_snapshot(
+            snapshot,
+            screening_date=screening_date,
+            representation=representation,
+        )
+        metadata_value = self._read_json(
+            self._artifact_path(run_id, manifest, f"{representation}_index_metadata")
+        )
+        try:
+            index_metadata = SimilarityIndexMetadata(**metadata_value)
+            vectors = np.load(
+                self._artifact_path(run_id, manifest, f"{representation}_vectors"),
+                allow_pickle=False,
+            )
+            raw_matrix = np.load(
+                self._artifact_path(run_id, manifest, f"{representation}_raw"),
+                allow_pickle=False,
+            )
+            index = faiss.read_index(
+                str(self._artifact_path(run_id, manifest, f"{representation}_index"))
+            )
+            member_ids = tuple(str(value) for value in metadata["member_ids"])
+            feature_names = tuple(str(value) for value in metadata["feature_names"])
+        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as exc:
+            raise _degraded("The exact similarity artifacts are invalid.") from exc
+        expected_shape = (index_metadata.vector_count, index_metadata.dimension)
+        if (
+            index_metadata.representation != representation
+            or index_metadata.representation_version != metadata.get("version")
+            or index_metadata.feature_order_checksum != metadata.get("feature_order_checksum")
+            or vectors.shape != expected_shape
+            or raw_matrix.shape != expected_shape
+            or len(member_ids) != expected_shape[0]
+            or len(feature_names) != expected_shape[1]
+            or index.d != expected_shape[1]
+            or index.ntotal != expected_shape[0]
+        ):
+            raise _degraded("The exact similarity artifacts do not match the active run.")
+        query = np.ascontiguousarray(projected.normalized_vector[None, :], dtype=np.float32)
+        scores, positions = index.search(query, len(member_ids))
+        candidates = sorted(
+            (
+                (float(score), member_ids[int(position)], int(position))
+                for score, position in zip(scores[0], positions[0], strict=True)
+                if int(position) >= 0
+            ),
+            key=lambda item: (-item[0], item[1]),
+        )[: min(neighbor_count, len(member_ids))]
+        members = {item["member_id"]: item for item in self._members(run_id, manifest)}
+        neighbors: list[dict[str, Any]] = []
+        for rank, (score, member_id, position) in enumerate(candidates, start=1):
+            differences = []
+            for feature, query_value, neighbor_value in zip(
+                feature_names,
+                projected.raw_vector,
+                raw_matrix[position],
+                strict=True,
+            ):
+                left = float(query_value) if np.isfinite(query_value) else None
+                right = float(neighbor_value) if np.isfinite(neighbor_value) else None
+                difference = abs(left - right) if left is not None and right is not None else None
+                differences.append(
+                    {
+                        "feature": feature,
+                        "query_value": left,
+                        "neighbor_value": right,
+                        "absolute_difference": difference,
+                        "criterion_context": self._criterion_context(
+                            feature, projected.criterion_details
+                        ),
+                    }
+                )
+
+            def difference_order(item: dict[str, Any]) -> tuple[bool, float, str]:
+                difference = item.get("absolute_difference")
+                numeric = float(difference) if isinstance(difference, (int, float)) else 0.0
+                return difference is None, -numeric, str(item.get("feature", ""))
+
+            differences.sort(key=difference_order)
+            neighbors.append(
+                {
+                    "rank": rank,
+                    "member_id": member_id,
+                    "label": members[member_id]["label"],
+                    "cosine_similarity": score,
+                    "feature_differences": differences[:20],
+                }
+            )
+        return {
+            "run_id": run_id,
+            "representation": representation,
+            "representation_version": metadata["version"],
+            "out_of_sample": True,
+            "query_vector_checksum": projected.vector_checksum,
+            "unsupported_concepts": list(projected.unsupported_concepts),
+            "index_metadata": asdict_metadata(index_metadata),
+            "neighbors": neighbors,
+            "disclaimer": "Similarity is descriptive and is not screening evidence.",
+        }
+
+    @staticmethod
+    def _criterion_context(
+        feature_name: str,
+        details: dict[tuple[str, str], dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        parts = feature_name.split(":")
+        if len(parts) < 5 or parts[0] != "criterion":
+            return None
+        detail = details.get((parts[1], parts[2]))
+        if detail is None:
+            return None
+        return {
+            "trial_label": detail["trial_label"],
+            "criterion_text": detail["criterion_text"],
+            "query_result": detail["result"],
+            "query_evidence_fact_ids": detail["evidence"],
+            "query_missing_categories": list(detail["missing_categories"]),
+        }
+
 
 def asdict_metadata(metadata: Any) -> dict[str, Any]:
-    return {
-        name: getattr(metadata, name)
-        for name in metadata.__dataclass_fields__
-    }
+    return {name: getattr(metadata, name) for name in metadata.__dataclass_fields__}

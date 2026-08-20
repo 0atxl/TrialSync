@@ -3,7 +3,9 @@
 This guide explains which TrialSync dataset is used for dropout prediction, SHAP explanation,
 patient clustering, and similarity search. It is a reading companion to the authoritative
 [research-extension implementation plan](../agent-docs/research-extension-implementation-plan.md),
-not a replacement for it.
+not a replacement for it. The runtime bridge from reviewed ingestion to all three independently
+selectable research tools is defined in the
+[research integration contract](research-integration-contract.md).
 
 ## One project, two research datasets
 
@@ -12,20 +14,27 @@ patient similarity answer different questions.
 
 | Analysis | Dataset | Unit represented by one row/vector | Current status |
 |---|---|---|---|
-| Dropout prediction | R3 longitudinal enrollment dataset | One trial enrollment at the day-30 landmark | R3 accepted; R4 offline model comparison complete |
-| SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | Completed for both evaluated tree models; XGBoost is the selected R5 runtime/product model |
-| DBSCAN clustering | R6 screening-derived patient cohort | One unique generated patient | V3 is the active runtime cohort |
-| FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | V3 exact indexes are active |
+| Dropout prediction | R3 model-training data; platform longitudinal events at runtime | One trial enrollment at the day-30 landmark | Platform enrollment/event/follow-up and inference backend implemented |
+| SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | R4 comparison complete; R5 returns native XGBoost Tree SHAP contributions |
+| DBSCAN clustering | R6 reference cohort plus a saved-screening query projection | One reference member or one external query vector | Live out-of-sample bridge implemented; active V3 artifact regeneration required |
+| FAISS similarity | R6 reference cohort plus a saved-screening query projection | One reference member or one external query vector | Live exact-query bridge implemented; active V3 artifact regeneration required |
 
 ```text
-R3 longitudinal enrollments
+R3 longitudinal enrollments (training/evaluation only)
   -> landmark_day30_features.parquet
-  -> dropout model
-  -> SHAP explanations
+  -> reviewed xgboost-05 package
+
+saved screening -> platform research enrollment
+  -> dose / visit / measurement / adverse-event records through day 30
+  -> immutable sourced feature snapshot
+  -> reviewed xgboost-05 package -> probability + Tree SHAP contributions
 
 R6 unique generated patients × fixed trial panel
   -> patient-fact vectors ---------> DBSCAN + FAISS
   -> screening-profile vectors ----> DBSCAN + FAISS
+
+saved screening -> frozen patient-fact and screening-profile transforms
+  -> out-of-sample DBSCAN association + exact FAISS reference neighbors
 ```
 
 ## R3: dropout prediction data
@@ -125,7 +134,14 @@ Two explanation levels were completed for both reviewed tree models:
 - **Global explanation:** summarizes which features generally have the largest influence across
   the evaluated cohort.
 - **Local explanation:** shows which features pushed one enrollment's predicted risk higher or
-  lower relative to the model's reference output.
+lower relative to the model's reference output.
+
+R5 packages the reviewed `xgboost-05` pipeline without retraining. The 4,000 R3 rows identify its
+training lineage; runtime feature values come from a platform-owned enrollment and complete
+append-only day-30 events. Predictions use the same ordered 22-feature schema and persist every
+value and source. The API groups transformed
+one-hot contributions back to the original feature names and returns the eight largest absolute
+native XGBoost Tree SHAP contributions. See [the R5 backend contract](r5-risk-backend.md).
 
 Examples might show that missed-dose rate, missed visits, limited support, or adverse-event burden
 influenced a prediction. This describes model behavior only. A SHAP contribution is not proof that
@@ -143,6 +159,13 @@ Clustering and similarity do not use the R3 dropout dataset. The accepted R6 bac
 The 15,000 evaluations provide screening evidence patterns. They are collapsed into 750 patient
 representations before clustering or indexing, so frequently evaluated patients are not counted as
 additional people.
+
+These 750 members are a fixed comparison landscape, not the platform patient database. For a saved
+screening, TrialSync builds an external vector with the same frozen schema and preprocessing. The
+vector can be associated with a DBSCAN cluster under a versioned core-sample rule or reported as
+unassigned, and it can query the exact FAISS index without becoming a reference member. The
+screening-profile projection evaluates the saved snapshot against the fixed 20-trial panel in
+memory and does not add ordinary screening-history rows.
 
 ### Patient-fact representation
 
@@ -259,7 +282,7 @@ the cohort experiment independent from dropout prediction.
 
 ## Reading the final results
 
-When these phases are complete, interpret each output as follows:
+Interpret each output as follows:
 
 | Output | Safe interpretation | Unsafe interpretation |
 |---|---|---|

@@ -39,12 +39,18 @@ research-r6 = [
   "numpy==2.5.1",
   "pandas==2.3.3",
   "pyarrow==24.0.0",
-  "scikit-learn==1.9.0",
+  "scikit-learn==1.6.1",
   "scipy==1.18.0",
 ]
 research-runtime = [
   "faiss-cpu==1.15.0",
   "numpy==2.5.1",
+]
+research-risk = [
+  "joblib==1.5.3",
+  "pandas==2.3.3",
+  "scikit-learn==1.6.1",
+  "xgboost-cpu==3.2.0",
 ]
 
 [project.scripts]
@@ -80,11 +86,15 @@ module = [
   "data_designer.*",
   "faiss",
   "faiss.*",
+  "joblib",
+  "joblib.*",
   "pandas",
   "pandas.*",
   "pyarrow",
   "pyarrow.*",
   "sklearn",
   "sklearn.*",
+  "xgboost",
+  "xgboost.*",
 ]
 ignore_missing_imports = true

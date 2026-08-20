@@ -81,6 +81,7 @@ class DBSCANCandidate:
     eps: float
     min_samples: int
     labels: tuple[int, ...]
+    core_indices: tuple[int, ...]
     cluster_count: int
     cluster_sizes: tuple[tuple[int, int], ...]
     noise_fraction: float
@@ -119,6 +120,8 @@ class PCAProjection:
     representation_version: str
     member_ids: tuple[str, ...]
     coordinates: np.ndarray
+    mean: np.ndarray
+    components: np.ndarray
     explained_variance_ratio: tuple[float, float]
     random_state: int
     display_only: bool = True
@@ -316,13 +319,15 @@ def run_dbscan_analysis(
     candidates: list[DBSCANCandidate] = []
     for eps in sorted(set(config.eps_values)):
         for min_samples in sorted(set(config.min_samples_values)):
-            labels_array = _fit_labels(DBSCAN, vectors, eps, min_samples)
+            fitted = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(vectors)
+            labels_array = np.asarray(fitted.labels_)
             cluster_count, cluster_sizes, noise_fraction = _cluster_metrics(labels_array)
             candidates.append(
                 DBSCANCandidate(
                     eps=eps,
                     min_samples=min_samples,
                     labels=tuple(int(value) for value in labels_array),
+                    core_indices=tuple(int(value) for value in fitted.core_sample_indices_),
                     cluster_count=cluster_count,
                     cluster_sizes=cluster_sizes,
                     noise_fraction=noise_fraction,
@@ -376,6 +381,7 @@ def build_pca_projection(
         pivot = int(np.argmax(np.abs(loading)))
         if loading[pivot] < 0:
             coordinates[:, component] *= -1
+            model.components_[component] *= -1
     if components == 1:
         coordinates = np.column_stack(
             (coordinates[:, 0], np.zeros(len(coordinates), dtype=np.float32))
@@ -391,6 +397,8 @@ def build_pca_projection(
         representation_version=artifact.version,
         member_ids=artifact.member_ids,
         coordinates=coordinates,
+        mean=np.asarray(model.mean_, dtype=np.float32),
+        components=np.asarray(model.components_, dtype=np.float32),
         explained_variance_ratio=explained,
         random_state=random_state,
     )

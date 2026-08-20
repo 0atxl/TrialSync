@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import uuid
 from collections import Counter
+from datetime import date
 from pathlib import Path
 
+import numpy as np
 import pytest
 from research.analyze_r6_cohort import (
     build_representations,
@@ -27,6 +30,7 @@ from research.schemas.r6_v3 import (
     PRIVATE_MANIFEST_FILENAME,
 )
 
+from trialsync.db.models import PatientSnapshot
 from trialsync.research.artifacts import CohortArtifactService
 
 
@@ -174,6 +178,78 @@ def test_v3_public_runtime_payloads_do_not_expose_answer_key(tmp_path: Path) -> 
     for group in _mini_groups():
         assert group.name not in serialized
     assert "cohort_group" not in serialized
+
+
+def test_saved_snapshot_projects_into_both_frozen_v3_spaces(tmp_path: Path) -> None:
+    pytest.importorskip("sklearn")
+    pytest.importorskip("faiss")
+    run_dir = _written_v3_run(tmp_path)
+    loaded = load_materialized_cohort(run_dir)
+    write_analysis_artifacts(loaded, build_representations(loaded))
+    patient = loaded.patients[0]
+    snapshot = PatientSnapshot(
+        id=uuid.UUID(patient.member_id),
+        owner_id=uuid.uuid4(),
+        patient_id=None,
+        content_hash="1" * 64,
+        snapshot_version="test-snapshot-v1",
+        date_of_birth=patient.date_of_birth,
+        source_summary={"sex": patient.sex},
+        facts_json=[
+            {
+                "id": fact.fact_id,
+                "fact_type": fact.fact_type,
+                "concept": fact.concept,
+                "value_numeric": fact.value,
+                "value_text": None,
+                "unit": fact.unit,
+                "assertion": fact.assertion,
+                "effective_date": fact.effective_date.isoformat() if fact.effective_date else None,
+                "source_label": "Stored patient fact",
+            }
+            for fact in patient.facts
+            if fact.fact_type != "demographic"
+        ],
+    )
+    service = CohortArtifactService(tmp_path, run_dir.name)
+    assert service.live_query_status()["status"] == "ready"
+
+    fact_neighbors = service.screening_similarity(
+        snapshot,
+        screening_date=date.fromisoformat(loaded.manifest["screening_date"]),
+        representation="patient_fact",
+        neighbor_count=3,
+    )
+    screening_neighbors = service.screening_similarity(
+        snapshot,
+        screening_date=date.fromisoformat(loaded.manifest["screening_date"]),
+        representation="screening_profile",
+        neighbor_count=3,
+    )
+    context = service.screening_cohort_context(
+        snapshot,
+        screening_date=date.fromisoformat(loaded.manifest["screening_date"]),
+        representation="patient_fact",
+    )
+
+    assert fact_neighbors["neighbors"][0]["member_id"] == patient.member_id
+    assert fact_neighbors["neighbors"][0]["cosine_similarity"] == pytest.approx(1.0)
+    assert screening_neighbors["neighbors"][0]["member_id"] == patient.member_id
+    assert screening_neighbors["neighbors"][0]["cosine_similarity"] == pytest.approx(1.0)
+    assert context["out_of_sample"] is True
+    assert context["projection"]["display_only"] is True
+    metadata = json.loads(
+        (run_dir / "representations/patient_fact/metadata.json").read_text(encoding="utf-8")
+    )
+    vectors = np.load(run_dir / "representations/patient_fact/vectors.npy", allow_pickle=False)
+    query_index = metadata["member_ids"].index(patient.member_id)
+    expected = sorted(
+        zip(vectors @ vectors[query_index], metadata["member_ids"], strict=True),
+        key=lambda item: (-float(item[0]), item[1]),
+    )[:3]
+    assert [item["member_id"] for item in fact_neighbors["neighbors"]] == [
+        item[1] for item in expected
+    ]
 
 
 def test_v3_private_seal_rejects_changed_answer_key(tmp_path: Path) -> None:

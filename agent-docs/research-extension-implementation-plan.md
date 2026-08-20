@@ -33,9 +33,7 @@ The approved extension contains:
    Gemini-generated structured eligibility summary and citation validation.
 6. Integrated evaluation, documentation, and presentation evidence.
 
-The feasibility evidence and rationale are recorded in
-[`research-pivot-findings.md`](research-pivot-findings.md) and
-[`research-feasibility-rating-and-local-llm.md`](research-feasibility-rating-and-local-llm.md).
+The accepted contracts, reports, source, and tests record the current feasibility and rationale.
 
 The extension has two distinct surfaces:
 
@@ -1330,24 +1328,15 @@ GET  /api/v1/research/similarity/queries/{query_id}
 - No cluster or neighbor is used as screening evidence.
 - Research disclaimers remain visible.
 
-### Historical V1/V2/recovery and active V3
+### Active V3 runtime cohort
 
-The 2026-08-16 V1 backend run is retained as an immutable, limited baseline: its exact indexes
-passed all-member brute-force verification, while DBSCAN showed weak separation. One bounded V2
-representation comparison reused the frozen V1 population; its DBSCAN representations were
-rejected under predeclared criteria, although both exact indexes passed verification. One separate
-controlled-recovery run used a sealed answer key but finished below its DBSCAN/FAISS thresholds.
-Both superseded experiment implementations are retired and neither can activate a runtime cohort.
-
-On 2026-08-20 the user authorized V3, a separately versioned controlled cohort with correlated
-patient groups, a heterogeneous background group, and cohesive encounter timing. It retains the
-reference panel, feature builders, bounded DBSCAN analysis, and exact CPU FAISS implementation.
-Its group assignment is sealed outside patient facts, feature matrices, selection, runtime APIs,
-and frontend payloads. The full 750-member by 20-trial V3.1 run
-`r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, DBSCAN, FAISS, and runtime-readability
-review and is the approved R6 runtime cohort. See
-[`docs/r6-cohort-analysis.md`](../docs/r6-cohort-analysis.md) for concise experiment history and
-[`docs/r6-v3-controlled-cohort.md`](../docs/r6-v3-controlled-cohort.md) for the V3 contract.
+The separately versioned V3 controlled cohort keeps the reference panel, feature builders,
+bounded DBSCAN analysis, and exact CPU FAISS implementation fixed. Its group assignment is sealed
+outside patient facts, feature matrices, selection, runtime APIs, and frontend payloads. The
+750-member by 20-trial V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, DBSCAN,
+FAISS, and runtime-readability review and is the approved R6 runtime cohort. Earlier R6 experiments
+are retired provenance. See [`docs/r6-v3-controlled-cohort.md`](../docs/r6-v3-controlled-cohort.md)
+for the contract.
 
 ## 13. Phase R7 — Eligibility-criteria RAG with LangChain and Gemini
 
@@ -1750,14 +1739,14 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
 | R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; original validation rule selected LightGBM, while the user selected XGBoost `xgboost-05` for R5 runtime; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
 | R5. Research-risk API/UI | Approved | User selected research delivery surface and XGBoost runtime model | Package `xgboost-05` without changing deterministic eligibility or claiming it was validation-selected |
-| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized the separately versioned V3 controlled cohort on 2026-08-20 | V1 remains limited historical baseline; V2 and controlled recovery are retired after their reviewed below-threshold results; full V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, stable-cluster, exact-index, neighbor-relevance, and runtime-readability review and is approved as the runtime cohort; authenticated read-only APIs and degraded-state handling complete; coordinated R5/R6 frontend remains |
+| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, 2026-07-26; authorized the separately versioned V3 controlled cohort on 2026-08-20 | The V3.1 run `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d` passed seal, stable-cluster, exact-index, neighbor-relevance, and runtime-readability review; authenticated read-only APIs and degraded-state handling are complete; coordinated R5/R6 frontend remains |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
 | R8. Evaluation/final delivery | Approved | User selected supporting engineering/evaluation, 2026-07-26 | |
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R1–R4 and the R6 data/backend foundation are complete. Implement the XGBoost R5 risk backend,
-then complete one coordinated R5/R6 frontend integration pass.
+R1–R4 and the R6 backend are complete. Implement the XGBoost R5 risk backend, then complete one
+coordinated R5/R6 frontend integration pass.
 Preserve the R7 and R8 stop points. There is no R9 in this extension plan.
 
 ## 22. Implementation handoff format

@@ -1,9 +1,8 @@
 # R6 V3 controlled cohort contract
 
 R6 V3 is a separately versioned, controlled correlated-group cohort used to verify that the
-unchanged TrialSync representation, DBSCAN, and exact-similarity pipeline can recover deliberately
-present structure. It does not replace the immutable V1 baseline, rewrite the rejected V2 result,
-or change the completed controlled-recovery benchmark.
+TrialSync representation, DBSCAN, and exact-similarity pipeline can recover deliberately present
+structure. Earlier R6 experiments are retired provenance and do not affect this contract.
 
 The permitted claim is narrow: the R6 pipeline can recover stable, interpretable structure when
 that structure exists in its versioned input space. V3 does not establish clinical phenotypes,

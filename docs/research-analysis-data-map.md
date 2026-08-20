@@ -14,9 +14,8 @@ patient similarity answer different questions.
 |---|---|---|---|
 | Dropout prediction | R3 longitudinal enrollment dataset | One trial enrollment at the day-30 landmark | R3 accepted; R4 offline model comparison complete |
 | SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | Completed for both evaluated tree models; XGBoost is the selected R5 runtime/product model |
-| DBSCAN clustering | R6 screening-derived patient cohort | One unique generated patient | V3 is active; V1 is limited historical baseline and V2 was rejected |
-| FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | V3 exact indexes are active; V1/V2 are historical sensitivity evidence |
-| Controlled cluster recovery | Separate frozen R6 recovery population | One unique generated patient plus a sealed evaluation-only answer key | One sealed run completed below thresholds; retired and non-active |
+| DBSCAN clustering | R6 screening-derived patient cohort | One unique generated patient | V3 is the active runtime cohort |
+| FAISS similarity | R6 screening-derived patient cohort | One patient vector in one frozen representation | V3 exact indexes are active |
 
 ```text
 R3 longitudinal enrollments
@@ -64,7 +63,7 @@ uses only `landmark_day30_features.parquet`; the other two views support later a
 
 | View | One row represents | Prediction or analysis question | Intended significance |
 |---|---|---|---|
-| `landmark_day30_features.parquet` | One enrollment at day 30 | Will dropout occur during days 31–90? | Primary fixed-horizon classification view for the BTech model comparison. |
+| `landmark_day30_features.parquet` | One enrollment at day 30 | Will dropout occur during days 31–90? | Primary fixed-horizon classification view. |
 | `dynamic_landmarks.parquet` | One enrollment at a configured prediction landmark | Will dropout occur in the next 30 days? | Supports rolling risk updates as new visits, doses, or measurements arrive. |
 | `survival_features.parquet` | One enrollment | How long until dropout, or until observation is censored? | Preserves event timing for future time-to-event or survival analysis. |
 
@@ -234,32 +233,15 @@ TrialSync runs each method separately in patient-fact space and screening-profil
 allows the project to compare similarity in recorded facts with similarity in deterministic
 eligibility-evidence patterns. The same pair of patients need not be close in both spaces.
 
-### V1 baseline and V2 decision
+### Active cohort contract
 
-The accepted V1 DBSCAN reports are reproducible but weakly separated. Patient-fact V1 has a
-silhouette of -0.0510 with low subsample and nearby-parameter stability. Screening-profile V1 is
-more stable but has a silhouette of 0.0032. Both V1 exact similarity indexes passed all-member
-brute-force verification.
-
-V1 remains the immutable baseline. The completed one-shot V2 experiment reused the same patients,
-facts, trial panel, criterion results, and DBSCAN grid while testing transparent robust
-preprocessing, semantic feature-block balancing, and repeated-rule weighting. Patient-fact V2
-improved stability but failed silhouette and cluster-balance criteria; screening-profile V2 formed
-only one cluster. Both were rejected without further tuning. The two V2 exact indexes passed
-brute-force verification but remain retired sensitivity evidence.
-
-A separate frozen 750-member controlled-recovery population used a sealed evaluation-only answer
-key, revealed only after DBSCAN and FAISS outputs were sealed. Its one full run completed with
-intact seals but did not meet the frozen recovery thresholds, so it is retired and can never become
-the active runtime cohort.
-
-The separately versioned [R6 V3 controlled cohort](r6-v3-controlled-cohort.md) changes only the
-population design: correlated fact bundles and cohesive encounter timing provide a controlled
-case with recoverable structure. The reference panel, patient-fact and screening-profile feature
-contracts, bounded DBSCAN grid, and exact FAISS implementation remain unchanged. Its private
-answer key is sealed outside all feature, analysis-selection, runtime API, and frontend paths.
+The [R6 V3 controlled cohort](r6-v3-controlled-cohort.md) uses correlated fact bundles and
+cohesive encounter timing while retaining the reference panel, patient-fact and screening-profile
+feature contracts, bounded DBSCAN grid, and exact FAISS implementation. Its private answer key is
+sealed outside feature construction, analysis selection, runtime APIs, and frontend payloads.
 Purity, assignment coverage, group recall, background-noise recall, and neighbor relevance are
-calculated only after label-free analysis is complete.
+calculated only after label-free analysis is complete. Retired R6 experiments are preserved only as
+provenance and are not active runtime evidence.
 
 ## Separation rules
 

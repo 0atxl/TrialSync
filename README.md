@@ -122,15 +122,17 @@ and two brute-force-verified exact FAISS indexes over 750 unique patient snapsho
 prediction, the coordinated R5/R6 frontend, and LangChain/Gemini eligibility-criteria work remain
 separate from deterministic eligibility.
 
+For completed milestones and remaining work, see [CHANGELOG.md](CHANGELOG.md).
+
 See [`docs/r4-dropout-model-experiment.md`](docs/r4-dropout-model-experiment.md) for the frozen
 experiment contract, model comparison, uncertainty intervals, SHAP interpretation, and R5 handoff.
 
 The approved R6 runtime cohort is the sealed V3 750-member run
 `r6-v3-a91d87c1-d360-565d-b7d9-c12d120e3e8d`. Its generator, seals, evaluator, atomic runner,
 DBSCAN analysis, and exact FAISS retrieval passed review. See
-[`docs/r6-cohort-analysis.md`](docs/r6-cohort-analysis.md) for the concise V1/V2/recovery history,
-current runtime contract, and limitations, and [`docs/r6-v3-controlled-cohort.md`](docs/r6-v3-controlled-cohort.md)
-for the sealed V3 contract.
+[`docs/r6-cohort-analysis.md`](docs/r6-cohort-analysis.md) for the current runtime contract and
+limitations, and [`docs/r6-v3-controlled-cohort.md`](docs/r6-v3-controlled-cohort.md) for the
+sealed V3 contract.
 
 The public NCT02054715-D1 dictionary and paper can inform a separate study-specific adapter, but
 participant rows are not currently a public-demo or clean-setup dependency. Follow
@@ -482,8 +484,10 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 The implemented application covers owner-scoped synthetic patient and trial records, deterministic
 single and batch screening, reviewed text/PDF imports, bounded Groq-assisted candidate extraction,
 and evidence-grounded screening conversations. The R3 synthetic dataset generator is implemented
-as an offline research tool; dropout models and all runtime research interfaces remain future work
-and are not represented as current product capabilities.
+as an offline research tool, and R4's model comparison is complete. The R6 cohort/similarity
+backend and its read-only research APIs are complete. The R5 runtime-risk backend, coordinated
+R5/R6 frontend, and eligibility-criteria RAG remain pending and are not represented as current
+product capabilities.
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.
 

@@ -10,17 +10,8 @@ The user may iterate freely on algorithms, providers, interfaces, and generated 
 
 ## Current execution authority and context loading
 
-The original rebuild is complete. `agent-docs/legacy/REBUILD_GUIDE.md` and
-`agent-docs/legacy/BUILD_PHASES.md` are historical
-records of that completed work. Their old phase tracker and implementation prompts are not
-current instructions.
-
-Do **not** read either legacy document by default and do not use them to determine the current
-phase. Consult the smallest relevant legacy section only when:
-
-- the current research phase explicitly references an old invariant or contract;
-- existing code, tests, and current documentation do not answer a core-product question; or
-- the task is specifically to audit the completed rebuild.
+The original rebuild is complete. Current instructions and plans supersede its former phase tracker
+and implementation prompts.
 
 For research-extension work, the authoritative plan is
 `agent-docs/research-extension-implementation-plan.md`.
@@ -40,11 +31,8 @@ Before changing code:
 5. Read Sections 15–18 of the research plan only when the task affects persistence,
    testing, observability, or dependencies.
 
-Do not reload future R-phase bodies. Do not read
-`agent-docs/research-pivot-findings.md` or
-`agent-docs/research-feasibility-rating-and-local-llm.md` for routine implementation; consult the
-relevant section only when revisiting feasibility, dataset justification, project claims, or
-the provider decision.
+Do not reload future R-phase bodies. Use the current plan, contracts, source, tests, and accepted
+reports when assessing feasibility, dataset justification, project claims, or provider decisions.
 
 For R1 specifically, the default context is:
 

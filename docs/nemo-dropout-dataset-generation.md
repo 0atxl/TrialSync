@@ -7,7 +7,7 @@ trial participants. Reproducibility here means preserving the exact configuratio
 run metadata, and frozen artifacts; it does not mean claiming a byte-identical
 regeneration from an unavailable project-level sampler seed.
 
-NVIDIA NeMo Data Designer is the generation tool for this BTech prototype.
+NVIDIA NeMo Data Designer is the generation tool for this project.
 TrialSync may perform a later schema/chronology validation pass, but NeMo must
 not be asked to invent eligibility states or real clinical ground truth. The
 synthetic dropout label is explicitly defined by a reviewed NeMo uniform draw and
@@ -15,13 +15,13 @@ dependent expression and is never presented as a clinical fact.
 
 ## Current implementation status
 
-R3 data-contract implementation is complete and the local generation path is validated. The
+R3 is complete; its data contract and local generation path are validated. The
 accepted 20-enrollment smoke cohort contains 4 synthetic dropouts (20%). The accepted
 400-enrollment demo cohort contains 64 synthetic dropouts (16%) with 280/60/60
 train/validation/test rows. Both runs produced seven linked source tables and three derived views
 with zero LLM/model requests.
 
-The accepted 4,000-enrollment experiment is generated with 702 synthetic dropouts (17.55%)
+The accepted 4,000-enrollment experiment contains 702 synthetic dropouts (17.55%)
 and a 2,800/600/600 train/validation/test split. Its EDA, feature dictionary, dataset card, linkage
 manifest, leakage audit, checksums, and workflow diagram are complete. R4 subsequently used the
 frozen day-30 landmark view to compare dummy, logistic-regression, XGBoost, and LightGBM models,
@@ -70,8 +70,8 @@ The dataset review also examined MIMIC-III, PRO-ACT, n2c2, NCT02054715-D1, and
 Project Data Sphere. MIMIC-III, PRO-ACT, n2c2, and Project Data Sphere have access
 terms or data-use restrictions; NCT02054715-D1 currently provides a useful
 study-specific dictionary and paper but not the participant rows needed for public
-training. None is a runtime or clean-reproduction dependency. Those constraints are
-recorded in the [research pivot findings](../agent-docs/research-pivot-findings.md#dataset-feasibility).
+training. None is a runtime or clean-reproduction dependency. Those constraints are reflected in
+the active research plan's data boundary.
 
 ## R3 time and outcome contract
 
@@ -495,9 +495,9 @@ See the [NeMo getting-started guide](https://docs.nvidia.com/nemo/datadesigner/g
 
 The end-to-end generator writes the seven source tables, three derived views,
 `generation_config.json`, `validation_report.json`, and the `_nemo_runs/` evidence directory.
-Before R3 can be marked complete, the approval package must also add the linkage manifest,
-feature dictionary, dataset card, and checksums listed below. These review documents are R3 exit
-deliverables; their names in this list do not imply that the initial smoke command creates them.
+The accepted R3 package also includes the linkage manifest, feature dictionary, dataset card, and
+checksums listed below. These review documents are frozen exit evidence; their names in this list
+do not imply that the initial smoke command creates them.
 
 ```text
 research_participants.parquet

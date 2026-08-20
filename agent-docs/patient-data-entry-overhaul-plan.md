@@ -1,7 +1,7 @@
 # TrialSync Patient Data Entry and Editing Overhaul
 
 **Date:** 2026-08-02
-**Status:** PD6 complete on 2026-08-02; the patient data-entry overhaul is complete
+**Status:** Complete on 2026-08-02. This document records the accepted patient data-entry contract.
 **Relationship to the research plan:** This is a bounded core-product quality
 improvement. It does not change deterministic screening semantics, immutable saved
 screenings, or the R0–R8 research-extension sequence.
@@ -854,9 +854,7 @@ For every phase:
 - Modifying historical screening snapshots.
 - Treating a toast as an audit log.
 
-## 13. Recommended next phase
+## 13. Closing status
 
-The bounded PD5/PD6 overhaul is complete. The next work should be the separate
-research-extension plan (R3/R4 data and dropout research), not additional
-patient-entry infrastructure. Capture the final browser screenshots and demo
-walkthrough before starting that research phase.
+The patient data-entry overhaul is complete. Its accepted contract remains in force; future work
+is governed by the current research-extension plan rather than additional patient-entry phases.

@@ -82,6 +82,7 @@ jobs:
             'TRIALSYNC_EXTRACTION_PROVIDER=rule_based' \
             'TRIALSYNC_SCREENING_CHAT_PROVIDER=canonical' \
             'TRIALSYNC_TERMINOLOGY_SUGGESTIONS_ENABLED=false' \
+            'VITE_API_BASE_URL=/api/v1' \
             > .env
 
       - name: Run repository verification gate

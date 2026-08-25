@@ -11,6 +11,8 @@ original frozen validation rule selected LightGBM; the user selected XGBoost (`x
 R5 runtime/product model based on the reviewed comparison. XGBoost is not described as
 validation-selected. The committed R4 experiment report records the selection, metrics,
 uncertainty, SHAP, reproducibility metadata, and R5 handoff.
+The user approved R5A, a product-wide frontend experience redesign, on 2026-08-25. R5A follows the
+implemented R5/R6 integration and is the next implementation gate before R7.
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
 
 ## 1. Purpose
@@ -29,9 +31,11 @@ The approved extension contains:
 3. Logistic regression, XGBoost, LightGBM, MLflow, SHAP, and a missed-dose Scenario Lab.
 4. A screening-derived patient cohort for DBSCAN clustering, FAISS similarity, and the
    Cohort Atlas.
-5. LangChain retrieval over approved, versioned trial eligibility criteria with a
+5. A product-wide R5A frontend experience redesign covering ingestion, core records, dashboard,
+   dropout workflow, and interactive Cohort Atlas.
+6. LangChain retrieval over approved, versioned trial eligibility criteria with a
    Gemini-generated structured eligibility summary and citation validation.
-6. Integrated evaluation, documentation, and presentation evidence.
+7. Integrated evaluation, documentation, and presentation evidence.
 
 The accepted contracts, reports, source, and tests record the current feasibility and rationale.
 
@@ -183,6 +187,8 @@ Approved for inclusion:
 - A separate, versioned research-risk API integrated into the existing screening UI.
 - A trial-centric recruitment and retention overview, including grouped screening counts and an aggregate dropout-risk chart for explicitly linked research participants.
 - DBSCAN cohort discovery and FAISS participant similarity.
+- The R5A frontend experience redesign defined in
+  [`r5a-frontend-experience-redesign-plan.md`](r5a-frontend-experience-redesign-plan.md).
 - LangChain retrieval over approved trial criteria plus a schema-validated Gemini eligibility summary.
 - Integrated evaluation, documentation, and presentation evidence.
 
@@ -229,12 +235,11 @@ R0 Scope lock
  +--> R2 GitHub Actions CI (CD deferred)
  |
  +--> R3 Synthetic longitudinal dropout protocol and dataset
-       -> R4 Dropout model experiments
-             -> R5 Versioned risk API and Scenario Lab
- |
- +--> R6 Screening-derived cohorts, DBSCAN, FAISS, and Cohort Atlas
- |
- +--> R7 Eligibility-criteria RAG with LangChain and Gemini
+ |     -> R4 Dropout model experiments
+ |           -> R5 Versioned risk API and Scenario Lab --+
+ |                                                        |
+ +--> R6 Screening-derived cohorts, DBSCAN, FAISS --------+--> R5A Frontend experience redesign
+                                                               -> R7 Eligibility-criteria RAG
  |
  +--> R8 Integrated evaluation, documentation, and presentation
 ```
@@ -243,15 +248,15 @@ R1 and R2 may proceed independently after R0. R4 depends on the accepted R3 long
 dropout dataset, and R5 depends on an R4 model passing its declared acceptance criteria. R6
 uses a different screening-derived patient cohort and does not depend on the dropout dataset.
 R7 is independent of both research datasets and uses the existing approved trial versions as
-its retrieval corpus.
+its retrieval corpus, but implementation is intentionally sequenced after R5A so its frontend is
+built into the accepted information architecture rather than the superseded interface.
 
 ### Current implementation order
 
-The dependency map remains unchanged, but the next implementation pass will build the R6 data and
-backend work before the R5 runtime backend. This allows the R5 saved-screening risk panel and R6
-Cohort Atlas to be integrated into the frontend in one coordinated pass. This is an execution-order
-choice, not a postponement of R5: R5 still uses the accepted R4 model, and R6 remains independent of
-the dropout dataset.
+The R5/R6 backend and initial frontend integration are implemented. The next implementation phase is
+R5A, executed through the preflight and seven reviewable implementation stages defined in the
+dedicated R5A plan. R7 remains approved but does not start until the redesigned frontend is
+accepted, preventing new RAG work from being built into an interface scheduled for replacement.
 
 ## 6. Phase R0 — Scope lock and research protocol
 
@@ -1376,6 +1381,42 @@ FAISS, and runtime-readability review and is the approved R6 runtime cohort. Ear
 are retired provenance. See [`docs/r6-v3-controlled-cohort.md`](../docs/r6-v3-controlled-cohort.md)
 for the contract.
 
+## 12A. Phase R5A — Frontend experience redesign
+
+### Objective
+
+Replace the current implementation-centric interface with a compact, consistent, task-led
+experience across authentication, dashboard, patient/trial ingestion, record review, screening,
+dropout follow-up, population dropout review, and cohort exploration.
+
+The authoritative implementation contract is
+[`r5a-frontend-experience-redesign-plan.md`](r5a-frontend-experience-redesign-plan.md). It records
+the approved information architecture, content rules, bounded backend additions, one preflight,
+seven reviewable implementation stages, route-level behavior, verification requirements, and stop
+points.
+
+### Sequencing and boundaries
+
+- R5A begins after the implemented R5/R6 integration and before R7.
+- It preserves the completed patient-data semantic contract while replacing its presentation where
+  required for one consistent ingestion flow.
+- It may add bounded owner-scoped dashboard/dropout aggregates and cohort display summaries.
+- It does not alter deterministic eligibility, retrain `xgboost-05`, or rebuild/overwrite the
+  configured R6 run merely for presentation.
+- The R5A preflight and each implementation stage stop for user review before continuing.
+
+### Exit criteria
+
+- The user accepts the preflight and all seven R5A implementation stages.
+- Primary pages contain only task-relevant information by default.
+- Manual and imported patient/trial data converge into consistent canonical review flows.
+- The Overview is an interactive at-a-glance dashboard rather than a screening-count landing page.
+- Dropout is useful both from one saved screening and from a potentially eligible screening
+  worklist.
+- The Cohort Atlas is an interactive patient graph with visible groups, human labels, search,
+  filters, selection, and exact-neighbor context.
+- Full automated and desktop/narrow-laptop/tablet visual acceptance passes.
+
 ## 13. Phase R7 — Eligibility-criteria RAG with LangChain and Gemini
 
 ### Objective
@@ -1776,16 +1817,18 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
 | R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; original validation rule selected LightGBM, while the user selected XGBoost `xgboost-05` for R5 runtime; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
-| R5. Research-risk API/UI | In progress | User selected the XGBoost runtime model and requested a full platform enrollment/event integration contract, 2026-08-21 | `xgboost-05` packaging, platform enrollment, append-only longitudinal events, immutable day-30 snapshots, prediction APIs, and focused backend tests implemented; frontend remains |
-| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, authorized V3, and requested saved-screening integration | V3.1 passed review; saved-screening projection, external DBSCAN association, external-vector FAISS query, and focused backend tests implemented; regenerate active run and build frontend |
+| R5. Research-risk API/UI | In progress | User selected the XGBoost runtime model and requested a full platform enrollment/event integration contract, 2026-08-21 | `xgboost-05` packaging, platform enrollment, append-only longitudinal events, immutable day-30 snapshots, prediction APIs, saved-screening enrollment/event/readiness/prediction/SHAP frontend, and Trial Recruitment Overview implemented; final browser-based visual review remains |
+| R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, authorized V3, and requested saved-screening integration | V3.1 passed review; saved-screening projection, external DBSCAN association, exact external-vector FAISS query, independent saved-screening cohort/similarity views, and population Cohort Atlas implemented; final browser-based visual review remains |
+| R5A. Frontend experience redesign | Awaiting review | User approved the R5A direction and accepted R5A-0 and R5A-1, 2026-08-25 | R5A-2 Overview and bounded shared-CSS audit implemented; obsolete shell/page/navigation/action declarations removed, shared ownership consolidated, and 92 frontend plus 219 backend tests, lint, focused mypy, typecheck, and build pass; user visual review remains |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |
 | R8. Evaluation/final delivery | Approved | User selected supporting engineering/evaluation, 2026-07-26 | |
 
 Allowed statuses: `Awaiting review`, `Approved`, `Revise`, `Not authorized`, `In progress`, `Blocked`, `Complete`, `Skipped`, or `Deferred`.
 
-R1–R4 are complete. The R5/R6 backend integration bridge is implemented. Next regenerate the
-active V3 artifact with its added out-of-sample metadata, then complete one coordinated frontend
-pass with three independently selectable research tools.
+R1–R4 are complete. The R5/R6 backend bridge, coordinated saved-screening actions, population-wide
+Trial Recruitment Overview, and Cohort Atlas are implemented, but their current frontend is
+superseded by the approved R5A direction. R5A is the next phase and its final visual acceptance will
+serve as the frontend exit evidence for R5/R6. R7 remains approved but starts only after R5A.
 Preserve the R7 and R8 stop points. There is no R9 in this extension plan.
 
 ## 22. Implementation handoff format

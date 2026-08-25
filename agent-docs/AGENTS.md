@@ -16,6 +16,11 @@ and implementation prompts.
 For research-extension work, the authoritative plan is
 `agent-docs/research-extension-implementation-plan.md`.
 
+For the approved R5A product-wide frontend experience redesign, also read
+`agent-docs/r5a-frontend-experience-redesign-plan.md`. R5A preserves the completed patient-data
+semantic contract while replacing route hierarchy, ingestion presentation, research interaction,
+and user-visible content through one preflight and seven reviewable implementation stages.
+
 For the approved patient data-entry and editing overhaul, the authoritative
 plan is `agent-docs/patient-data-entry-overhaul-plan.md`. Implement one PD phase
 at a time and preserve the immutable-screening and deterministic-eligibility

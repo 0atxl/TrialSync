@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
 
 import { ProtectedRoute } from '../auth/ProtectedRoute'
 import { AppLayout } from '../components/AppLayout'
@@ -21,6 +21,8 @@ import { ScreeningDetailPage } from '../pages/ScreeningDetailPage'
 import { ScreeningHistoryPage } from '../pages/ScreeningHistoryPage'
 import { RouteErrorPage } from '../pages/RouteErrorPage'
 import { CatalogManagementPage } from '../pages/CatalogManagementPage'
+import { CohortAtlasPage } from '../pages/CohortAtlasPage'
+import { RecruitmentOverviewPage } from '../pages/RecruitmentOverviewPage'
 
 export const routes = [
   { path: '/login', element: <AuthPage mode="login" />, errorElement: <RouteErrorPage /> },
@@ -48,7 +50,12 @@ export const routes = [
           { path: 'screenings/:screeningId', element: <ScreeningDetailPage /> },
           { path: 'batches/new', element: <BatchScreeningPage /> },
           { path: 'batches/:batchId', element: <BatchDetailPage /> },
-          { path: 'catalog', element: <CatalogManagementPage /> },
+          { path: 'catalog', element: <Navigate to="/administration/catalog" replace /> },
+          { path: 'administration/catalog', element: <CatalogManagementPage /> },
+          { path: 'research', element: <Navigate to="/research/dropout" replace /> },
+          { path: 'research/recruitment', element: <Navigate to="/research/dropout" replace /> },
+          { path: 'research/dropout', element: <RecruitmentOverviewPage /> },
+          { path: 'research/cohorts', element: <CohortAtlasPage /> },
           { path: 'help', element: <HelpPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],

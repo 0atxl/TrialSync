@@ -2,13 +2,11 @@ import { Link } from 'react-router-dom'
 
 export function NotFoundPage() {
   return (
-    <section className="placeholder-page route-entry">
-      <p className="eyebrow">404 · Not found</p>
-      <h1>This workspace route does not exist.</h1>
-      <p className="lede">Return to the workspace dashboard to continue.</p>
-      <Link className="text-link" to="/">
-        Back to workspace
-      </Link>
+    <section className="route-state route-entry">
+      <span className="route-state-code">404</span>
+      <h1>Page not found</h1>
+      <p>The address may be outdated or incorrect.</p>
+      <Link className="primary-button" to="/">Return to Overview</Link>
     </section>
   )
 }

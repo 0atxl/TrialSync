@@ -1,6 +1,6 @@
 # TrialSync architecture
 
-TrialSync is a controlled research system for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. The R3 dataset and R4 offline model evaluation are complete. R5 platform enrollment/event/model-serving and R6 saved-screening projection/artifact-serving backend bridges are implemented; their coordinated frontend remains. RAG over approved trial eligibility criteria remains future work.
+TrialSync is a controlled research system for **Clinical Trial Patient Matching and Dropout Prediction**. Its current operational core is explainable patient–trial matching. The R3 dataset and R4 offline model evaluation are complete. R5 platform enrollment/event/model-serving and R6 saved-screening projection/artifact-serving bridges are integrated into the saved-screening frontend, with linked population-wide Recruitment Overview and Cohort Atlas routes. RAG over approved trial eligibility criteria remains future work.
 
 ```text
 reviewed text/PDF -> deterministic text extraction -> optional local Tesseract OCR
@@ -21,6 +21,8 @@ stored screening -> platform-owned research enrollment
                    -> DBSCAN reports + exact FAISS indexes -> read-only research APIs
 stored screening -> frozen R6 feature projection
                  -> out-of-sample cluster association and exact reference-neighbor query
+stored screening detail -> independently open retention risk, cohort context, or similar participants
+research workspace -> trial-level screening/prediction reconciliation + sealed-cohort Atlas
 ```
 
 The implemented R3 longitudinal generator uses the NVIDIA Data Designer 0.8.0 Python package
@@ -48,6 +50,12 @@ never becomes a runtime dependency. All research outputs remain separate from de
 eligibility.
 
 The FastAPI application owns authentication, owner-scoped persistence, document review, immutable screening history, and provider-free canonical PDF assembly. PostgreSQL schema changes are versioned with Alembic. The React/Vite client consumes only the versioned HTTP API.
+
+The Overview uses a derived, owner-scoped `GET /api/v1/overview` aggregate rather than loading full
+screening records into the landing page. It returns complete eligibility counts, a bounded 56-day
+activity series, dropout follow-up states for potentially eligible screenings, attention items, and
+recent screening summaries. No dashboard state is persisted. Research artifact validation can mark
+the dropout summary as degraded without withholding eligibility, activity, or screening links.
 
 The domain engine is deliberately isolated from FastAPI, SQLAlchemy, provider clients, system time, and OCR. It evaluates typed facts and approved rule JSON only. Missing, stale, conflicting, unsupported, and unit-incompatible information stays `unknown`; a provider cannot approve data or change the final state.
 

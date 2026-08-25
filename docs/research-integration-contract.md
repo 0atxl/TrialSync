@@ -1,6 +1,6 @@
 # Research integration contract
 
-Status: accepted backend integration contract; frontend integration pending.
+Status: accepted backend contract with saved-screening frontend integration implemented.
 
 This contract defines how TrialSync's three independent research tools consume the same reviewed
 patient, trial, and screening foundation without becoming part of deterministic eligibility:
@@ -318,6 +318,20 @@ Results include:
 
 ## 9. API contract
 
+### Overview aggregate
+
+```text
+GET /api/v1/overview
+```
+
+The owner-scoped application Overview combines complete deterministic eligibility counts, a
+bounded daily screening-activity series, dropout workflow counts for potentially eligible
+screenings, prioritized attention items, and compact recent-screening summaries. Dropout states are
+`not_started`, `information_needed`, `ready`, and `predicted`; they are resolved through immutable
+screening-to-enrollment linkage. The aggregate does not persist duplicate dashboard state or change
+eligibility. If the configured risk artifact cannot be validated, `dropout.status` is `degraded`
+while the core eligibility, activity, attention, and recent-screening content remains available.
+
 ### Shared capability discovery
 
 ```text
@@ -418,9 +432,13 @@ The backend integration implements the following bridge before frontend wiring:
 8. add external-screening projection, DBSCAN association, and external-vector FAISS queries;
 9. resolve screening-profile UUID dimensions into canonical human-readable evidence metadata.
 
-The remaining integration work is the coordinated frontend pass and regeneration of the active V3
-run with the extended core/PCA/unit metadata. No compatibility layer or training-row mapping is
-required.
+The coordinated saved-screening frontend now exposes all three independent actions, enrollment and
+event capture, explicit day-30 readiness, XGBoost/SHAP results, out-of-sample cohort association,
+and exact cosine neighbors. The configured V3.1 run is readable through the live query bridge. A
+population-wide Cohort Atlas and Trial Recruitment Overview are available as linked research
+workspace routes. Saved-screening cohort and similarity results can open the Atlas with the same
+screening and representation selected, while participant-level actions remain independently usable
+in the screening detail. No compatibility layer or training-row mapping is required.
 
 ## 12. Acceptance tests
 

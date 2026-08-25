@@ -119,5 +119,9 @@ is `0.21347740292549133`; the versioned display bands are lower, near threshold,
 response always states: `Research prediction only; not a clinical or eligibility decision.`
 
 The R5 backend integration passes focused persistence, API, feature, and model-package tests. The
-remaining R5 work is the saved-screening frontend for enrollment setup, event capture, follow-up
-readiness, prediction, probability/threshold/horizon/model metadata, and SHAP contributions.
+saved-screening frontend now implements enrollment setup, sourced baseline review, dose/visit/
+measurement/adverse-event capture, explicit follow-up readiness, prediction, probability/threshold/
+horizon/model metadata, and SHAP contributions beside the unchanged eligibility result. The
+trial-level Recruitment Overview now reconciles deterministic screening-state totals with explicit
+linked-prediction and unlinked-potentially-eligible denominators, model version, day-90 horizon,
+and versioned risk bands.

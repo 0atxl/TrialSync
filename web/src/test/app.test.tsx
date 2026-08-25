@@ -130,6 +130,41 @@ const screening = {
   overall_state: 'needs_review' as const, screening_date: '2026-07-15', engine_version: '0.1.0', dsl_version: '1.0', terminology_version: '1', unit_version: '1', created_at: '2026-07-15T00:00:00Z',
   counts: { pass_count: 0, fail_count: 0, unknown_count: 1 }, evaluations: [evaluation],
 }
+const overviewEmpty = {
+  generated_on: '2026-08-25',
+  activity_start_date: '2026-07-01',
+  activity_end_date: '2026-08-25',
+  eligibility: { total: 0, potentially_eligible: 0, likely_ineligible: 0, needs_review: 0 },
+  activity: [],
+  dropout: {
+    status: 'available', message: null, eligible_total: 0,
+    counts: { not_started: 0, information_needed: 0, ready: 0, predicted: 0 },
+  },
+  attention: [],
+  recent_screenings: [],
+}
+const overview = {
+  ...overviewEmpty,
+  eligibility: { total: 12, potentially_eligible: 6, likely_ineligible: 2, needs_review: 4 },
+  activity: [
+    { date: '2026-08-18', count: 1 },
+    { date: '2026-08-19', count: 0 },
+    { date: '2026-08-20', count: 2 },
+  ],
+  dropout: {
+    status: 'available', message: null, eligible_total: 6,
+    counts: { not_started: 2, information_needed: 1, ready: 1, predicted: 2 },
+  },
+  attention: [{
+    kind: 'eligibility_review', screening_id: 'screen-1', patient_name: 'Mira Shah',
+    trial_title: 'Cardiometabolic study', screening_date: '2026-08-20',
+  }],
+  recent_screenings: [{
+    screening_id: 'screen-1', patient_name: 'Mira Shah', trial_title: 'Cardiometabolic study',
+    trial_registry_id: 'TS-100', overall_state: 'needs_review', screening_date: '2026-08-20',
+    created_at: '2026-08-20T10:00:00Z',
+  }],
+}
 const importReview = {
   id: 'import-1', kind: 'patient' as const, source_type: 'text' as const, status: 'needs_review' as const,
   filename: null, mime_type: 'text/plain', size_bytes: 80, checksum: 'abc',
@@ -220,12 +255,11 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
-  it('fills the public synthetic demo credentials on request', async () => {
+  it('fills the saved local credentials on request', async () => {
     renderRoute('/login')
-    await userEvent.click(screen.getByRole('button', { name: /Use demo account/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Fill saved login' }))
     expect(screen.getByRole('textbox', { name: 'Email' })).toHaveValue('demo@trialsync.example')
     expect(screen.getByLabelText('Password')).toHaveValue('SyntheticDemo123!')
-    expect(screen.getByText('Fills synthetic demonstration credentials')).toBeInTheDocument()
   })
 
   it('reveals and hides the login password without changing its value', async () => {
@@ -243,29 +277,148 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(password).toHaveAttribute('type', 'password')
   })
 
-  it('collapses the navigation, persists the preference, and keeps sign out in the sidebar', async () => {
+  it('uses six primary destinations, persists collapse, and keeps account actions together', async () => {
     authenticate()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(overviewEmpty)))
     const { container } = renderRoute('/')
-    await screen.findByText('No saved screenings')
+    await screen.findByText('No screening activity yet')
     const sidebar = screen.getByRole('complementary', { name: 'Primary navigation' })
-    expect(sidebar).toContainElement(screen.getByRole('button', { name: 'Sign out' }))
+    expect(within(sidebar).getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
+      'Overview', 'Patients', 'Trials', 'Screenings', 'Research', 'Help',
+    ])
+    expect(within(sidebar).queryByRole('link', { name: 'Batch screening' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
     expect(container.querySelector('.app-shell')).toHaveClass('sidebar-collapsed')
     expect(localStorage.getItem('trialsync_sidebar_collapsed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Expand navigation' })).toBeInTheDocument()
   })
 
+  it('closes the account menu outside the card and after choosing an item', async () => {
+    authenticate(true)
+    vi.stubGlobal('fetch', vi.fn((input: string) => Promise.resolve(
+      json(input.endsWith('/overview') ? overviewEmpty : []),
+    )))
+    renderRoute('/')
+    await screen.findByText('No screening activity yet')
+
+    const summary = screen.getByLabelText('Demo User account menu')
+    const menu = summary.closest('details')
+    await userEvent.click(summary)
+    expect(menu).toHaveAttribute('open')
+
+    fireEvent.pointerDown(document.body)
+    expect(menu).not.toHaveAttribute('open')
+
+    await userEvent.click(summary)
+    await userEvent.click(screen.getByRole('link', { name: 'Catalog administration' }))
+    expect(menu).not.toHaveAttribute('open')
+  })
+
   it('uses the single light theme and removes the legacy preference', async () => {
     authenticate()
     localStorage.setItem('trialsync_theme', 'dark')
     document.documentElement.dataset.theme = 'dark'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(overviewEmpty)))
     renderRoute('/')
-    await screen.findByText('No saved screenings')
+    await screen.findByText('No screening activity yet')
     await waitFor(() => expect(document.documentElement).not.toHaveAttribute('data-theme'))
     expect(localStorage.getItem('trialsync_theme')).toBeNull()
     expect(screen.queryByRole('button', { name: /mode/i })).not.toBeInTheDocument()
+  })
+
+  it('shows complete overview signals and links each chart into its workflow', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(overview)))
+    renderRoute('/')
+
+    expect(await screen.findByLabelText('Eligibility distribution')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /6 potentially eligible screenings/i })).toHaveAttribute('href', '/screenings?result=potentially_eligible')
+    expect(screen.getByRole('link', { name: /3 screenings from Aug 18 to Aug 20/ })).toHaveAttribute('href', '/screenings?from=2026-08-18&to=2026-08-20')
+    expect(screen.getByRole('link', { name: /Not started 2/ })).toHaveAttribute('href', '/research/dropout?status=not_started')
+    expect(screen.getByRole('link', { name: 'Mira Shah Cardiometabolic study Needs review' })).toHaveAttribute('href', '/screenings/screen-1')
+    expect(screen.getByRole('link', { name: /Mira Shah.*Needs review.*Aug 20, 2026/i })).toHaveAttribute('href', '/screenings/screen-1')
+    expect(screen.queryByRole('link', { name: 'New screening' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Batch screening' })).not.toBeInTheDocument()
+  })
+
+  it('keeps eligibility available when the dropout summary is degraded', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      ...overview,
+      dropout: { ...overview.dropout, status: 'degraded', message: 'Dropout workflow summary is temporarily unavailable.' },
+    })))
+    renderRoute('/')
+
+    expect(await screen.findByRole('heading', { name: '12 saved screenings' })).toBeInTheDocument()
+    expect(screen.getByText('Dropout workflow summary is temporarily unavailable.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /6 potentially eligible screenings/i })).toBeInTheDocument()
+  })
+
+  it('retries a failed overview request', async () => {
+    authenticate()
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(json(overviewEmpty))
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/')
+
+    expect(await screen.findByRole('heading', { name: 'Dashboard unavailable' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('heading', { name: 'No screening activity yet' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('applies overview result and activity links to screening history', async () => {
+    authenticate()
+    const olderScreening = {
+      ...screening,
+      id: 'screen-older',
+      screening_date: '2026-07-15',
+      patient_snapshot: { ...snapshot, display_name: 'Older record' },
+    }
+    const recentScreening = {
+      ...screening,
+      id: 'screen-recent',
+      screening_date: '2026-08-20',
+      patient_snapshot: { ...snapshot, display_name: 'Recent record' },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([olderScreening, recentScreening])))
+    renderRoute('/screenings?result=needs_review&from=2026-08-18&to=2026-08-24')
+
+    expect(await screen.findByText('Recent record')).toBeInTheDocument()
+    expect(screen.queryByText('Older record')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Overall state' })).toHaveValue('needs_review')
+    expect(screen.getByText('Showing 2026-08-18 to 2026-08-24')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear dates' }))
+    expect(await screen.findByText('Older record')).toBeInTheDocument()
+  })
+
+  it('characterizes trial discovery and both existing creation entry points', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([trial])))
+    renderRoute('/trials')
+
+    expect(await screen.findByText('Synthetic age study')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add trial' })).toHaveAttribute('href', '/trials/new')
+    expect(screen.getByRole('link', { name: 'Import text or PDF' })).toHaveAttribute(
+      'href',
+      '/imports/new?kind=trial',
+    )
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search trials' }), 'not present')
+    expect(screen.getByRole('heading', { name: 'No matching trials' })).toBeInTheDocument()
+  })
+
+  it('characterizes catalog administration as unavailable to a routine account', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
+    renderRoute('/catalog')
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'This account is not allowed to manage the shared clinical catalog.',
+    )
+    expect(screen.queryByRole('link', { name: 'Catalog administration' })).not.toBeInTheDocument()
   })
 
   it('shows the Help documentation and active navigation', () => {
@@ -276,6 +429,16 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByText(/Enter sends a question/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open API docs' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('redirects the previous research route into the Dropout workspace', async () => {
+    authenticate()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
+    renderRoute('/research/recruitment')
+
+    expect(await screen.findByRole('heading', { name: 'Recruitment overview' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Dropout' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Research' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('lets a catalog administrator add a local clinical detail', async () => {
@@ -295,7 +458,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/catalog')
     expect(await screen.findByRole('heading', { name: 'Clinical catalog' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Catalog' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Catalog administration' })).toHaveAttribute('aria-current', 'page')
     await userEvent.type(screen.getByLabelText('Display name'), 'C-reactive protein')
     await userEvent.selectOptions(screen.getByLabelText('Category'), 'observation')
     await userEvent.type(screen.getByLabelText('Fixed unit'), 'mg/L')

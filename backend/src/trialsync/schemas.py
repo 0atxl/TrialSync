@@ -465,6 +465,66 @@ class ScreeningRead(BaseModel):
     evaluations: list[CriterionEvaluationRead] = Field(default_factory=list)
 
 
+class OverviewEligibility(BaseModel):
+    total: int = Field(ge=0)
+    potentially_eligible: int = Field(ge=0)
+    likely_ineligible: int = Field(ge=0)
+    needs_review: int = Field(ge=0)
+
+
+class OverviewActivityPoint(BaseModel):
+    date: date
+    count: int = Field(ge=0)
+
+
+class OverviewDropoutCounts(BaseModel):
+    not_started: int = Field(ge=0)
+    information_needed: int = Field(ge=0)
+    ready: int = Field(ge=0)
+    predicted: int = Field(ge=0)
+
+
+class OverviewDropout(BaseModel):
+    status: Literal["available", "degraded"]
+    message: str | None = None
+    eligible_total: int = Field(ge=0)
+    counts: OverviewDropoutCounts
+
+
+class OverviewScreeningSummary(BaseModel):
+    screening_id: uuid.UUID
+    patient_name: str
+    trial_title: str
+    trial_registry_id: str
+    overall_state: str
+    screening_date: date
+    created_at: datetime
+
+
+class OverviewAttentionItem(BaseModel):
+    kind: Literal[
+        "eligibility_review",
+        "dropout_not_started",
+        "dropout_information_needed",
+        "dropout_ready",
+    ]
+    screening_id: uuid.UUID
+    patient_name: str
+    trial_title: str
+    screening_date: date
+
+
+class OverviewRead(BaseModel):
+    generated_on: date
+    activity_start_date: date
+    activity_end_date: date
+    eligibility: OverviewEligibility
+    activity: list[OverviewActivityPoint] = Field(default_factory=list)
+    dropout: OverviewDropout
+    attention: list[OverviewAttentionItem] = Field(default_factory=list)
+    recent_screenings: list[OverviewScreeningSummary] = Field(default_factory=list)
+
+
 class BatchCreate(BaseModel):
     patient_ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)
     patient_snapshot_ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)

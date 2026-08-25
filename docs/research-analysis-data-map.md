@@ -16,8 +16,8 @@ patient similarity answer different questions.
 |---|---|---|---|
 | Dropout prediction | R3 model-training data; platform longitudinal events at runtime | One trial enrollment at the day-30 landmark | Platform enrollment/event/follow-up and inference backend implemented |
 | SHAP explanation | R3 model-ready dropout features | One model prediction for one enrollment | R4 comparison complete; R5 returns native XGBoost Tree SHAP contributions |
-| DBSCAN clustering | R6 reference cohort plus a saved-screening query projection | One reference member or one external query vector | Live out-of-sample bridge implemented; active V3 artifact regeneration required |
-| FAISS similarity | R6 reference cohort plus a saved-screening query projection | One reference member or one external query vector | Live exact-query bridge implemented; active V3 artifact regeneration required |
+| DBSCAN clustering | R6 reference cohort plus a saved-screening query projection | One reference member or one external query vector | Live V3 out-of-sample bridge and saved-screening view implemented |
+| FAISS similarity | R6 reference cohort plus a saved-screening query projection | One reference member or one external query vector | Live V3 exact-query bridge and saved-screening view implemented |
 
 ```text
 R3 longitudinal enrollments (training/evaluation only)

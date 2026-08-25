@@ -212,6 +212,8 @@ POST /api/v1/auth/register
 POST /api/v1/auth/login
 GET  /api/v1/auth/me
 
+GET                /api/v1/overview
+
 GET|POST           /api/v1/patients
 GET|PATCH|DELETE   /api/v1/patients/{patient_id}
 GET                /api/v1/patient-fact-catalog
@@ -443,7 +445,7 @@ backend/.venv/bin/python -m trialsync.demo seed-admin
 ```
 
 Sign in as `admin@trialsync.example` with `AdminWorkspace2026!`.
-That account also receives the **Catalog** navigation item. It can add local
+That account can open **Catalog administration** from the account menu. It can add local
 conditions, medications, and fixed-unit observations, choose whether they are
 available for trial criteria, and retire or restore them. Retiring a concept only
 stops new entry; it never rewrites saved facts, criteria, or screening evidence.

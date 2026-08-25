@@ -212,6 +212,263 @@ export type Screening = {
   counts: ScreeningCounts
   evaluations: CriterionEvaluation[]
 }
+
+export type OverviewActivityPoint = { date: string; count: number }
+export type OverviewDropoutState = 'not_started' | 'information_needed' | 'ready' | 'predicted'
+export type OverviewAttentionKind =
+  | 'eligibility_review'
+  | 'dropout_not_started'
+  | 'dropout_information_needed'
+  | 'dropout_ready'
+export type OverviewScreeningSummary = {
+  screening_id: string
+  patient_name: string
+  trial_title: string
+  trial_registry_id: string
+  overall_state: ScreeningState
+  screening_date: string
+  created_at: string
+}
+export type OverviewAttentionItem = {
+  kind: OverviewAttentionKind
+  screening_id: string
+  patient_name: string
+  trial_title: string
+  screening_date: string
+}
+export type Overview = {
+  generated_on: string
+  activity_start_date: string
+  activity_end_date: string
+  eligibility: Record<ScreeningState, number> & { total: number }
+  activity: OverviewActivityPoint[]
+  dropout: {
+    status: 'available' | 'degraded'
+    message: string | null
+    eligible_total: number
+    counts: Record<OverviewDropoutState, number>
+  }
+  attention: OverviewAttentionItem[]
+  recent_screenings: OverviewScreeningSummary[]
+}
+
+export type ResearchRepresentation = 'patient_fact' | 'screening_profile'
+export type ResearchFeature = {
+  name: string
+  group: 'baseline' | 'day30_follow_up'
+  value: string | number | null
+  source: string | null
+  missing: boolean
+}
+export type ResearchEnrollment = {
+  id: string
+  screening_id: string
+  enrollment_date: string
+  observation_cutoff_day: number
+  prediction_horizon_day: number
+  feature_contract_version: string
+  tracking_status: 'active' | 'closed'
+  baseline: ResearchFeature[]
+  missing_baseline_features: string[]
+  created_at: string
+}
+export type ResearchFollowUp = {
+  id: string
+  research_enrollment_id: string
+  cutoff_day: number
+  feature_schema_version: string
+  feature_snapshot_hash: string | null
+  event_set_checksum: string
+  status: 'incomplete' | 'ready'
+  features: ResearchFeature[]
+  missing_features: string[]
+  created_at: string
+}
+export type ResearchModel = {
+  id: string
+  name: string
+  version: string
+  alias: string
+  candidate_id: string
+  training_dataset_version: string
+  feature_schema_version: string
+  threshold: number
+  horizon_day: number
+  validation_status: string
+  metrics: Record<string, number>
+  band_policy_version: string
+  artifact_status: 'ready' | 'degraded'
+  artifact_message: string | null
+  created_at: string
+}
+export type RiskContext = {
+  screening_id: string
+  status: 'unlinked' | 'incomplete' | 'ready'
+  enrollment: ResearchEnrollment | null
+  follow_up: ResearchFollowUp | null
+  model: ResearchModel
+}
+export type RiskContribution = {
+  feature: string
+  value: string | number
+  shap_value: number
+  direction: 'higher' | 'lower'
+}
+export type RiskPrediction = {
+  id: string
+  screening_id: string
+  research_enrollment_id: string
+  follow_up_snapshot_id: string
+  risk_type: 'trial_dropout_by_day90'
+  probability: number
+  threshold: number
+  research_label: 'lower' | 'near_threshold' | 'higher'
+  observation_cutoff_day: number
+  horizon_day: number
+  model: { name: string; version: string; alias: string; candidate_id: string }
+  feature_schema_version: string
+  feature_snapshot_hash: string
+  top_contributions: RiskContribution[]
+  created_at: string
+  disclaimer: string
+}
+export type CohortContext = {
+  run_id: string
+  representation: ResearchRepresentation
+  representation_version: string
+  out_of_sample: true
+  association: {
+    cluster_label: string | null
+    is_unassigned: boolean
+    eps: number
+    nearest_core_member_id: string | null
+    nearest_core_distance: number | null
+    competing_labels: Array<{ cluster_label: string; nearest_core_distance: number }>
+    method: string
+  }
+  projection: { x: number; y: number; display_only: true }
+  vector_checksum: string
+  unsupported_concepts: string[]
+  disclaimer: string
+}
+export type FeatureDifference = {
+  feature: string
+  query_value: number | null
+  neighbor_value: number | null
+  absolute_difference: number | null
+  criterion_context?: {
+    trial_label: string
+    criterion_text: string
+    query_result: 'pass' | 'fail' | 'unknown'
+    query_evidence_fact_ids: string[]
+    query_missing_categories: string[]
+  } | null
+}
+export type ScreeningSimilarity = {
+  run_id: string
+  representation: ResearchRepresentation
+  representation_version: string
+  out_of_sample: true
+  query_vector_checksum: string
+  unsupported_concepts: string[]
+  index_metadata: { index_type: string; vector_count: number; dimension: number; [key: string]: unknown }
+  neighbors: Array<{
+    rank: number
+    member_id: string
+    label: string
+    cosine_similarity: number
+    feature_differences: FeatureDifference[]
+  }>
+  disclaimer: string
+}
+export type TrialResearchOverview = {
+  trial_version_id: string
+  trial: { registry_id: string; title: string; version: number }
+  screening_counts: Record<ScreeningState, number>
+  retention: {
+    eligible_total: number
+    linked_predictions: number
+    unlinked_eligible: number
+    risk_bands: { lower: number; near_threshold: number; higher: number }
+    model_version: string
+    horizon_day: number
+    band_policy_version: string
+  }
+}
+export type CohortRunSummary = {
+  run_id: string
+  active: boolean
+  status: 'ready' | 'degraded'
+  contract_version: string
+  generated_at: string
+  screening_date: string
+  member_count: number
+  trial_count: number
+  pair_count: number
+  engine_version: string
+  representations: Record<string, unknown>
+  message: string | null
+}
+export type CohortRuns = {
+  status: 'ready' | 'degraded'
+  active_run_id: string | null
+  message: string | null
+  runs: CohortRunSummary[]
+}
+export type CohortPoint = {
+  member_id: string
+  label: string
+  date_of_birth: string
+  sex: string
+  conditions: string[]
+  cluster_label: string | null
+  is_noise: boolean
+  x: number
+  y: number
+}
+export type CohortClusters = {
+  run_id: string
+  representation: ResearchRepresentation
+  representation_version: string
+  display_projection_only: true
+  distance_distribution: Record<string, number>
+  selected_parameters: { eps: number; min_samples: number }
+  selection_reason: string
+  cluster_count: number
+  noise_fraction: number
+  clusters: Array<{ label: string; size: number }>
+  points: CohortPoint[]
+  condition_composition: Array<Record<string, unknown>>
+}
+export type CohortMembers = {
+  run_id: string
+  representation: ResearchRepresentation
+  total: number
+  offset: number
+  limit: number
+  members: CohortPoint[]
+}
+export type CohortMemberDetail = {
+  run_id: string
+  member_id: string
+  label: string
+  date_of_birth: string
+  sex: string
+  conditions: string[]
+  representations: Record<ResearchRepresentation, {
+    cluster_label: string | null
+    is_noise: boolean
+    x: number
+    y: number
+  }>
+}
+export type CohortSimilarity = {
+  run_id: string
+  representation: ResearchRepresentation
+  query_member_id: string
+  index_metadata: { index_type: string; vector_count: number; dimension: number; [key: string]: unknown }
+  neighbors: ScreeningSimilarity['neighbors']
+}
 export type BatchPair = {
   patient_snapshot_id: string
   patient_snapshot: SnapshotSummary

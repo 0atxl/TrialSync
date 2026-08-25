@@ -15,8 +15,43 @@ generator, sealed configuration, private answer-key boundary, post-analysis eval
 publication rule, and reviewed results. The active run passed its artifact seals, DBSCAN review,
 exact-index verification, neighbor-relevance evaluation, and runtime-readability review.
 
+For the complete experiment progression—V1/V2 diagnosis, controlled recovery, V3 population
+geometry, all 750-member group counts, frozen configuration, selection protocol, and evaluated
+results—read [R6 cohort methodology and experiment evolution](r6-cohort-methodology.md).
+
 Earlier V1, V2, and controlled-recovery experiments remain retired provenance. They are not
 runtime cohorts and cannot activate the API or frontend.
+
+## Why the early DBSCAN silhouette scores were weak
+
+The silhouette score checks whether an assigned member is closer to members of its own DBSCAN
+group than to members of the nearest other group. It ranges from `-1` to `1`: values near `1`
+indicate separated groups, values near `0` indicate overlap, and negative values mean a member
+may be closer to another assigned group. It is reported only for non-noise members when that
+calculation is meaningful.
+
+The retired V1 cohort did not contain clear density-separated populations in its feature spaces.
+It combined independently sampled conditions, medications, observations, and broadly varying
+fact dates. The resulting patient-fact vectors formed an overlapping continuum rather than
+compact, internally coherent groups; independent fact timing also added variation unrelated to
+the clinical profile. Its patient-fact silhouette was approximately `-0.05`. In the
+screening-profile space, widespread similar ineligibility patterns across the fixed reference
+panel further reduced contrast, producing a silhouette close to `0`.
+
+V2 changed feature weighting but did not change that underlying population geometry. It produced
+trivial one- or two-group collapse rather than evidence of useful density modes. The controlled
+recovery experiment then held the pipeline constant and showed that small planted shifts were
+still too weak relative to within-group variation and high-dimensional dilution. These results
+identified the cohort design—not the DBSCAN or FAISS implementation—as the limiting factor.
+
+V3 therefore kept the feature builders, trial panel, bounded DBSCAN protocol, and exact FAISS
+indexer fixed, while using correlated patient profiles with coherent age, condition, medication,
+observation, and encounter-timing patterns. It also retains an intentionally broad background
+group that DBSCAN can leave as noise instead of forcing into a cluster. This controlled
+positive-control design produced patient-fact silhouette `0.4042` and screening-profile
+silhouette `0.8923`. Those values show that the pipeline can recover separated structure when
+the input population genuinely contains it; they are not a claim about real-world disease
+phenotypes.
 
 ## Exact FAISS indexes
 
@@ -76,11 +111,13 @@ backend/.venv/bin/pytest backend/tests/research -q
 Generated artifacts remain under `artifacts/r6/` and are excluded from Git. The repository stores
 the contracts, builders, tests, and aggregate evidence in this report.
 
-## Remaining R6 delivery
+## Frontend delivery
 
-The sealed reference artifacts and artifact-backed read APIs are implemented. Before Cohort Atlas
-frontend work, add the saved-screening projection adapter defined in
-[`research-integration-contract.md`](research-integration-contract.md): frozen patient-fact and
-screening-profile transforms, out-of-sample DBSCAN association, exact external-vector FAISS
-queries, and PCA overlay coordinates. Cohort context and similarity remain separate user actions;
-neither depends on dropout prediction or changes eligibility.
+The sealed reference artifacts, saved-screening projection adapter, and artifact-backed APIs are
+implemented. Saved screening details now independently request patient-fact or screening-profile
+DBSCAN context and exact external-vector FAISS neighbors, including PCA overlay coordinates,
+unassigned handling, cosine scores, and transparent feature differences. The dedicated population
+Cohort Atlas supports both representations, cluster/noise filtering, member detail, and exact
+neighbor inspection. Saved-screening results deep-link into the Atlas as an out-of-sample overlay;
+the Atlas is not the sole entry point for either action. Neither action depends on dropout
+prediction or changes eligibility.

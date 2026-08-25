@@ -8,11 +8,11 @@ export function RouteErrorPage() {
 
   return (
     <main className="auth-page">
-      <section className="configuration-error" role="alert">
-        <p className="eyebrow">Workspace error</p>
-        <h1>We could not display this page.</h1>
-        <p>{message} Return to the workspace and try again.</p>
-        <Link className="primary-button" to="/">Back to workspace</Link>
+      <section className="route-state route-state-error" role="alert">
+        <span className="route-state-code">Error</span>
+        <h1>We could not open this page</h1>
+        <p>{message}</p>
+        <Link className="primary-button" to="/">Return to Overview</Link>
       </section>
     </main>
   )

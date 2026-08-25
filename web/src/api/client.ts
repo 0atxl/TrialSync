@@ -51,6 +51,9 @@ export type TerminologySuggestionResponse = {
   suggestions: TerminologySuggestion[]
   unavailable_sources: string[]
 }
+export type PatientFactCatalogSuggestionResponse = TerminologySuggestionResponse & {
+  local_matches: PatientFactCatalogEntry[]
+}
 export type PatientFactCatalog = {
   version: string
   entries: PatientFactCatalogEntry[]

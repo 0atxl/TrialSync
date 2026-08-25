@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 from pydantic_core import PydanticCustomError
 
 from trialsync.db.models import Assertion, CriterionKind, FactType, VersionStatus
-from trialsync.patient_data import BiologicalSex
+from trialsync.patient_data import BiologicalSex, PatientFactCatalogEntry
 
 
 class ORMModel(BaseModel):
@@ -120,6 +120,13 @@ class TerminologySuggestionRead(BaseModel):
 
 class TerminologySuggestionResponse(BaseModel):
     query: str
+    suggestions: list[TerminologySuggestionRead] = Field(default_factory=list)
+    unavailable_sources: list[str] = Field(default_factory=list)
+
+
+class PatientFactCatalogSuggestionResponse(BaseModel):
+    query: str
+    local_matches: list[PatientFactCatalogEntry] = Field(default_factory=list)
     suggestions: list[TerminologySuggestionRead] = Field(default_factory=list)
     unavailable_sources: list[str] = Field(default_factory=list)
 

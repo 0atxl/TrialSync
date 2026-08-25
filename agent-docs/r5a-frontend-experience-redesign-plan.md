@@ -1,7 +1,7 @@
 # TrialSync R5A Frontend Experience Redesign
 
 **Date:** 2026-08-25
-**Status:** R5A-0, R5A-1, R5A-2, and the shared-CSS audit are accepted.
+**Status:** R5A-0, R5A-1, R5A-2, and the shared-CSS audit are accepted. R5A-3 is implemented and awaiting visual review.
 **Relationship to the research plan:** R5A is the frontend experience gate after the implemented
 R5/R6 research integration and before R7. It redesigns the full application experience without
 changing deterministic eligibility, the accepted `xgboost-05` runtime model, or the sealed R6 V3
@@ -621,7 +621,7 @@ Objective: replace the screening-stat landing page with an actionable at-a-glanc
 Implementation status on 2026-08-25: the bounded owner-scoped Overview aggregate, eligibility and
 eight-week activity charts, dropout workflow summary, attention and recent-screening lists, linked
 record filters, and loading/empty/error/research-degraded/responsive states are implemented. The
-stage is awaiting user review before R5A-3 begins.
+user accepted the stage and the bounded shared-CSS audit before authorizing R5A-3.
 
 Steps:
 
@@ -650,6 +650,16 @@ stage that redesigns each feature.
 
 Objective: make manual entry and document import two smooth paths through one consistent review
 experience.
+
+Implementation status on 2026-08-25: Patients and Trials now expose one Add action with manual and
+document source choices. Manual and imported records use the same full-page step anatomy and final
+review surfaces. Patient details and trial criteria use the active catalog inline; authenticated
+users can request advisory medication/observation terminology suggestions without gaining catalog
+administration rights. Unsupported suggestions and extracted candidates remain explicit review
+items. Legacy import-entry URLs redirect into the appropriate Add flow. The pre-acceptance cleanup
+split the global stylesheet and import-review implementation into owned modules, removed generic
+page punchlines, and hid record/version identifiers from the redesigned list and selection flows.
+Automated checks pass; the stage is awaiting desktop and narrow-laptop/tablet visual review.
 
 Steps:
 

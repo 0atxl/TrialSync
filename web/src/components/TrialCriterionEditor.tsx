@@ -283,7 +283,6 @@ export function TrialCriterionEditor({
       <form noValidate onSubmit={submit}>
         <header className="clinical-detail-dialog-head">
           <div>
-            <p className="eyebrow">{criterion ? 'Edit criterion' : 'Controlled criterion'}</p>
             <h2 id="trial-criterion-editor-title">
               {criterion
                 ? `Edit ${subjectLabel(draft.subjectKey, entries)}`

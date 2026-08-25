@@ -44,10 +44,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
             <strong>TrialSync</strong>
           </div>
-          <div>
-            <p>Patient–trial screening workspace</p>
-            <span aria-hidden="true" />
-          </div>
         </div>
 
         <form className="auth-form" onSubmit={submit}>

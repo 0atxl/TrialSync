@@ -395,17 +395,14 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(await screen.findByText('Older record')).toBeInTheDocument()
   })
 
-  it('characterizes trial discovery and both existing creation entry points', async () => {
+  it('keeps trial discovery focused on one Add entry point', async () => {
     authenticate()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([trial])))
     renderRoute('/trials')
 
     expect(await screen.findByText('Synthetic age study')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Add trial' })).toHaveAttribute('href', '/trials/new')
-    expect(screen.getByRole('link', { name: 'Import text or PDF' })).toHaveAttribute(
-      'href',
-      '/imports/new?kind=trial',
-    )
+    expect(screen.queryByRole('link', { name: /import/i })).not.toBeInTheDocument()
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search trials' }), 'not present')
     expect(screen.getByRole('heading', { name: 'No matching trials' })).toBeInTheDocument()
   })
@@ -424,7 +421,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
   it('shows the Help documentation and active navigation', () => {
     authenticate()
     renderRoute('/help')
-    expect(screen.getByRole('heading', { name: 'TrialSync documentation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Result assistant' })).toBeInTheDocument()
     expect(screen.getByText(/Enter sends a question/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open API docs' })).not.toBeInTheDocument()
@@ -868,6 +865,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     renderRoute('/patients')
     expect(await screen.findByText('Synthetic Ada')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Add patient' })).toHaveAttribute('href', '/patients/new')
+    expect(screen.queryByRole('link', { name: /import/i })).not.toBeInTheDocument()
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search patients' }), 'Grace')
     expect(screen.queryByText('Synthetic Ada')).not.toBeInTheDocument()
     expect(screen.getByText('Synthetic Grace')).toBeInTheDocument()
@@ -875,35 +873,45 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
   it('requires confirmation before creating a same-name patient and omits a manual ID', async () => {
     authenticate()
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json({ error: { code: 'PATIENT_NAME_REVIEW_REQUIRED', message: 'Review duplicate' } }, 409))
-      .mockResolvedValueOnce(json(patient, 201))
-      .mockResolvedValueOnce(json(patient))
-      .mockResolvedValueOnce(json([]))
-      .mockResolvedValueOnce(json(patientFactCatalog))
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (input.endsWith('/patients') && options?.method === 'POST') {
+        const body = JSON.parse(String(options.body))
+        return Promise.resolve(body.confirm_duplicate_name
+          ? json(patient, 201)
+          : json({ error: { code: 'PATIENT_NAME_REVIEW_REQUIRED', message: 'Review duplicate' } }, 409))
+      }
+      if (input.endsWith('/activity')) return Promise.resolve(json([]))
+      return Promise.resolve(json(patient))
+    })
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/patients/new')
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
     await userEvent.type(screen.getByRole('textbox', { name: 'Display name' }), 'Synthetic Ada')
-    await userEvent.click(screen.getByRole('button', { name: 'Create patient' }))
-    expect(await screen.findByRole('dialog', { name: 'Review this patient name' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Create distinct patient' }))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
-    const initialBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
-    const confirmedBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save patient' }))
+    expect(await screen.findByRole('dialog', { name: 'Create a separate patient?' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Create separate patient' }))
+    await screen.findByRole('heading', { name: 'Synthetic Ada' })
+    const createCalls = fetchMock.mock.calls.filter(([input, options]) => input.endsWith('/patients') && options?.method === 'POST')
+    const initialBody = JSON.parse(String(createCalls[0][1]?.body))
+    const confirmedBody = JSON.parse(String(createCalls[1][1]?.body))
     expect(initialBody).not.toHaveProperty('external_id')
     expect(confirmedBody.confirm_duplicate_name).toBe(true)
-    expect(await screen.findByText('Synthetic Ada is ready for structured clinical details.')).toBeInTheDocument()
   })
 
   it('creates canonical biological sex through a keyboard-operable radio group', async () => {
     authenticate()
     const createdPatient = { ...patient, sex: 'male' as const }
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(createdPatient, 201))
-      .mockResolvedValueOnce(json(createdPatient))
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (input.endsWith('/patients') && options?.method === 'POST') return Promise.resolve(json(createdPatient, 201))
+      if (input.endsWith('/activity')) return Promise.resolve(json([]))
+      return Promise.resolve(json(createdPatient))
+    })
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/patients/new')
 
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
     await userEvent.type(screen.getByRole('textbox', { name: 'Display name' }), 'Synthetic Radio')
     const sexGroup = screen.getByRole('group', { name: 'Biological sex for screening' })
     const female = within(sexGroup).getByRole('radio', { name: 'Female' })
@@ -912,23 +920,126 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await userEvent.keyboard('{ArrowRight}')
     expect(male).toBeChecked()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Create patient' }))
-    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save patient' }))
+    const createCall = fetchMock.mock.calls.find(([input, options]) => input.endsWith('/patients') && options?.method === 'POST')
+    const body = JSON.parse(String(createCall?.[1]?.body))
     expect(body.sex).toBe('male')
   })
 
   it('rejects a future date of birth before creating a patient', async () => {
     authenticate()
-    const fetchMock = vi.fn()
+    const fetchMock = withPatientCatalog(() => Promise.resolve(json(patient)))
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/patients/new')
 
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
     await userEvent.type(screen.getByRole('textbox', { name: 'Display name' }), 'Synthetic Future')
     fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '2099-01-01' } })
-    await userEvent.click(screen.getByRole('button', { name: 'Create patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     expect(screen.getByRole('alert')).toHaveTextContent('Date of birth cannot be in the future')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls.some(([input, options]) => input.endsWith('/patients') && options?.method === 'POST')).toBe(false)
+  })
+
+  it('adds a catalog-backed clinical detail through the unified patient flow', async () => {
+    authenticate()
+    const updatedPatient = { ...patient, facts: [hba1cFact] }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (input.endsWith('/patients') && options?.method === 'POST') return Promise.resolve(json(patient, 201))
+      if (input.endsWith('/facts') && options?.method === 'POST') return Promise.resolve(json(hba1cFact, 201))
+      if (input.endsWith('/activity')) return Promise.resolve(json([]))
+      return Promise.resolve(json(updatedPatient))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/new')
+
+    expect(screen.getByRole('button', { name: /Manual entry/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Import document/i })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Display name' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Display name' }), 'New patient')
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search clinical details' }), 'HbA1c')
+    await userEvent.click(await screen.findByRole('button', { name: /HbA1c/ }))
+    await userEvent.type(screen.getByRole('spinbutton', { name: 'Result' }), '8.2')
+    await userEvent.click(screen.getByRole('button', { name: 'Add detail' }))
+
+    expect(screen.getByText('8.2 %', { exact: false })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Review patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save patient' }))
+    const factCall = fetchMock.mock.calls.find(([input, options]) => input.endsWith('/facts') && options?.method === 'POST')
+    expect(JSON.parse(String(factCall?.[1]?.body))).toMatchObject({
+      catalog_key: 'hba1c',
+      value: { input_kind: 'numeric', assertion: 'present', value_numeric: 8.2 },
+    })
+  })
+
+  it('creates a trial through guided criteria without exposing rule JSON', async () => {
+    authenticate()
+    const draftVersion = { id: 'v1', version: 1, status: 'draft' as const, source_text: null, criteria: [] }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (input.endsWith('/trials') && options?.method === 'POST') return Promise.resolve(json({ ...trial, versions: [] }, 201))
+      if (input.endsWith('/versions') && options?.method === 'POST') return Promise.resolve(json(draftVersion, 201))
+      if (input.endsWith('/guided-criteria') && options?.method === 'POST') return Promise.resolve(json({ id: 'c-age' }, 201))
+      return Promise.resolve(json(trial))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/trials/new')
+
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Trial title' }), 'Age study')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Condition' }), 'Cardiometabolic health')
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search supported criteria' }), 'Age')
+    await userEvent.click(await screen.findByRole('button', { name: /^Age/ }))
+    expect(screen.queryByText(/rule json/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Add criterion' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to exclusions' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review trial' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save trial' }))
+
+    const criterionCall = fetchMock.mock.calls.find(([input, options]) => input.endsWith('/guided-criteria') && options?.method === 'POST')
+    expect(JSON.parse(String(criterionCall?.[1]?.body))).toMatchObject({
+      kind: 'inclusion', subject_key: 'age', operator: 'between', minimum: 18, maximum: 75,
+    })
+    expect(fetchMock.mock.calls.some(([input, options]) => input.endsWith('/versions/v1') && options?.method === 'PUT')).toBe(true)
+  })
+
+  it('saves an external-only trial criterion for review without approving the protocol', async () => {
+    authenticate()
+    const draftVersion = { id: 'v1', version: 1, status: 'draft' as const, source_text: null, criteria: [] }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (input.includes('/patient-fact-catalog/suggestions')) return Promise.resolve(json({
+        query: 'new medicine', local_matches: [], unavailable_sources: [],
+        suggestions: [{ source: 'rxnorm', code: '123', display_label: 'New medicine', detail: null }],
+      }))
+      if (input.endsWith('/trials') && options?.method === 'POST') return Promise.resolve(json({ ...trial, versions: [] }, 201))
+      if (input.endsWith('/versions') && options?.method === 'POST') return Promise.resolve(json(draftVersion, 201))
+      if (input.endsWith('/unsupported-criteria') && options?.method === 'POST') return Promise.resolve(json({ id: 'c-review' }, 201))
+      return Promise.resolve(json(trial))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/trials/new')
+
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Trial title' }), 'Medication study')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Condition' }), 'Metabolic health')
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Medications' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search supported criteria' }), 'new medicine')
+    await userEvent.click(await screen.findByRole('button', { name: /New medicine/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to exclusions' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review trial' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('will stay marked for review')
+    await userEvent.click(screen.getByRole('button', { name: 'Save trial' }))
+    const reviewCall = fetchMock.mock.calls.find(([input, options]) => input.endsWith('/unsupported-criteria') && options?.method === 'POST')
+    expect(JSON.parse(String(reviewCall?.[1]?.body))).toMatchObject({
+      kind: 'inclusion', category: 'medication', source_text: 'New medicine',
+    })
+    expect(fetchMock.mock.calls.some(([input, options]) => input.endsWith('/versions/v1') && options?.method === 'PUT')).toBe(false)
   })
 
   it('locks repeated profile submissions and confirms the exact saved change', async () => {
@@ -1560,7 +1671,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(await screen.findByRole('heading', { name: 'Patients' })).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Discard unsaved changes?' })).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('link', { name: 'Review record' }))
+    await userEvent.click(screen.getByRole('link', { name: 'Open' }))
     await screen.findByRole('heading', { name: 'Synthetic Ada' })
     await userEvent.click(screen.getByRole('button', { name: 'Edit demographics' }))
     const reopenedName = screen.getByRole('textbox', { name: 'Display name' })
@@ -1606,15 +1717,16 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
   it('analyzes pasted synthetic text and opens the review workspace', async () => {
     authenticate()
-    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
       if (input.endsWith('/imports') && options?.method === 'POST') return Promise.resolve(json(importReview, 201))
       return Promise.resolve(json(importReview))
     })
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/imports/new?kind=patient')
     await userEvent.type(screen.getByRole('textbox', { name: 'Source text' }), 'Patient name: Synthetic Import Ada')
-    await userEvent.click(screen.getByRole('button', { name: 'Analyze for review' }))
-    expect(await screen.findByRole('heading', { name: 'Review extracted patient candidates' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to review' }))
+    expect(await screen.findByRole('heading', { name: 'Review imported patient' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Patient profile' })).toBeInTheDocument()
     const analyzeCall = fetchMock.mock.calls.find(([input, options]) => input.endsWith('/imports') && options?.method === 'POST')
     expect(JSON.parse(String(analyzeCall?.[1]?.body))).toMatchObject({ kind: 'patient', source_type: 'text' })
   })
@@ -1636,7 +1748,9 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await userEvent.clear(name)
     await userEvent.type(name, 'Synthetic Edited Import')
     await userEvent.click(screen.getByRole('radio', { name: 'Female' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Approve and create patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create patient' }))
     expect(await screen.findByRole('heading', { name: 'Synthetic Ada' })).toBeInTheDocument()
     const updateCall = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT')
     expect(JSON.parse(String(updateCall?.[1]?.body)).candidates.profile.display_name).toBe('Synthetic Edited Import')
@@ -1646,7 +1760,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
   it('shows imported trial rule validation errors next to the review workspace', async () => {
     authenticate()
-    const fetchMock = vi.fn((input: string, options?: RequestInit) => {
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
       if (input.endsWith('/imports/import-1') && options?.method === 'PUT') {
         return Promise.resolve(json({
           error: {
@@ -1660,8 +1774,11 @@ describe('TrialSync Phase 5 screening workflow', () => {
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/imports/import-1')
 
-    await screen.findByRole('heading', { name: 'Review extracted trial candidates' })
-    await userEvent.click(screen.getByRole('button', { name: 'Save review' }))
+    await screen.findByRole('heading', { name: 'Trial profile' })
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to exclusions' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review trial' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save for later' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Fact "condition.diabtes" is not present in the active clinical catalog.',
@@ -1670,12 +1787,14 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
   it('rejects a future date of birth before approving an imported patient', async () => {
     authenticate()
-    const fetchMock = vi.fn().mockResolvedValue(json(importReview))
+    const fetchMock = withPatientCatalog(() => Promise.resolve(json(importReview)))
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/imports/import-1')
     const dateOfBirth = await screen.findByLabelText('Date of birth')
     fireEvent.change(dateOfBirth, { target: { value: '2099-01-01' } })
-    await userEvent.click(screen.getByRole('button', { name: 'Approve and create patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create patient' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Date of birth cannot be in the future.',
     )
@@ -1689,11 +1808,11 @@ describe('TrialSync Phase 5 screening workflow', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/imports/new?kind=trial')
-    await userEvent.click(screen.getByRole('radio', { name: 'Upload PDF' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose PDF' }))
     const file = new File([new Uint8Array(5_000_001)], 'oversized.pdf', { type: 'application/pdf' })
     fireEvent.change(screen.getByLabelText(/PDF document/i), { target: { files: [file] } })
-    await userEvent.click(screen.getByRole('button', { name: 'Analyze for review' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('5 MB PDF limit')
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to review' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('smaller than 5 MB')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -1704,11 +1823,11 @@ describe('TrialSync Phase 5 screening workflow', () => {
     }, 422))
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/imports/new?kind=patient')
-    await userEvent.click(screen.getByRole('radio', { name: 'Upload PDF' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose PDF' }))
     const file = new File(['%PDF-1.4 synthetic scan fixture'], 'scan-like.pdf', { type: 'application/pdf' })
     fireEvent.change(screen.getByLabelText(/PDF document/i), { target: { files: [file] } })
-    fireEvent.submit(screen.getByRole('button', { name: 'Analyze for review' }).closest('form') as HTMLFormElement)
-    expect(await screen.findByRole('alert')).toHaveTextContent('OCR could not recover')
+    fireEvent.submit(screen.getByRole('button', { name: 'Continue to review' }).closest('form') as HTMLFormElement)
+    expect(await screen.findByRole('alert')).toHaveTextContent('No readable text was found')
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 

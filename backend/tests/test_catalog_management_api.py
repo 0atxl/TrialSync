@@ -37,6 +37,50 @@ async def register(api: AsyncClient, email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
+async def test_authenticated_user_can_search_catalog_with_advisory_suggestions(
+    api: AsyncClient,
+) -> None:
+    headers = await register(api, f"catalog-inline-{uuid.uuid4().hex}@example.com")
+
+    class StubSuggestions:
+        async def suggest(self, *, query: str, **_: object) -> TerminologySuggestionResult:
+            assert query == "metformin"
+            return TerminologySuggestionResult(
+                suggestions=[
+                    TerminologySuggestionRead(
+                        source="rxnorm",
+                        code="6809",
+                        display_label="Metformin",
+                        detail="Ingredient",
+                    )
+                ],
+                unavailable_sources=[],
+            )
+
+    original = api._transport.app.state.terminology_suggestions  # type: ignore[attr-defined]
+    api._transport.app.state.terminology_suggestions = StubSuggestions()  # type: ignore[attr-defined]
+    try:
+        response = await api.get(
+            "/api/v1/patient-fact-catalog/suggestions",
+            headers=headers,
+            params={"query": "metformin", "fact_type": "medication"},
+        )
+    finally:
+        api._transport.app.state.terminology_suggestions = original  # type: ignore[attr-defined]
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["query"] == "metformin"
+    assert any(item["display_label"] == "Metformin" for item in body["local_matches"])
+    assert body["suggestions"][0]["code"] == "6809"
+    blank = await api.get(
+        "/api/v1/patient-fact-catalog/suggestions",
+        headers=headers,
+        params={"query": "  ", "fact_type": "medication"},
+    )
+    assert blank.status_code == 422
+
+
 async def test_catalog_management_is_admin_only_and_retirement_is_safe(
     api: AsyncClient,
 ) -> None:

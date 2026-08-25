@@ -1,11 +1,7 @@
 export function HelpPage() {
   return <section className="route-entry workspace-page help-page">
     <header className="page-heading">
-      <div>
-        <p className="eyebrow">Help center</p>
-        <h1>TrialSync documentation</h1>
-        <p>Understand the evidence workflow, screening states, and the boundaries of the explanation assistant.</p>
-      </div>
+      <h1>Help</h1>
     </header>
 
     <div className="help-callout">

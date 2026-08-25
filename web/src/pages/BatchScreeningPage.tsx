@@ -66,11 +66,7 @@ export function BatchScreeningPage() {
     <section className="route-entry workspace-page">
       <Link className="back-link" to="/screenings">← Screening history</Link>
       <header className="page-heading">
-        <div>
-          <p className="eyebrow">Bounded batch</p>
-          <h1>Compare patients across protocols</h1>
-          <p>TrialSync captures one immutable snapshot per selected patient, then runs the same deterministic single-screening operation for every pair.</p>
-        </div>
+        <h1>Batch screening</h1>
       </header>
       <form onSubmit={submit}>
         <div className="batch-picker">
@@ -102,7 +98,6 @@ export function BatchScreeningPage() {
             }) : <div className="empty-state"><p>Add a trial and save its criteria before running a batch.</p></div>}
           </fieldset>
         </div>
-        <p className="batch-guidance">All current patients are shown. Trials without saved criteria remain visible but unavailable for screening.</p>
         <div className={`pair-preview ${pairCount > PAIR_LIMIT ? 'pair-warning' : ''}`}>
           <strong>{pairCount} screening pair{pairCount === 1 ? '' : 's'}</strong>
           <span>Limit: {PATIENT_LIMIT} patients × {TRIAL_LIMIT} trials, up to {PAIR_LIMIT} pairs.</span>

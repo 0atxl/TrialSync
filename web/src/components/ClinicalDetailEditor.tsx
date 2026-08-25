@@ -275,7 +275,6 @@ export function ClinicalDetailEditor({
       <form noValidate onSubmit={submit}>
         <header className="clinical-detail-dialog-head">
           <div>
-            <p className="eyebrow">{fact ? 'Edit current detail' : 'Controlled entry'}</p>
             <h2 id="clinical-detail-editor-title">
               {fact ? `Edit ${editingEntry?.display_label ?? 'clinical detail'}` : 'Add clinical detail'}
             </h2>

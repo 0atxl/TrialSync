@@ -177,11 +177,11 @@ export function CatalogManagementPage() {
   }
 
   if (!user?.is_catalog_admin) {
-    return <section className="route-entry workspace-page narrow-page"><header className="page-heading"><p className="eyebrow">Catalog access</p><h1>Clinical catalog</h1></header><div className="form-error" role="alert">This account is not allowed to manage the shared clinical catalog.</div><Link className="secondary-button" to="/patients">Back to patients</Link></section>
+    return <section className="route-entry workspace-page narrow-page"><header className="page-heading"><h1>Clinical catalog</h1></header><div className="form-error" role="alert">This account is not allowed to manage the shared clinical catalog.</div><Link className="secondary-button" to="/patients">Back to patients</Link></section>
   }
 
   return <section className="route-entry workspace-page catalog-page">
-    <header className="page-heading"><div><p className="eyebrow">Shared definitions</p><h1>Clinical catalog</h1><p>Manage the local concepts available in patient records and trial criteria. Retiring a concept never changes saved records or screenings.</p></div></header>
+    <header className="page-heading"><h1>Clinical catalog</h1></header>
     <div className="catalog-management-grid">
       <form className="catalog-create-panel" onSubmit={createConcept}>
         <div><p className="eyebrow">Add local detail</p><h2>New clinical concept</h2><p>Use a clear label. TrialSync creates the internal key and safe input controls.</p></div>

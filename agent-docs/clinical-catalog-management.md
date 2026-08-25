@@ -37,6 +37,10 @@ runtime; no second in-memory catalog remains in the application path.
 ### Routine user workflow
 
 - Patient and trial forms search the same active catalog.
+- Each Add flow offers inline advisory medication and observation suggestions through
+  `GET /api/v1/patient-fact-catalog/suggestions`.
+- External-only suggestions remain review items; routine users cannot promote them into the local
+  catalog.
 - A retired concept is no longer offered for new entry or new criteria.
 - Existing facts, criteria, saved snapshots, and screening results are never
   changed by retirement.

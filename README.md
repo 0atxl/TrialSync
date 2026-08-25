@@ -173,8 +173,8 @@ manual deployment remains `git pull --ff-only` followed by the health-checked Co
 ## Core workflow
 
 1. Register a demo account at `/register` or sign in at `/login`.
-2. Search fictional patients at `/patients` or use **Add patient** for the focused creation flow, then open one to record conditions, medications, observations, and demographics.
-3. Search fictional trials at `/trials` or use **Add trial**, then open one, choose **Edit criteria**, and save the current inclusion and exclusion criteria.
+2. Search patient records at `/patients` or use **Add patient**, choose manual entry or document import, and review the profile and clinical details before saving.
+3. Search trials at `/trials` or use **Add trial**, choose manual entry or document import, and review inclusion and exclusion criteria before saving.
 
 All patient and trial queries are scoped to the authenticated owner. List endpoints are intentionally limited to 100 records for the semester demo. Only synthetic data may be entered.
 
@@ -217,6 +217,7 @@ GET                /api/v1/overview
 GET|POST           /api/v1/patients
 GET|PATCH|DELETE   /api/v1/patients/{patient_id}
 GET                /api/v1/patient-fact-catalog
+GET                /api/v1/patient-fact-catalog/suggestions
 GET                /api/v1/patients/{patient_id}/activity
 GET|POST           /api/v1/clinical-concepts
 GET                /api/v1/clinical-concepts/suggestions

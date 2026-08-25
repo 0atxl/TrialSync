@@ -87,7 +87,7 @@ export function CohortAtlasPage() {
 
   return <section className="route-entry workspace-page research-page atlas-page">
     <ResearchNav />
-    <header className="page-heading research-page-heading"><div><p className="eyebrow">Research workspace</p><h1>Cohort Atlas</h1><p>Explore the frozen generated reference landscape in two distinct feature spaces.</p></div><label className="atlas-representation">Representation<select value={representation} onChange={(event) => changeRepresentation(event.target.value as ResearchRepresentation)}><option value="patient_fact">Recorded facts</option><option value="screening_profile">Eligibility evidence patterns</option></select></label></header>
+    <header className="page-heading research-page-heading"><h1>Cohort Atlas</h1><label className="atlas-representation">View<select value={representation} onChange={(event) => changeRepresentation(event.target.value as ResearchRepresentation)}><option value="patient_fact">Recorded facts</option><option value="screening_profile">Eligibility evidence patterns</option></select></label></header>
     <p className="research-boundary overview-boundary">PCA coordinates are display-only. DBSCAN association and exact cosine similarity use the complete frozen feature vectors and never change eligibility.</p>
     {error && <div className="form-error atlas-error" role="alert">{error}<button className="text-button" type="button" onClick={() => { void load() }}>Retry</button></div>}
     {loading ? <div className="loading-state">Loading the active reference landscape…</div> : clusters && members && runs?.active_run_id ? <>

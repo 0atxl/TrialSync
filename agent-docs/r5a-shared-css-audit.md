@@ -47,6 +47,22 @@ styles. Duplicate selectors inside responsive media queries are intentional over
 feature-era duplication is deferred to the stage that replaces that feature, avoiding a risky
 whole-product visual rewrite before its approved redesign.
 
+### Modular follow-up during R5A-3
+
+The R5A-3 acceptance audit found that keeping every retained and redesigned feature in the same
+file was still difficult to maintain. CSS source order is preserved through explicit imports in
+`web/src/main.tsx`, while ownership is now divided into:
+
+- `styles.css` for the original base tokens and legacy primitives still awaiting replacement;
+- `styles/workflows.css` for screening, report, conversation, research, and retained import rules;
+- `styles/records.css` for patient/trial record and criteria workspaces;
+- `styles/foundation.css` for the current shell, authentication, actions, and shared states;
+- `styles/overview.css` for the Overview dashboard; and
+- `styles/ingestion.css` for unified patient/trial entry and import review.
+
+This reduced the global `styles.css` file from 2,949 lines at the start of the R5A-3 cleanup to
+1,116 lines without changing selector order.
+
 ## Verification
 
 - ESLint passed.

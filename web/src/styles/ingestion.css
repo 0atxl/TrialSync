@@ -173,7 +173,7 @@
 .draft-detail-list .review-only,
 .draft-criterion-list .review-only { padding-left: 10px; border-left: 3px solid var(--accent); }
 
-.catalog-inline-search { padding: 19px; border: 1px solid var(--line); border-radius: var(--radius-md); background: #fbfcfb; }
+.catalog-inline-search { position: relative; padding: 19px; border: 1px solid var(--line); border-radius: var(--radius-md); background: #fbfcfb; }
 .inline-search-heading h3 { margin: 0; font-size: 15px; }
 .inline-search-heading p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
 .catalog-search-input { position: relative; display: block; margin-top: 15px; }
@@ -181,7 +181,20 @@
 .catalog-search-input input { padding-left: 38px; }
 .catalog-groups.compact { margin: 10px 0; }
 .catalog-groups.compact button { min-height: 30px; padding: 5px 10px; }
-.inline-catalog-results { display: grid; max-height: 300px; overflow: auto; border-top: 1px solid var(--line); }
+.inline-catalog-results {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 14px 32px rgba(31, 44, 52, .13);
+}
 .inline-catalog-results > button {
   display: flex;
   gap: 12px;
@@ -195,7 +208,7 @@
   background: transparent;
   text-align: left;
 }
-.inline-catalog-results > button:hover { padding-inline: 9px; color: var(--brand-dark); background: var(--surface-tint); }
+.inline-catalog-results > button:hover { color: var(--brand-dark); background: var(--surface-tint); }
 .inline-catalog-results > button span { display: grid; gap: 3px; }
 .inline-catalog-results > button strong { font-size: 12px; }
 .inline-catalog-results > button small,

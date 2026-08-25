@@ -11,7 +11,13 @@ from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
-from trialsync.db.models import Screening, ScreeningBatch, ScreeningChatMessage
+from trialsync.db.models import (
+    PatientSnapshot,
+    Screening,
+    ScreeningBatch,
+    ScreeningChatMessage,
+    TrialVersion,
+)
 from trialsync.nlp.chat import (
     CHAT_PROMPT_VERSION,
     CanonicalExplainer,
@@ -213,16 +219,31 @@ async def create_screening(
 
 
 @router.get("/api/v1/screenings", response_model=list[ScreeningRead])
-async def list_screenings(session: SessionDep, user: CurrentUser) -> list[ScreeningRead]:
-    results = await session.scalars(
+async def list_screenings(
+    session: SessionDep,
+    user: CurrentUser,
+    patient_id: uuid.UUID | None = None,
+    trial_id: uuid.UUID | None = None,
+) -> list[ScreeningRead]:
+    statement = (
         select(Screening)
         .options(
             selectinload(Screening.patient_snapshot),
             selectinload(Screening.evaluations),
         )
         .where(Screening.owner_id == user.id)
-        .order_by(Screening.created_at.desc())
-        .limit(100)
+    )
+    if patient_id is not None:
+        statement = statement.join(Screening.patient_snapshot).where(
+            PatientSnapshot.patient_id == patient_id
+        )
+    if trial_id is not None:
+        statement = statement.join(
+            TrialVersion,
+            Screening.trial_version_id == TrialVersion.id,
+        ).where(TrialVersion.trial_id == trial_id)
+    results = await session.scalars(
+        statement.order_by(Screening.created_at.desc()).limit(100)
     )
     return [_screening_read(item) for item in results.unique()]
 

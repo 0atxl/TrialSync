@@ -75,7 +75,7 @@ export function BatchScreeningPage() {
             {patients.length ? patients.map((patient) => (
               <label className="check-row" key={patient.id}>
                 <input type="checkbox" checked={patientIds.includes(patient.id)} onChange={() => toggle(patient.id, patientIds, setPatientIds)} />
-                <span><strong>{patient.display_name}</strong><small>{patient.external_id} · {patient.facts.length} structured fact{patient.facts.length === 1 ? '' : 's'}</small></span>
+                <span><strong>{patient.display_name}</strong><small>{patient.facts.length} clinical detail{patient.facts.length === 1 ? '' : 's'}</small></span>
               </label>
             )) : <div className="empty-state"><p>Add a patient before running a batch.</p></div>}
           </fieldset>
@@ -86,13 +86,13 @@ export function BatchScreeningPage() {
               if (!current) return [(
                 <label className="check-row check-row-disabled" key={trial.id}>
                   <input type="checkbox" disabled />
-                  <span><strong>{trial.title}</strong><small>{trial.registry_id} · save criteria to enable screening</small></span>
+                  <span><strong>{trial.title}</strong><small>Save criteria to enable screening</small></span>
                 </label>
               )]
               return [(
                 <label className="check-row" key={current.id}>
                   <input type="checkbox" checked={versionIds.includes(current.id)} onChange={() => toggle(current.id, versionIds, setVersionIds)} />
-                  <span><strong>{trial.title}</strong><small>{trial.registry_id} · current protocol</small></span>
+                  <span><strong>{trial.title}</strong><small>{current.criteria.length} criteria</small></span>
                 </label>
               )]
             }) : <div className="empty-state"><p>Add a trial and save its criteria before running a batch.</p></div>}

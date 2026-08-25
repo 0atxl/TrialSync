@@ -35,7 +35,7 @@ const steps = [
 ]
 
 export function NewTrialPage() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -168,7 +168,7 @@ export function NewTrialPage() {
       ) : step === 2 || step === 3 ? (
         <section aria-labelledby={`${step === 2 ? 'inclusion' : 'exclusion'}-criteria-title`}>
           <div className="ingestion-stage-heading"><h2 id={`${step === 2 ? 'inclusion' : 'exclusion'}-criteria-title`}>{step === 2 ? 'Inclusion criteria' : 'Exclusion criteria'}</h2></div>
-          {catalogError ? <div className="form-error" role="alert">{catalogError}<button className="text-button" type="button" onClick={() => void loadCatalog()}>Retry</button></div> : step === 2 ? <CriterionComposer kind="inclusion" entries={catalog} token={token} criteria={inclusion} unsupported={unsupportedInclusion} onCriteriaChange={(next) => replaceKind('inclusion', next)} onUnsupportedChange={(next) => replaceUnsupportedKind('inclusion', next)} /> : <CriterionComposer kind="exclusion" entries={catalog} token={token} criteria={exclusion} unsupported={unsupportedExclusion} onCriteriaChange={(next) => replaceKind('exclusion', next)} onUnsupportedChange={(next) => replaceUnsupportedKind('exclusion', next)} />}
+          {catalogError ? <div className="form-error" role="alert">{catalogError}<button className="text-button" type="button" onClick={() => void loadCatalog()}>Retry</button></div> : step === 2 ? <CriterionComposer kind="inclusion" entries={catalog} token={token} canCreateSupportedTerm={Boolean(user?.is_catalog_admin)} criteria={inclusion} unsupported={unsupportedInclusion} onCriteriaChange={(next) => replaceKind('inclusion', next)} onUnsupportedChange={(next) => replaceUnsupportedKind('inclusion', next)} onCatalogEntryCreated={(entry) => setCatalog((current) => [...current, entry])} /> : <CriterionComposer kind="exclusion" entries={catalog} token={token} canCreateSupportedTerm={Boolean(user?.is_catalog_admin)} criteria={exclusion} unsupported={unsupportedExclusion} onCriteriaChange={(next) => replaceKind('exclusion', next)} onUnsupportedChange={(next) => replaceUnsupportedKind('exclusion', next)} onCatalogEntryCreated={(entry) => setCatalog((current) => [...current, entry])} />}
           <div className="form-actions ingestion-actions"><button className="secondary-button" type="button" onClick={() => setStep(step - 1)}>Back</button><button className="primary-button" disabled={Boolean(catalogError)} type="button" onClick={() => setStep(step + 1)}>{step === 2 ? 'Continue to exclusions' : 'Review trial'}</button></div>
         </section>
       ) : (

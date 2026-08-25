@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Activity, Network, UsersRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import {
@@ -93,24 +94,42 @@ export function ResearchToolsPanel({ screening, token }: { screening: Screening;
     }
   }
 
-  return <section className="research-tools" aria-labelledby="research-tools-title">
+  return <section className="research-tools research-tools-compact" aria-labelledby="research-tools-title">
     <div className="research-heading">
-      <div><p className="eyebrow">Independent research views</p><h2 id="research-tools-title">Research tools</h2></div>
-      <p>Each tool reads this immutable screening context. None can change the eligibility result above.</p>
+      <h2 id="research-tools-title">Research</h2>
+      <p>These views do not change eligibility.</p>
     </div>
-    <div className="research-tool-grid">
-      <div className={active === 'risk' ? 'research-tool-card active' : 'research-tool-card'}>
-        <span className="research-tool-index">01</span><div><h3>Dropout risk</h3><p>Day-30 follow-up → day-90 horizon</p></div>
-        <button className="secondary-button" type="button" aria-expanded={active === 'risk'} onClick={() => { void open('risk') }}>Predict dropout risk</button>
-      </div>
-      <div className={active === 'cohort' ? 'research-tool-card active' : 'research-tool-card'}>
-        <span className="research-tool-index">02</span><div><h3>Cohort context</h3><p>Projected DBSCAN association</p></div>
-        <button className="secondary-button" type="button" aria-expanded={active === 'cohort'} onClick={() => { void open('cohort') }}>{loading === 'cohort' ? 'Projecting…' : 'View cohort context'}</button>
-      </div>
-      <div className={active === 'similarity' ? 'research-tool-card active' : 'research-tool-card'}>
-        <span className="research-tool-index">03</span><div><h3>Similar participants</h3><p>Exact cosine neighbors</p></div>
-        <button className="secondary-button" type="button" aria-expanded={active === 'similarity'} onClick={() => { void open('similarity') }}>{loading === 'similarity' ? 'Searching…' : 'Find similar participants'}</button>
-      </div>
+    <div className="research-tool-actions">
+      <button
+        className={active === 'risk' ? 'research-action active' : 'research-action'}
+        type="button"
+        aria-label="Predict dropout risk"
+        aria-expanded={active === 'risk'}
+        onClick={() => { void open('risk') }}
+      >
+        <Activity aria-hidden="true" size={19} />
+        <span><strong>Predict dropout risk</strong><small>Add follow-up information</small></span>
+      </button>
+      <button
+        className={active === 'cohort' ? 'research-action active' : 'research-action'}
+        type="button"
+        aria-label="View cohort context"
+        aria-expanded={active === 'cohort'}
+        onClick={() => { void open('cohort') }}
+      >
+        <Network aria-hidden="true" size={19} />
+        <span><strong>{loading === 'cohort' ? 'Loading context…' : 'View cohort context'}</strong><small>See this participant on the map</small></span>
+      </button>
+      <button
+        className={active === 'similarity' ? 'research-action active' : 'research-action'}
+        type="button"
+        aria-label="Find similar participants"
+        aria-expanded={active === 'similarity'}
+        onClick={() => { void open('similarity') }}
+      >
+        <UsersRound aria-hidden="true" size={19} />
+        <span><strong>{loading === 'similarity' ? 'Finding participants…' : 'Find similar participants'}</strong><small>Compare recorded profiles</small></span>
+      </button>
     </div>
 
     {active === 'risk' && <ResearchRiskPanel screening={screening} token={token} />}

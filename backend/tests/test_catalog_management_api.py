@@ -51,7 +51,30 @@ async def test_authenticated_user_can_search_catalog_with_advisory_suggestions(
                         source="rxnorm",
                         code="6809",
                         display_label="Metformin",
+                    ),
+                    TerminologySuggestionRead(
+                        source="rxnorm",
+                        code="6809",
+                        display_label="metformin",
+                    ),
+                    TerminologySuggestionRead(
+                        source="rxnorm",
+                        code="6809",
+                        display_label="Metformin extended release",
                         detail="Ingredient",
+                    )
+                ],
+                unavailable_sources=[],
+            )
+
+        async def suggest_all(self, *, query: str) -> TerminologySuggestionResult:
+            assert query == "asthma"
+            return TerminologySuggestionResult(
+                suggestions=[
+                    TerminologySuggestionRead(
+                        source="conditions",
+                        code="C0004096",
+                        display_label="Exercise-induced asthma",
                     )
                 ],
                 unavailable_sources=[],
@@ -65,6 +88,11 @@ async def test_authenticated_user_can_search_catalog_with_advisory_suggestions(
             headers=headers,
             params={"query": "metformin", "fact_type": "medication"},
         )
+        all_sources = await api.get(
+            "/api/v1/patient-fact-catalog/suggestions",
+            headers=headers,
+            params={"query": "asthma"},
+        )
     finally:
         api._transport.app.state.terminology_suggestions = original  # type: ignore[attr-defined]
 
@@ -73,6 +101,18 @@ async def test_authenticated_user_can_search_catalog_with_advisory_suggestions(
     assert body["query"] == "metformin"
     assert any(item["display_label"] == "Metformin" for item in body["local_matches"])
     assert body["suggestions"][0]["code"] == "6809"
+    assert [item["display_label"] for item in body["suggestions"]] == [
+        "Metformin extended release"
+    ]
+    assert all_sources.status_code == 200
+    assert all_sources.json()["suggestions"][0] == {
+        "source": "conditions",
+        "code": "C0004096",
+        "display_label": "Exercise-induced asthma",
+        "detail": None,
+        "fixed_unit": None,
+        "score": None,
+    }
     blank = await api.get(
         "/api/v1/patient-fact-catalog/suggestions",
         headers=headers,

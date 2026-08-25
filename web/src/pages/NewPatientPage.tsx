@@ -43,7 +43,7 @@ const steps = [
 ]
 
 export function NewPatientPage() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -169,7 +169,7 @@ export function NewPatientPage() {
       ) : step === 2 ? (
         <section aria-labelledby="patient-details-title">
           <div className="ingestion-stage-heading"><h2 id="patient-details-title">Clinical details</h2></div>
-          {catalogError ? <div className="form-error" role="alert">{catalogError}<button className="text-button" type="button" onClick={() => void loadCatalog()}>Retry</button></div> : <ClinicalDetailComposer entries={catalog} token={token} biologicalSex={values.sex} details={details} unsupported={unsupported} onDetailsChange={setDetails} onUnsupportedChange={setUnsupported} />}
+          {catalogError ? <div className="form-error" role="alert">{catalogError}<button className="text-button" type="button" onClick={() => void loadCatalog()}>Retry</button></div> : <ClinicalDetailComposer entries={catalog} token={token} canCreateSupportedTerm={Boolean(user?.is_catalog_admin)} biologicalSex={values.sex} details={details} unsupported={unsupported} onDetailsChange={setDetails} onUnsupportedChange={setUnsupported} onCatalogEntryCreated={(entry) => setCatalog((current) => [...current, entry])} />}
           <div className="form-actions ingestion-actions"><button className="secondary-button" type="button" onClick={() => setStep(1)}>Back</button><button className="primary-button" disabled={Boolean(catalogError)} type="button" onClick={() => setStep(3)}>Review patient</button></div>
         </section>
       ) : (

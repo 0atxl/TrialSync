@@ -43,16 +43,25 @@ async def get_patient_fact_catalog_suggestions(
         if (fact_type is None or entry.fact_type == fact_type)
         and term in f"{entry.display_label} {entry.concept} {entry.help_text}".casefold()
     ][:8]
-    if fact_type not in {FactType.medication, FactType.observation}:
-        return PatientFactCatalogSuggestionResponse(
-            query=normalized_query,
-            local_matches=local_matches,
-        )
     service: TerminologySuggestionService = request.app.state.terminology_suggestions
-    result = await service.suggest(query=normalized_query, fact_type=fact_type)
+    result = (
+        await service.suggest(query=normalized_query, fact_type=fact_type)
+        if fact_type is not None
+        else await service.suggest_all(query=normalized_query)
+    )
+    local_labels = {" ".join(entry.display_label.casefold().split()) for entry in local_matches}
+    suggestions = []
+    seen_suggestions: set[tuple[str, str, str]] = set()
+    for suggestion in result.suggestions:
+        normalized_label = " ".join(suggestion.display_label.casefold().split())
+        identity = (suggestion.source, suggestion.code, normalized_label)
+        if normalized_label in local_labels or identity in seen_suggestions:
+            continue
+        seen_suggestions.add(identity)
+        suggestions.append(suggestion)
     return PatientFactCatalogSuggestionResponse(
         query=normalized_query,
         local_matches=local_matches,
-        suggestions=result.suggestions,
+        suggestions=suggestions,
         unavailable_sources=result.unavailable_sources,
     )

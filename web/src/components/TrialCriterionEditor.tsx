@@ -5,7 +5,14 @@ import type {
   Criterion,
   PatientFactCatalogEntry,
   PatientFactGroup,
+  TerminologySuggestion,
 } from '../api/client'
+import {
+  suggestionCategory,
+  suggestionSourceLabel,
+  useTerminologySuggestions,
+} from '../hooks/useTerminologySuggestions'
+import { TerminologySetupDialog } from './TerminologySetupDialog'
 
 export type GuidedCriterionSubmission = {
   kind: Criterion['kind']
@@ -35,6 +42,9 @@ type CriterionDraft = {
 
 type TrialCriterionEditorProps = {
   open: boolean
+  presentation?: 'dialog' | 'inline'
+  token: string | null
+  canCreateSupportedTerm: boolean
   entries: PatientFactCatalogEntry[]
   criterion: Criterion | null
   initialKind: Criterion['kind']
@@ -43,6 +53,7 @@ type TrialCriterionEditorProps = {
   onCancel: () => void
   onSubmit: (submission: GuidedCriterionSubmission) => void
   onSubmitUnsupported: (submission: UnsupportedCriterionSubmission) => void
+  onCatalogEntryCreated: (entry: PatientFactCatalogEntry) => void
 }
 
 const groupLabels: Record<PatientFactGroup | 'demographics' | 'all', string> = {
@@ -129,6 +140,9 @@ function defaultOperator(key: string, entries: PatientFactCatalogEntry[]) {
 
 export function TrialCriterionEditor({
   open,
+  presentation = 'dialog',
+  token,
+  canCreateSupportedTerm,
   entries,
   criterion,
   initialKind,
@@ -137,8 +151,10 @@ export function TrialCriterionEditor({
   onCancel,
   onSubmit,
   onSubmitUnsupported,
+  onCatalogEntryCreated,
 }: TrialCriterionEditorProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const inlineRef = useRef<HTMLElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const [draft, setDraft] = useState(() =>
     draftForCriterion(criterion, entries, initialKind))
@@ -149,8 +165,12 @@ export function TrialCriterionEditor({
   const [unsupportedCategory, setUnsupportedCategory] =
     useState<UnsupportedCriterionSubmission['category']>('condition')
   const [unsupportedText, setUnsupportedText] = useState('')
+  const [setupSuggestion, setSetupSuggestion] = useState<TerminologySuggestion | null>(null)
+  const { suggestions, suggesting, suggestionNotice } =
+    useTerminologySuggestions(query, group, token)
 
   useEffect(() => {
+    if (presentation !== 'dialog') return
     const dialog = dialogRef.current
     if (!dialog) return
     if (open && !dialog.open) {
@@ -166,7 +186,15 @@ export function TrialCriterionEditor({
       else dialog.removeAttribute('open')
       returnFocusRef.current?.focus()
     }
-  }, [open])
+  }, [open, presentation])
+
+  useEffect(() => {
+    if (!open || presentation !== 'inline') return
+    window.requestAnimationFrame(() => {
+      inlineRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+      inlineRef.current?.querySelector<HTMLElement>('input, select, textarea')?.focus()
+    })
+  }, [criterion, initialKind, open, presentation])
 
   useEffect(() => {
     if (!open) return
@@ -177,6 +205,7 @@ export function TrialCriterionEditor({
     setUnsupportedMode(false)
     setUnsupportedCategory('condition')
     setUnsupportedText('')
+    setSetupSuggestion(null)
   }, [criterion, entries, initialKind, open])
 
   const subjects = useMemo(() => {
@@ -217,6 +246,49 @@ export function TrialCriterionEditor({
   const update = (values: Partial<CriterionDraft>) => {
     setDraft((current) => ({ ...current, ...values }))
     setFieldError('')
+  }
+
+  const selectSuggestion = (suggestion: TerminologySuggestion) => {
+    const supported = subjects.find(
+      (subject) => subject.label.trim().toLowerCase() === suggestion.display_label.trim().toLowerCase(),
+    )
+    if (supported) {
+      update({
+        subjectKey: supported.key,
+        operator: defaultOperator(supported.key, entries),
+        value: '',
+        minimum: supported.key === 'age' ? '18' : '',
+        maximum: supported.key === 'age' ? '75' : '',
+      })
+      setQuery('')
+      return
+    }
+    setSetupSuggestion(suggestion)
+  }
+
+  const keepSuggestionForReview = (
+    suggestion: TerminologySuggestion,
+    category = suggestionCategory(suggestion),
+  ) => {
+    setUnsupportedMode(true)
+    setUnsupportedCategory(category)
+    setUnsupportedText(suggestion.display_label)
+    setFieldError('')
+    setSetupSuggestion(null)
+    setQuery('')
+  }
+
+  const useSupportedTerm = (entry: PatientFactCatalogEntry) => {
+    onCatalogEntryCreated(entry)
+    update({
+      subjectKey: entry.key,
+      operator: defaultOperator(entry.key, [...entries, entry]),
+      value: '',
+      minimum: '',
+      maximum: '',
+    })
+    setSetupSuggestion(null)
+    setQuery('')
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -264,22 +336,7 @@ export function TrialCriterionEditor({
     })
   }
 
-  return (
-    <dialog
-      ref={dialogRef}
-      className="clinical-detail-dialog trial-criterion-dialog"
-      aria-labelledby="trial-criterion-editor-title"
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!saving) onCancel()
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && !saving) {
-          event.preventDefault()
-          onCancel()
-        }
-      }}
-    >
+  const editorForm = (
       <form noValidate onSubmit={submit}>
         <header className="clinical-detail-dialog-head">
           <div>
@@ -289,7 +346,7 @@ export function TrialCriterionEditor({
                 : `Add ${draft.kind} criterion`}
             </h2>
           </div>
-          <button
+          {presentation === 'dialog' ? <button
             aria-label="Close criterion editor"
             className="dialog-close"
             disabled={saving}
@@ -297,7 +354,7 @@ export function TrialCriterionEditor({
             onClick={onCancel}
           >
             ×
-          </button>
+          </button> : null}
         </header>
 
         {unsupportedMode ? (
@@ -414,6 +471,19 @@ export function TrialCriterionEditor({
                   {subject.unit ? <small>{subject.unit}</small> : null}
                 </button>
               ))}
+              {suggestions.map((suggestion) => (
+                <button
+                  className="external-suggestion"
+                  key={`${suggestion.source}-${suggestion.code}`}
+                  type="button"
+                  onClick={() => selectSuggestion(suggestion)}
+                >
+                  <strong>{suggestion.display_label}</strong>
+                  <span>{suggestionSourceLabel(suggestion)} · set up</span>
+                </button>
+              ))}
+              {suggesting ? <p>Checking live suggestions…</p> : null}
+              {suggestionNotice ? <p className="suggestion-notice">{suggestionNotice}</p> : null}
             </div>
             <button
               className="unsupported-detail-entry"
@@ -596,6 +666,55 @@ export function TrialCriterionEditor({
           ) : null}
         </footer>
       </form>
-    </dialog>
+  )
+
+  if (presentation === 'inline') {
+    return open ? (
+      <>
+        <section ref={inlineRef} className="inline-record-editor" aria-labelledby="trial-criterion-editor-title">
+          {editorForm}
+        </section>
+        <TerminologySetupDialog
+          suggestion={setupSuggestion}
+          token={token}
+          canCreateSupportedTerm={canCreateSupportedTerm}
+          reviewLabel="Keep for review"
+          onCancel={() => setSetupSuggestion(null)}
+          onKeepForReview={keepSuggestionForReview}
+          onSupported={useSupportedTerm}
+        />
+      </>
+    ) : null
+  }
+
+  return (
+    <>
+      <dialog
+        ref={dialogRef}
+        className="clinical-detail-dialog trial-criterion-dialog"
+        aria-labelledby="trial-criterion-editor-title"
+        onCancel={(event) => {
+          event.preventDefault()
+          if (!saving) onCancel()
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !saving) {
+            event.preventDefault()
+            onCancel()
+          }
+        }}
+      >
+        {editorForm}
+      </dialog>
+      <TerminologySetupDialog
+        suggestion={setupSuggestion}
+        token={token}
+        canCreateSupportedTerm={canCreateSupportedTerm}
+        reviewLabel="Keep for review"
+        onCancel={() => setSetupSuggestion(null)}
+        onKeepForReview={keepSuggestionForReview}
+        onSupported={useSupportedTerm}
+      />
+    </>
   )
 }

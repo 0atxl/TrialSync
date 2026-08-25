@@ -37,10 +37,12 @@ runtime; no second in-memory catalog remains in the application path.
 ### Routine user workflow
 
 - Patient and trial forms search the same active catalog.
-- Each Add flow offers inline advisory medication and observation suggestions through
+- Each Add and existing-record flow offers inline advisory condition, medication, and observation suggestions through
   `GET /api/v1/patient-fact-catalog/suggestions`.
-- External-only suggestions remain review items; routine users cannot promote them into the local
-  catalog.
+- Selecting an external-only suggestion opens a compact setup dialog. Routine users can keep the
+  item for record/protocol review; catalog administrators can confirm its category and required
+  observation unit, add it to the supported catalog, and continue directly into the ordinary
+  value or criterion editor.
 - A retired concept is no longer offered for new entry or new criteria.
 - Existing facts, criteria, saved snapshots, and screening results are never
   changed by retirement.
@@ -83,14 +85,15 @@ screening result.
 
 | Local category | Source | Behavior |
 | --- | --- | --- |
+| Condition | NLM Clinical Tables | Searches condition names and synonyms and returns a stable external reference. |
 | Medication | RxNav/RxNorm | Searches active approximate matches and returns name, RxCUI, source, and score. |
 | Observation | LOINC Search API | Searches LOINC terms and returns a code, display name, and example UCUM unit when available. |
-| Condition | None yet | Added manually; no unsafe automatic mapping is attempted. |
 
-To use a suggestion, an administrator enters a name, chooses the category,
-selects **Find RxNorm suggestion** or **Find LOINC suggestion**, reviews a
-result, selects it, reviews the populated local form, then selects **Add clinical
-detail**. Only that final action persists the local concept.
+Routine entry searches these sources while the user types. Exact supported matches bypass setup
+and open the ordinary value or criterion editor. New matches require an explicit choice: keep the
+patient detail or protocol wording for review, or—when signed in as a catalog administrator—confirm
+the category and fixed observation unit before adding a supported local term. No suggestion is
+promoted silently.
 
 Migration `20260730_0011` stores the optional selected `terminology_system`
 and `terminology_code` on the local concept. These are provenance, not a claim
@@ -129,7 +132,8 @@ Official authentication reference: [LOINC API authentication](https://loinc.org/
 ## 4. Safety and product boundaries
 
 - No real patient data should be entered into external terminology search.
-- External lookup is initiated only by an administrator action.
+- External lookup is initiated by typing in a patient-detail or trial-criterion search. Only a
+  catalog administrator can turn a result into a supported local term.
 - Suggestions are bounded, timeout-protected, and are not used by automated
   tests against live sources.
 - No external match is accepted automatically.
@@ -143,7 +147,7 @@ Official authentication reference: [LOINC API authentication](https://loinc.org/
 - Database/API integration tests cover admin authorization, local concept
   creation, patient entry using a new concept, safe retirement, suggestion
   review, and provenance persistence.
-- Provider adapter tests use mocked RxNav and LOINC responses only.
+- Provider adapter tests use mocked NLM Clinical Tables, RxNav, and LOINC responses only.
 - Frontend tests cover admin creation and explicit RxNorm selection before local
   save.
 - Desktop and narrow browser inspection covered the catalog page and selected

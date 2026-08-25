@@ -9,6 +9,37 @@ from trialsync.terminology.suggestions import TerminologySuggestionService
 pytestmark = pytest.mark.anyio
 
 
+async def test_condition_suggestions_preserve_the_external_term_reference() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/api/conditions/v3/search")
+        assert request.url.params["terms"] == "asthma"
+        return httpx.Response(
+            200,
+            json=[1, ["C0004096"], None, [["Asthma"]]],
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        service = TerminologySuggestionService(
+            enabled=True,
+            timeout_seconds=1,
+            max_results=5,
+            loinc_username="",
+            loinc_password="",
+            client=client,
+        )
+        result = await service.suggest(query="asthma", fact_type=FactType.condition)
+
+    assert result.unavailable_sources == []
+    assert result.suggestions[0].model_dump() == {
+        "source": "conditions",
+        "code": "C0004096",
+        "display_label": "Asthma",
+        "detail": None,
+        "fixed_unit": None,
+        "score": None,
+    }
+
+
 async def test_rxnorm_suggestions_are_bounded_and_preserve_the_rxcui() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/approximateTerm.json")

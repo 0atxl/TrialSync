@@ -388,8 +388,8 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
     expect(await screen.findByText('Recent record')).toBeInTheDocument()
     expect(screen.queryByText('Older record')).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Overall state' })).toHaveValue('needs_review')
-    expect(screen.getByText('Showing 2026-08-18 to 2026-08-24')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Result' })).toHaveValue('needs_review')
+    expect(screen.getByText('Date filter applied')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Clear dates' }))
     expect(await screen.findByText('Older record')).toBeInTheDocument()
@@ -533,7 +533,8 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.getByText('Required information is not recorded.')).toBeInTheDocument()
     expect(screen.getByText('Date of birth is required to calculate age.')).toBeInTheDocument()
     expect(screen.getByText('Synthetic Ada')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Patient facts at screening' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Eligibility evidence' })).toBeInTheDocument()
+    expect(screen.queryByText('SYN-001')).not.toBeInTheDocument()
   })
 
   it('separates invalid trial configuration from missing patient evidence', async () => {
@@ -548,10 +549,9 @@ describe('TrialSync Phase 5 screening workflow', () => {
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(configurationIssue)))
     renderRoute('/screenings/screen-1')
-    expect(await screen.findByText('Trial configuration needs attention.')).toBeInTheDocument()
-    expect(screen.getByText(/Patient information is not the problem/)).toBeInTheDocument()
+    expect(await screen.findByText('Trial criteria need attention.')).toBeInTheDocument()
     expect(screen.getByText('This trial criterion has an unsupported rule configuration.')).toBeInTheDocument()
-    expect(screen.getByText(/Ask the trial author to correct this criterion/)).toBeInTheDocument()
+    expect(screen.getByText(/Correct this trial criterion and run a new screening/)).toBeInTheDocument()
   })
 
   it('downloads the canonical report with loading and success feedback', async () => {
@@ -579,7 +579,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
       status: 200,
       headers: { 'Content-Type': 'application/pdf' },
     }))
-    expect(await screen.findByText('The canonical screening report was downloaded.')).toBeInTheDocument()
+    expect(await screen.findByText('The saved screening report is ready.')).toBeInTheDocument()
     expect(createObjectURL).toHaveBeenCalled()
     await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:screening-report'))
     expect(fetchMock.mock.calls.some(([input]) => input.endsWith('/screenings/screen-1/report.pdf'))).toBe(true)
@@ -602,7 +602,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await screen.findByRole('heading', { name: 'Age 18 to 75 years' })
     await userEvent.click(screen.getByRole('button', { name: 'Download report' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('canonical report could not be prepared')
+    expect(await screen.findByRole('alert')).toHaveTextContent('report could not be prepared')
     expect(screen.getByRole('heading', { name: 'Age 18 to 75 years' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Download report' })).toBeEnabled()
   })
@@ -617,7 +617,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     const citation = screen.getByRole('link', { name: /Criterion evidence · Age is unresolved/i })
     await userEvent.click(citation)
     expect(screen.getByRole('article')).toHaveFocus()
-    expect(screen.getByRole('link', { name: 'Back to the result assistant' })).toHaveAttribute('href', '#screening-chat-panel')
+    expect(screen.getByRole('article')).toHaveAttribute('id', 'criterion-e1')
   })
 
   it('posts only the current question and appends the grounded response', async () => {
@@ -789,7 +789,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(staleResponse)))
     renderRoute('/screenings/screen-1')
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Restart the TrialSync backend so it loads the latest API and migration',
+      'missing its patient or trial details',
     )
     expect(screen.queryByText(/Unexpected Application Error/i)).not.toBeInTheDocument()
   })
@@ -1007,6 +1007,39 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(fetchMock.mock.calls.some(([input, options]) => input.endsWith('/versions/v1') && options?.method === 'PUT')).toBe(true)
   })
 
+  it('keeps a live condition suggestion as a patient record-only detail from default search', async () => {
+    authenticate()
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (input.includes('/patient-fact-catalog/suggestions')) return Promise.resolve(json({
+        query: 'rare condition', local_matches: [], unavailable_sources: [],
+        suggestions: [{ source: 'conditions', code: 'C123', display_label: 'Rare condition', detail: null }],
+      }))
+      if (input.endsWith('/patients') && options?.method === 'POST') return Promise.resolve(json(patient, 201))
+      if (input.endsWith('/unsupported-details') && options?.method === 'POST') return Promise.resolve(json({ id: 'u1' }, 201))
+      return Promise.resolve(json(patient))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/new')
+
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Display name' }), 'Avery Brooks')
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search clinical details' }), 'rare condition')
+    await userEvent.click(await screen.findByRole('button', { name: /Rare condition.*set up/i }))
+    expect(screen.getByRole('dialog', { name: 'Set up Rare condition' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use for screening' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Keep in patient record' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Review patient' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save patient' }))
+
+    const reviewCall = fetchMock.mock.calls.find(
+      ([input, options]) => input.endsWith('/unsupported-details') && options?.method === 'POST',
+    )
+    expect(JSON.parse(String(reviewCall?.[1]?.body))).toMatchObject({
+      category: 'condition', label: 'Rare condition', context: null,
+    })
+  })
+
   it('saves an external-only trial criterion for review without approving the protocol', async () => {
     authenticate()
     const draftVersion = { id: 'v1', version: 1, status: 'draft' as const, source_text: null, criteria: [] }
@@ -1027,9 +1060,9 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Trial title' }), 'Medication study')
     await userEvent.type(screen.getByRole('textbox', { name: 'Condition' }), 'Metabolic health')
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Medications' }))
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search supported criteria' }), 'new medicine')
     await userEvent.click(await screen.findByRole('button', { name: /New medicine/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Keep for review' }))
     await userEvent.click(screen.getByRole('button', { name: 'Continue to exclusions' }))
     await userEvent.click(screen.getByRole('button', { name: 'Review trial' }))
 
@@ -1040,6 +1073,65 @@ describe('TrialSync Phase 5 screening workflow', () => {
       kind: 'inclusion', category: 'medication', source_text: 'New medicine',
     })
     expect(fetchMock.mock.calls.some(([input, options]) => input.endsWith('/versions/v1') && options?.method === 'PUT')).toBe(false)
+  })
+
+  it('lets a catalog administrator set up a live observation and continue into its value editor', async () => {
+    authenticate(true)
+    const created = {
+      id: 'concept-creatinine-urine',
+      key: 'creatinine_urine',
+      fact_type: 'observation' as const,
+      concept: 'creatinine_urine',
+      display_label: 'Creatinine urine',
+      concept_group: 'observations' as const,
+      input_kind: 'numeric' as const,
+      allowed_assertions_json: ['present', 'unknown'] as const,
+      fixed_unit: 'mg/dL',
+      effective_date_required: true,
+      screening_supported: true,
+      help_text: 'Record the measured Creatinine urine result.',
+      terminology_system: 'loinc',
+      terminology_code: '2161-8',
+      display_order: 80,
+      active: true,
+      created_at: '2026-08-25T10:00:00Z',
+      updated_at: '2026-08-25T10:00:00Z',
+    }
+    const fetchMock = withPatientCatalog((input: string, options?: RequestInit) => {
+      if (input.includes('/patient-fact-catalog/suggestions')) return Promise.resolve(json({
+        query: 'creatinine urine', local_matches: [], unavailable_sources: [],
+        suggestions: [{ source: 'loinc', code: '2161-8', display_label: 'Creatinine urine', detail: null, fixed_unit: 'mg/dL' }],
+      }))
+      if (input.endsWith('/clinical-concepts') && options?.method === 'POST') return Promise.resolve(json(created, 201))
+      return Promise.resolve(json(patient))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/patients/new')
+
+    await userEvent.click(screen.getByRole('button', { name: /Manual entry/i }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Display name' }), 'Avery Brooks')
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search clinical details' }), 'creatinine urine')
+    await userEvent.click(await screen.findByRole('button', { name: /Creatinine urine.*set up/i }))
+
+    expect(screen.getByRole('combobox', { name: 'Category' })).toHaveValue('observation')
+    expect(screen.getByRole('textbox', { name: 'Unit' })).toHaveValue('mg/dL')
+    await userEvent.click(screen.getByRole('button', { name: 'Use for screening' }))
+
+    expect(await screen.findByRole('heading', { name: 'Creatinine urine' })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: 'Result' })).toBeInTheDocument()
+    expect(screen.getByText('mg/dL')).toBeInTheDocument()
+    const request = fetchMock.mock.calls.find(
+      ([input, options]) => input.endsWith('/clinical-concepts') && options?.method === 'POST',
+    )
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      display_label: 'Creatinine urine',
+      fact_type: 'observation',
+      fixed_unit: 'mg/dL',
+      screening_supported: true,
+      terminology_system: 'loinc',
+      terminology_code: '2161-8',
+    })
   })
 
   it('locks repeated profile submissions and confirms the exact saved change', async () => {
@@ -1177,7 +1269,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     renderRoute('/patients/p1')
 
     await screen.findByRole('heading', { name: 'Synthetic Ada' })
-    expect(screen.getByRole('link', { name: 'Run a new screening' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'New screening' })).toHaveAttribute(
       'href',
       '/screenings/new?patient_id=p1',
     )
@@ -1256,7 +1348,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(await screen.findByRole('heading', {
       name: 'Biological sex is not recorded',
     })).toBeInTheDocument()
-    expect(screen.getByText(/demographic profile should be completed/i)).toBeInTheDocument()
+    expect(screen.getByText(/Complete the demographic profile/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Complete demographics' })).toBeInTheDocument()
   })
 
@@ -1294,10 +1386,10 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(await screen.findByRole('heading', {
       name: 'Reconcile biological sex and pregnancy',
     })).toBeInTheDocument()
-    expect(screen.getByText(/will not change either one automatically/i)).toBeInTheDocument()
+    expect(screen.getByText(/Review either value before using this record/i)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Review pregnancy status' }))
 
-    expect(screen.getByRole('dialog', {
+    expect(screen.getByRole('region', {
       name: 'Edit Pregnancy status',
     })).toBeInTheDocument()
     expect(screen.getByText(/No value was changed automatically/i)).toBeInTheDocument()
@@ -1351,7 +1443,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
       'cannot be changed to Male while Pregnancy status is Pregnant',
     )
     await userEvent.click(screen.getByRole('button', { name: 'Review pregnancy status' }))
-    expect(screen.getByRole('dialog', {
+    expect(screen.getByRole('region', {
       name: 'Edit Pregnancy status',
     })).toBeInTheDocument()
     expect(screen.getByText(/Review Pregnancy status before changing biological sex/i))
@@ -1403,6 +1495,8 @@ describe('TrialSync Phase 5 screening workflow', () => {
 
     await screen.findByRole('heading', { name: 'Clinical details' })
     await userEvent.click(screen.getByRole('button', { name: 'Add clinical detail' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Add clinical detail' })).toBeInTheDocument()
     await userEvent.type(
       screen.getByRole('searchbox', { name: 'Search supported details' }),
       'HbA1c',
@@ -1533,7 +1627,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Metformin/i }))
     await userEvent.click(screen.getByRole('button', { name: 'Add detail' }))
     expect(await screen.findByRole('heading', { name: 'Edit Metformin' })).toBeInTheDocument()
-    expect(within(screen.getByRole('dialog', { name: 'Edit Metformin' }))
+    expect(within(screen.getByRole('region', { name: 'Edit Metformin' }))
       .getByRole('status')).toHaveTextContent(
       'already exists. You are now editing the current detail',
     )
@@ -1692,7 +1786,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     renderRoute('/patients/p1')
     await screen.findByRole('heading', { name: 'Synthetic Ada' })
     await userEvent.click(screen.getByRole('button', { name: 'Delete patient' }))
-    expect(screen.getByText(/screening snapshots and their evidence history will remain/i)).toBeInTheDocument()
+    expect(screen.getByText(/Existing saved screenings will remain available/i)).toBeInTheDocument()
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete patient' }))
     expect(await screen.findByRole('heading', { name: 'Patients' })).toBeInTheDocument()
     expect(screen.getByText(
@@ -1939,9 +2033,10 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Order' })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Normalized concept' })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Unit' })).not.toBeInTheDocument()
-    await userEvent.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Add criterion' }),
-    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await userEvent.click(within(
+      screen.getByRole('region', { name: 'Add inclusion criterion' }),
+    ).getByRole('button', { name: 'Add criterion' }))
     await screen.findByText('Criterion added')
     const request = fetchMock.mock.calls.find(
       ([input, options]) => input.includes('/guided-criteria') && options?.method === 'POST',
@@ -1967,9 +2062,9 @@ describe('TrialSync Phase 5 screening workflow', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Age/i }))
     const minimum = screen.getByRole('spinbutton', { name: 'Minimum' })
     await userEvent.clear(minimum)
-    await userEvent.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Add criterion' }),
-    )
+    await userEvent.click(within(
+      screen.getByRole('region', { name: 'Add inclusion criterion' }),
+    ).getByRole('button', { name: 'Add criterion' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a range')
     expect(fetchMock.mock.calls.some(
       ([input, options]) => input.includes('/guided-criteria') && options?.method === 'POST',
@@ -2018,7 +2113,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(await screen.findByText('Criterion saved for review')).toBeInTheDocument()
     expect(within(exclusion).getByText('Prior synthetic procedure within 30 days'))
       .toBeInTheDocument()
-    expect(within(exclusion).getByText(/Review only · no screening rule/i))
+    expect(within(exclusion).getByText(/Needs mapping before use/i))
       .toBeInTheDocument()
     const request = fetchMock.mock.calls.find(
       ([input, options]) =>

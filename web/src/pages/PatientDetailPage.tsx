@@ -4,16 +4,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
   apiRequest,
-  type BiologicalSex,
   type Fact,
   type Patient,
   type PatientFactCatalog,
   type PatientFactCatalogEntry,
   type PatientFactGroup,
   type PatientUnsupportedDetail,
+  type Screening,
 } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import { BiologicalSexField } from '../components/BiologicalSexField'
 import {
   ClinicalDetailEditor,
   type ClinicalDetailSubmission,
@@ -21,12 +20,20 @@ import {
 } from '../components/ClinicalDetailEditor'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
 import { PatientActivity } from '../components/PatientActivity'
+import {
+  PatientClinicalDetailsSection,
+  PatientDemographicsSection,
+  type DemographicsDraft,
+} from '../components/PatientRecordSections'
+import { RelatedScreenings } from '../components/RelatedScreenings'
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog'
+import { TechnicalDetails } from '../components/UiPrimitives'
 import { useToast } from '../components/ToastProvider'
 import { useMutationState } from '../hooks/useMutationState'
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges'
-import { isFutureIsoDate, todayIsoDate } from '../utils/dates'
+import { isFutureIsoDate } from '../utils/dates'
 import { biologicalSexLabel } from '../utils/demographics'
+import { clinicalValueLabel, factCatalogEntry, factLabel } from '../utils/patientFacts'
 
 function displayValue(value: string | null) {
   return value?.trim() || 'Not recorded'
@@ -51,66 +58,13 @@ function profileChangeMessage(changes: string[]) {
   return changes.length === 1 ? changes[0] : `Patient profile updated with ${changes.length} changes.`
 }
 
-type DemographicsDraft = {
-  display_name: string
-  date_of_birth: string
-  sex: BiologicalSex | null
-}
-
-function factLabel(fact: Fact) {
-  return fact.concept
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-const clinicalGroupLabels: Record<PatientFactGroup, string> = {
-  conditions: 'Conditions',
-  medications: 'Medications',
-  observations: 'Labs and observations',
-}
-
-function factCatalogEntry(
-  entries: PatientFactCatalogEntry[],
-  fact: Fact,
-) {
-  return entries.find(
-    (entry) => entry.fact_type === fact.fact_type && entry.concept === fact.concept,
-  )
-}
-
-function assertionLabel(fact: Fact, entry?: PatientFactCatalogEntry) {
-  if (entry?.input_kind === 'pregnancy_status') {
-    if (fact.assertion === 'present') return 'Pregnant'
-    if (fact.assertion === 'absent') return 'Not pregnant'
-    return 'Unknown'
-  }
-  return fact.assertion.charAt(0).toUpperCase() + fact.assertion.slice(1)
-}
-
-function measurementLabel(fact: Fact) {
-  if (fact.assertion === 'unknown') return 'Unknown'
-  if (fact.value_numeric === null) return assertionLabel(fact)
-  const parsedValue = Number(fact.value_numeric)
-  const displayValue = Number.isFinite(parsedValue)
-    ? String(parsedValue)
-    : fact.value_numeric
-  const separator = fact.unit === '%' ? '' : ' '
-  return `${displayValue}${fact.unit ? `${separator}${fact.unit}` : ''}`
-}
-
-function clinicalValueLabel(fact: Fact, entry?: PatientFactCatalogEntry) {
-  return entry?.input_kind === 'numeric'
-    ? measurementLabel(fact)
-    : assertionLabel(fact, entry)
-}
-
 export function PatientDetailPage() {
   const { patientId = '' } = useParams()
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [patient, setPatient] = useState<Patient | null>(null)
+  const [screenings, setScreenings] = useState<Screening[]>([])
   const [error, setError] = useState('')
   const [editingDemographics, setEditingDemographics] = useState(false)
   const [demographicsDraft, setDemographicsDraft] = useState<DemographicsDraft | null>(null)
@@ -141,11 +95,14 @@ export function PatientDetailPage() {
 
   const load = useCallback(async () => {
     try {
-      const [record, activity] = await Promise.all([
+      const [record, activity, savedScreenings] = await Promise.all([
         apiRequest<Patient>(`/patients/${patientId}`, {}, token),
         apiRequest<unknown>(`/patients/${patientId}/activity`, {}, token),
+        apiRequest<Screening[]>(`/screenings?patient_id=${encodeURIComponent(patientId)}`, {}, token)
+          .catch(() => []),
       ])
       setPatient({ ...record, activity: Array.isArray(activity) ? activity : [] })
+      setScreenings(Array.isArray(savedScreenings) ? savedScreenings : [])
       setError('')
       setProfileError('')
       setProfileStale(false)
@@ -690,123 +647,40 @@ export function PatientDetailPage() {
     <section className="route-entry workspace-page">
       <Link className="back-link" to="/patients">← Patients</Link>
       <header className="page-heading">
-        <div><p className="eyebrow">{patient.external_id}</p><h1>{patient.display_name}</h1></div>
-        <button className="danger-button danger-button-subtle" type="button" onClick={() => setDeleteOpen(true)}>Delete patient</button>
-      </header>
-      <section className="demographics-panel" aria-labelledby="demographics-heading">
-        <div className="demographics-heading">
-          <div>
-            <p className="eyebrow">Current record</p>
-            <h2 id="demographics-heading">Demographics</h2>
-          </div>
-          {!editingDemographics ? (
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={beginDemographicsEdit}
-            >
-              Edit demographics
-            </button>
-          ) : null}
-        </div>
-        {editingDemographics && demographicsDraft ? (
-          <form className="demographics-form" noValidate onSubmit={saveProfile}>
-            <div className="demographics-form-grid">
-              <label>
-                Display name
-                <input
-                  required
-                  value={demographicsDraft.display_name}
-                  onChange={(event) =>
-                    updateDemographics('display_name', event.target.value)}
-                />
-              </label>
-              <label>
-                Date of birth
-                <input
-                  aria-describedby={profileError ? 'profile-error' : undefined}
-                  max={todayIsoDate()}
-                  type="date"
-                  value={demographicsDraft.date_of_birth}
-                  onChange={(event) =>
-                    updateDemographics('date_of_birth', event.target.value)}
-                />
-              </label>
-              <BiologicalSexField
-                value={demographicsDraft.sex}
-                onChange={(value) => updateDemographics('sex', value)}
-              />
-            </div>
-            {profileError ? (
-              <div className="form-error demographics-error" id="profile-error" role="alert">
-                <span>{profileError}</span>
-                {profileStale ? (
-                  <button className="text-button" type="button" onClick={() => void load()}>
-                    Reload latest profile
-                  </button>
-                ) : profileConflictFactId ? (
-                  <button
-                    className="text-button"
-                    type="button"
-                    onClick={() => reviewPregnancyConflict(profileConflictFactId)}
-                  >
-                    Review pregnancy status
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-            <div className="demographics-actions">
-              <button
-                className="secondary-button"
-                disabled={profileMutation.isSaving}
-                type="button"
-                onClick={cancelDemographicsEdit}
-              >
-                Cancel
-              </button>
-              <button
-                className="primary-button"
-                disabled={profileMutation.isSaving || !profileMutation.hasUnsavedChanges}
-                type="submit"
-              >
-                {profileMutation.isSaving ? 'Saving…' : 'Save changes'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <dl className="demographics-summary">
-            <div>
-              <dt>Display name</dt>
-              <dd>{patient.display_name}</dd>
-            </div>
-            <div>
-              <dt>Date of birth</dt>
-              <dd>{displayValue(patient.date_of_birth)}</dd>
-            </div>
-            <div>
-              <dt>Biological sex for screening</dt>
-              <dd>{biologicalSexLabel(patient.sex)}</dd>
-            </div>
-          </dl>
-        )}
-        {savedProfileChanges.length > 1 ? (
-          <div className="change-summary" role="status">
-            <strong>Patient profile updated</strong>
-            <ul>
-              {savedProfileChanges.map((change) => <li key={change}>{change}</li>)}
-            </ul>
-          </div>
-        ) : null}
-        <div className="screening-impact-note">
-          <p>Existing saved screenings remain unchanged. Future screenings use these current values.</p>
+        <h1>{patient.display_name}</h1>
+        <div className="page-actions">
           <Link
-            className="text-button"
+            className="primary-button"
             to={`/screenings/new?patient_id=${encodeURIComponent(patient.id)}`}
           >
-            Run a new screening
+            New screening
           </Link>
+          <button
+            className="danger-button danger-button-subtle"
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+          >
+            Delete patient
+          </button>
         </div>
-      </section>
+      </header>
+      <PatientDemographicsSection
+        patient={patient}
+        draft={demographicsDraft}
+        editing={editingDemographics}
+        error={profileError}
+        stale={profileStale}
+        conflictFactId={profileConflictFactId}
+        savedChanges={savedProfileChanges}
+        saving={profileMutation.isSaving}
+        dirty={profileMutation.hasUnsavedChanges}
+        onBeginEdit={beginDemographicsEdit}
+        onCancel={cancelDemographicsEdit}
+        onReload={() => { void load() }}
+        onReviewConflict={reviewPregnancyConflict}
+        onSubmit={saveProfile}
+        onUpdate={updateDemographics}
+      />
       {pregnancySexConflict ? (
         <section
           className="patient-consistency-panel consistency-conflict"
@@ -817,9 +691,8 @@ export function PatientDetailPage() {
             <p className="eyebrow">Data consistency needs review</p>
             <h2 id="pregnancy-conflict-heading">Reconcile biological sex and pregnancy</h2>
             <p>
-              Biological sex is Male while Pregnancy status is Pregnant. TrialSync
-              preserved both legacy values for review and will not change either one
-              automatically.
+              Biological sex is Male while pregnancy is recorded as Pregnant. Review
+              either value before using this record in a new screening.
             </p>
           </div>
           <div className="patient-consistency-actions">
@@ -849,8 +722,8 @@ export function PatientDetailPage() {
             <p className="eyebrow">Profile completeness</p>
             <h2 id="pregnancy-warning-heading">Biological sex is not recorded</h2>
             <p>
-              Pregnancy status is Pregnant. This evidence is saved, but the demographic
-              profile should be completed before screening review.
+              Pregnancy is recorded as Pregnant. Complete the demographic profile before
+              reviewing a new screening.
             </p>
           </div>
           <button
@@ -863,136 +736,26 @@ export function PatientDetailPage() {
         </section>
       ) : null}
       {error && <div className="form-error" role="alert">{error}</div>}
-      <section className="clinical-details-panel" aria-labelledby="clinical-details-heading">
-        <div className="clinical-details-heading">
-          <div>
-            <p className="eyebrow">Active patient record</p>
-            <h2 id="clinical-details-heading">Clinical details</h2>
-            <p>Controlled conditions, medications, and dated observations used by screening.</p>
-          </div>
-          <button
-            className="primary-button"
-            disabled={catalogLoading || Boolean(catalogError)}
-            type="button"
-            onClick={openAddDetail}
-          >
-            {catalogLoading ? 'Loading details…' : 'Add clinical detail'}
-          </button>
-        </div>
-        {catalogError ? (
-          <div className="form-error clinical-catalog-error" role="alert">
-            <span>{catalogError}</span>
-            <button className="text-button" type="button" onClick={() => void loadCatalog()}>
-              Try again
-            </button>
-          </div>
-        ) : null}
-        <label className="clinical-detail-search">
-          <span>Search current details</span>
-          <input
-            type="search"
-            value={detailQuery}
-            onChange={(event) => setDetailQuery(event.target.value)}
-            placeholder="Search by clinical label or value"
-          />
-        </label>
-        <div className="clinical-detail-groups">
-          {(Object.keys(clinicalGroupLabels) as PatientFactGroup[]).map((group) => (
-            <section className="clinical-detail-group" key={group}>
-              <header>
-                <h3>{clinicalGroupLabels[group]}</h3>
-                <span>{groupedFacts[group].length}</span>
-              </header>
-              {groupedFacts[group].length === 0 ? (
-                <div className="clinical-group-empty">
-                  {detailQuery ? 'No matching details in this group.' : 'No current details.'}
-                </div>
-              ) : (
-                <div className="clinical-detail-rows">
-                  {groupedFacts[group].map((fact) => {
-                    const entry = factCatalogEntry(catalog, fact)
-                    return (
-                      <article className="clinical-detail-row" key={fact.id}>
-                        <div className="clinical-detail-primary">
-                          <strong>{entry?.display_label ?? factLabel(fact)}</strong>
-                          <span>{clinicalValueLabel(fact, entry)}</span>
-                        </div>
-                        <div className="clinical-detail-meta">
-                          <span>{fact.effective_date ?? 'Date not recorded'}</span>
-                          <small>{fact.source_label}</small>
-                        </div>
-                        <div className="record-actions">
-                          {entry ? (
-                            <button
-                              className="text-button"
-                              type="button"
-                              onClick={() => openEditDetail(fact)}
-                            >
-                              Edit
-                            </button>
-                          ) : (
-                            <span className="unsupported-detail">Review only</span>
-                          )}
-                          <button
-                            className="text-button danger"
-                            disabled={deletingFactId === fact.id}
-                            onClick={() => requestVoidFact(fact)}
-                            type="button"
-                          >
-                            {deletingFactId === fact.id ? 'Removing…' : 'Remove'}
-                          </button>
-                        </div>
-                      </article>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
-          ))}
-          <section className="clinical-detail-group unsupported-detail-group">
-            <header>
-              <h3>Other details — not used for screening</h3>
-              <span>{patient.unsupported_details?.length ?? 0}</span>
-            </header>
-            <p className="unsupported-detail-guidance">
-              Retained for catalog review only. These items never become screening
-              evidence automatically.
-            </p>
-            {(patient.unsupported_details?.length ?? 0) === 0 ? (
-              <div className="clinical-group-empty">No unsupported details recorded.</div>
-            ) : (
-              <div className="clinical-detail-rows">
-                {patient.unsupported_details.map((detail) => (
-                  <article className="clinical-detail-row unsupported-detail-row" key={detail.id}>
-                    <div className="clinical-detail-primary">
-                      <strong>{detail.label}</strong>
-                      <span>{detail.category}</span>
-                    </div>
-                    <div className="clinical-detail-meta">
-                      <span>{detail.context ?? 'No additional context'}</span>
-                      <small>{detail.source_label}</small>
-                    </div>
-                    <div className="record-actions">
-                      <span className="unsupported-detail">Review only</span>
-                      <button
-                        className="text-button danger"
-                        disabled={deletingFactId === detail.id}
-                        onClick={() => void deleteUnsupportedDetail(detail)}
-                        type="button"
-                      >
-                        {deletingFactId === detail.id ? 'Removing…' : 'Remove'}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-      </section>
-      <PatientActivity events={patient.activity ?? []} />
+      <PatientClinicalDetailsSection
+        patient={patient}
+        catalog={catalog}
+        groupedFacts={groupedFacts}
+        query={detailQuery}
+        catalogLoading={catalogLoading}
+        catalogError={catalogError}
+        deletingFactId={deletingFactId}
+        onAdd={openAddDetail}
+        onEdit={openEditDetail}
+        onRemove={requestVoidFact}
+        onRemoveUnsupported={(detail) => { void deleteUnsupportedDetail(detail) }}
+        onQueryChange={setDetailQuery}
+        onReloadCatalog={() => { void loadCatalog() }}
+      />
       <ClinicalDetailEditor
         open={detailEditorOpen}
+        presentation="inline"
+        token={token}
+        canCreateSupportedTerm={Boolean(user?.is_catalog_admin)}
         entries={catalog}
         fact={editingFact}
         error={detailError}
@@ -1005,10 +768,21 @@ export function PatientDetailPage() {
         onReload={reloadFromDetailEditor}
         onSubmit={(submission) => void saveClinicalDetail(submission)}
         onSubmitUnsupported={(submission) => void saveUnsupportedDetail(submission)}
+        onCatalogEntryCreated={(entry) => setCatalog((current) => [...current, entry])}
       />
+      <div className="record-secondary-grid">
+        <RelatedScreenings screenings={screenings} counterpart="trial" />
+        <PatientActivity events={patient.activity ?? []} />
+      </div>
+      <TechnicalDetails>
+        <dl className="technical-details-list">
+          <div><dt>Record reference</dt><dd>{patient.external_id}</dd></div>
+          <div><dt>Created</dt><dd>{new Date(patient.created_at).toLocaleString()}</dd></div>
+          <div><dt>Last updated</dt><dd>{new Date(patient.updated_at).toLocaleString()}</dd></div>
+        </dl>
+      </TechnicalDetails>
       <ConfirmationDialog
         open={Boolean(factToVoid)}
-        eyebrow="Record history"
         title="Remove this clinical detail?"
         confirmLabel="Remove detail"
         busyLabel="Removing…"
@@ -1022,8 +796,8 @@ export function PatientDetailPage() {
         onConfirm={() => void voidFact()}
       >
         <p>
-          This detail will leave the active record but remain available in the immutable
-          activity history. Existing saved screenings are unchanged.
+          This detail will be removed from the current record. Its removal remains in
+          recent activity, and existing saved screenings stay unchanged.
         </p>
         <label className="void-reason">
           Removal reason
@@ -1043,8 +817,8 @@ export function PatientDetailPage() {
           <p className="form-error" id="void-reason-error" role="alert">{voidReasonError}</p>
         ) : null}
       </ConfirmationDialog>
-      <ConfirmationDialog open={deleteOpen} eyebrow="Permanent action" title="Delete this patient?" confirmLabel="Delete patient" busyLabel="Deleting…" busy={deleting} onCancel={() => setDeleteOpen(false)} onConfirm={() => void deletePatient()}>
-        <p><strong>{patient.display_name}</strong> will be removed from the active patient workspace. Existing immutable screening snapshots and their evidence history will remain available.</p>
+      <ConfirmationDialog open={deleteOpen} title="Delete this patient?" confirmLabel="Delete patient" busyLabel="Deleting…" busy={deleting} onCancel={() => setDeleteOpen(false)} onConfirm={() => void deletePatient()}>
+        <p><strong>{patient.display_name}</strong> will be removed from Patients. Existing saved screenings will remain available.</p>
       </ConfirmationDialog>
       <UnsavedChangesDialog control={unsavedChanges} />
     </section>

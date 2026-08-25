@@ -1,7 +1,7 @@
 # TrialSync R5A Frontend Experience Redesign
 
 **Date:** 2026-08-25
-**Status:** R5A-0, R5A-1, R5A-2, and the shared-CSS audit are accepted. R5A-3 is implemented and awaiting visual review.
+**Status:** R5A-0 through R5A-3 and the shared-CSS audit are accepted. R5A-4 is implemented and awaiting visual review.
 **Relationship to the research plan:** R5A is the frontend experience gate after the implemented
 R5/R6 research integration and before R7. It redesigns the full application experience without
 changing deterministic eligibility, the accepted `xgboost-05` runtime model, or the sealed R6 V3
@@ -681,6 +681,20 @@ Exit criteria:
 
 Objective: simplify Patients, Trials, Screenings, and their details around finding and reviewing
 records.
+
+Implementation note (2026-08-25): the patient and trial detail pages now lead with names and
+current record content, move record/version metadata into Technical details, and place recent
+screenings and activity secondarily. Screening history has direct result and date filters. Saved
+screening details lead with patient/trial identity and deterministic eligibility, group complete
+criterion evidence into not-met, review, and satisfied sections, keep report/explanation actions
+secondary, and retain compact independent research actions. A follow-up replaces existing-record
+detail/criterion modals with inline editors, keeps suggestion dropdowns from resizing ingestion
+cards, and merges condition, medication, and observation suggestions during ordinary typing. The
+external-only selection path now uses one compact setup dialog: routine users retain the existing
+review-only path, while catalog administrators can confirm category/unit, add the term through the
+existing catalog API, and continue in the inline value or criterion editor. The only additive
+backend changes are owner-scoped screening-history filters and the broadened existing terminology
+suggestion response; deterministic screening contracts remain unchanged.
 
 Steps:
 

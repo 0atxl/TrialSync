@@ -259,11 +259,52 @@ async def test_screening_is_deterministic_for_explicit_date(
     assert first["patient_snapshot_id"] == second["patient_snapshot_id"]
     assert first["overall_state"] == second["overall_state"]
     assert first["counts"] == second["counts"]
-    first_evaluation = {key: value for key, value in first["evaluations"][0].items() if key != "id"}
+    first_evaluation = {
+        key: value for key, value in first["evaluations"][0].items() if key != "id"
+    }
     second_evaluation = {
         key: value for key, value in second["evaluations"][0].items() if key != "id"
     }
     assert first_evaluation == second_evaluation
+
+
+async def test_screening_history_filters_by_patient_and_trial(
+    api: AsyncClient, email_prefix: str
+) -> None:
+    account = await register(api, f"{email_prefix}@example.com")
+    headers = auth(account)
+    first_patient_id = await patient(api, headers, 1)
+    second_patient_id = await patient(api, headers, 2)
+    first_trial_id, first_version_id = await approved_trial_record(api, headers, 1)
+    second_trial_id, second_version_id = await approved_trial_record(api, headers, 2)
+
+    first = await screen(api, headers, first_patient_id, first_version_id)
+    second = await screen(api, headers, second_patient_id, second_version_id)
+
+    patient_history = await api.get(
+        "/api/v1/screenings",
+        headers=headers,
+        params={"patient_id": first_patient_id},
+    )
+    assert patient_history.status_code == 200
+    assert [item["id"] for item in patient_history.json()] == [first["id"]]
+
+    trial_history = await api.get(
+        "/api/v1/screenings",
+        headers=headers,
+        params={"trial_id": second_trial_id},
+    )
+    assert trial_history.status_code == 200
+    assert [item["id"] for item in trial_history.json()] == [second["id"]]
+
+    no_cross_match = await api.get(
+        "/api/v1/screenings",
+        headers=headers,
+        params={"patient_id": first_patient_id, "trial_id": second_trial_id},
+    )
+    assert no_cross_match.status_code == 200
+    assert no_cross_match.json() == []
+    assert first_trial_id != second_trial_id
 
 
 async def test_patient_profile_sex_is_snapshotted_as_demographic_evidence(

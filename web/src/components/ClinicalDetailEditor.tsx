@@ -7,8 +7,15 @@ import type {
   PatientFactCatalogEntry,
   PatientFactGroup,
   PatientUnsupportedDetailCategory,
+  TerminologySuggestion,
 } from '../api/client'
+import {
+  suggestionCategory,
+  suggestionSourceLabel,
+  useTerminologySuggestions,
+} from '../hooks/useTerminologySuggestions'
 import { todayIsoDate } from '../utils/dates'
+import { TerminologySetupDialog } from './TerminologySetupDialog'
 
 export type ClinicalDetailSubmission = {
   catalogKey: string
@@ -23,6 +30,9 @@ export type UnsupportedDetailSubmission = {
 
 type ClinicalDetailEditorProps = {
   open: boolean
+  presentation?: 'dialog' | 'inline'
+  token: string | null
+  canCreateSupportedTerm: boolean
   entries: PatientFactCatalogEntry[]
   fact: Fact | null
   error: string
@@ -35,6 +45,7 @@ type ClinicalDetailEditorProps = {
   onReload: () => void
   onSubmit: (submission: ClinicalDetailSubmission) => void
   onSubmitUnsupported: (submission: UnsupportedDetailSubmission) => void
+  onCatalogEntryCreated: (entry: PatientFactCatalogEntry) => void
 }
 
 const groupLabels: Record<PatientFactGroup | 'all', string> = {
@@ -69,6 +80,9 @@ function initialFields(entry: PatientFactCatalogEntry | null, fact: Fact | null)
 
 export function ClinicalDetailEditor({
   open,
+  presentation = 'dialog',
+  token,
+  canCreateSupportedTerm,
   entries,
   fact,
   error,
@@ -81,8 +95,10 @@ export function ClinicalDetailEditor({
   onReload,
   onSubmit,
   onSubmitUnsupported,
+  onCatalogEntryCreated,
 }: ClinicalDetailEditorProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const inlineRef = useRef<HTMLElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const editingEntry = entryForFact(entries, fact)
   const [selectedKey, setSelectedKey] = useState('')
@@ -97,10 +113,14 @@ export function ClinicalDetailEditor({
     useState<PatientUnsupportedDetailCategory>('condition')
   const [unsupportedLabel, setUnsupportedLabel] = useState('')
   const [unsupportedContext, setUnsupportedContext] = useState('')
+  const [setupSuggestion, setSetupSuggestion] = useState<TerminologySuggestion | null>(null)
+  const { suggestions, suggesting, suggestionNotice } =
+    useTerminologySuggestions(query, group, token)
   const selectedEntry =
     editingEntry ?? entries.find((entry) => entry.key === selectedKey) ?? null
 
   useEffect(() => {
+    if (presentation !== 'dialog') return
     const dialog = dialogRef.current
     if (!dialog) return
     if (open && !dialog.open) {
@@ -120,7 +140,15 @@ export function ClinicalDetailEditor({
       else dialog.removeAttribute('open')
       returnFocusRef.current?.focus()
     }
-  }, [open])
+  }, [open, presentation])
+
+  useEffect(() => {
+    if (!open || presentation !== 'inline') return
+    window.requestAnimationFrame(() => {
+      inlineRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+      inlineRef.current?.querySelector<HTMLElement>('input, select, textarea')?.focus()
+    })
+  }, [fact, open, presentation])
 
   useEffect(() => {
     if (!open) return
@@ -136,6 +164,7 @@ export function ClinicalDetailEditor({
     setUnsupportedCategory('condition')
     setUnsupportedLabel('')
     setUnsupportedContext('')
+    setSetupSuggestion(null)
     onDirtyChange(false)
   }, [editingEntry, fact, onDirtyChange, open])
 
@@ -178,6 +207,39 @@ export function ClinicalDetailEditor({
     setEffectiveDate(initial.effectiveDate)
     setFieldError('')
     updateDirty(initialAssertion, initial.numericValue, initial.effectiveDate, entry.key)
+  }
+
+  const selectSuggestion = (suggestion: TerminologySuggestion) => {
+    const supported = entries.find(
+      (entry) => entry.display_label.trim().toLowerCase() === suggestion.display_label.trim().toLowerCase(),
+    )
+    if (supported) {
+      selectEntry(supported)
+      setQuery('')
+      return
+    }
+    setSetupSuggestion(suggestion)
+  }
+
+  const keepSuggestionForReview = (
+    suggestion: TerminologySuggestion,
+    category = suggestionCategory(suggestion),
+  ) => {
+    setUnsupportedMode(true)
+    setUnsupportedCategory(category)
+    setUnsupportedLabel(suggestion.display_label)
+    setUnsupportedContext('')
+    setFieldError('')
+    setSetupSuggestion(null)
+    setQuery('')
+    onDirtyChange(true)
+  }
+
+  const useSupportedTerm = (entry: PatientFactCatalogEntry) => {
+    onCatalogEntryCreated(entry)
+    selectEntry(entry)
+    setSetupSuggestion(null)
+    setQuery('')
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -256,22 +318,7 @@ export function ClinicalDetailEditor({
     biologicalSex === null &&
     assertion === 'present'
 
-  return (
-    <dialog
-      ref={dialogRef}
-      className="clinical-detail-dialog"
-      aria-labelledby="clinical-detail-editor-title"
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!saving) onCancel()
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && !saving) {
-          event.preventDefault()
-          onCancel()
-        }
-      }}
-    >
+  const editorForm = (
       <form noValidate onSubmit={submit}>
         <header className="clinical-detail-dialog-head">
           <div>
@@ -279,7 +326,7 @@ export function ClinicalDetailEditor({
               {fact ? `Edit ${editingEntry?.display_label ?? 'clinical detail'}` : 'Add clinical detail'}
             </h2>
           </div>
-          <button
+          {presentation === 'dialog' ? <button
             aria-label="Close clinical detail editor"
             className="dialog-close"
             disabled={saving}
@@ -287,7 +334,7 @@ export function ClinicalDetailEditor({
             onClick={onCancel}
           >
             ×
-          </button>
+          </button> : null}
         </header>
 
         {!fact && unsupportedMode ? (
@@ -408,6 +455,19 @@ export function ClinicalDetailEditor({
                   <span>Try another search or group.</span>
                 </div>
               ) : null}
+              {suggestions.map((suggestion) => (
+                <button
+                  className="external-suggestion"
+                  key={`${suggestion.source}-${suggestion.code}`}
+                  type="button"
+                  onClick={() => selectSuggestion(suggestion)}
+                >
+                  <strong>{suggestion.display_label}</strong>
+                  <span>{suggestionSourceLabel(suggestion)} · set up</span>
+                </button>
+              ))}
+              {suggesting ? <p>Checking live suggestions…</p> : null}
+              {suggestionNotice ? <p className="suggestion-notice">{suggestionNotice}</p> : null}
             </div>
             <button
               className="unsupported-detail-entry"
@@ -551,6 +611,55 @@ export function ClinicalDetailEditor({
           ) : null}
         </footer>
       </form>
-    </dialog>
+  )
+
+  if (presentation === 'inline') {
+    return open ? (
+      <>
+        <section ref={inlineRef} className="inline-record-editor" aria-labelledby="clinical-detail-editor-title">
+          {editorForm}
+        </section>
+        <TerminologySetupDialog
+          suggestion={setupSuggestion}
+          token={token}
+          canCreateSupportedTerm={canCreateSupportedTerm}
+          reviewLabel="Keep in patient record"
+          onCancel={() => setSetupSuggestion(null)}
+          onKeepForReview={keepSuggestionForReview}
+          onSupported={useSupportedTerm}
+        />
+      </>
+    ) : null
+  }
+
+  return (
+    <>
+      <dialog
+        ref={dialogRef}
+        className="clinical-detail-dialog"
+        aria-labelledby="clinical-detail-editor-title"
+        onCancel={(event) => {
+          event.preventDefault()
+          if (!saving) onCancel()
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !saving) {
+            event.preventDefault()
+            onCancel()
+          }
+        }}
+      >
+        {editorForm}
+      </dialog>
+      <TerminologySetupDialog
+        suggestion={setupSuggestion}
+        token={token}
+        canCreateSupportedTerm={canCreateSupportedTerm}
+        reviewLabel="Keep in patient record"
+        onCancel={() => setSetupSuggestion(null)}
+        onKeepForReview={keepSuggestionForReview}
+        onSupported={useSupportedTerm}
+      />
+    </>
   )
 }

@@ -56,6 +56,9 @@ screening records into the landing page. It returns complete eligibility counts,
 activity series, dropout follow-up states for potentially eligible screenings, attention items, and
 recent screening summaries. No dashboard state is persisted. Research artifact validation can mark
 the dropout summary as degraded without withholding eligibility, activity, or screening links.
+The ordinary `GET /api/v1/screenings` history route also accepts optional owner-scoped `patient_id`
+and `trial_id` filters so record details can request related results without loading unrelated
+screenings; its response and 100-record bound are unchanged.
 
 The domain engine is deliberately isolated from FastAPI, SQLAlchemy, provider clients, system time, and OCR. It evaluates typed facts and approved rule JSON only. Missing, stale, conflicting, unsupported, and unit-incompatible information stays `unknown`; a provider cannot approve data or change the final state.
 
@@ -64,9 +67,10 @@ Imports are bounded to 1 MB of pasted text or 5 MB/10 PDF pages. PDFs first use 
 Patients and Trials each expose one Add flow. The user first chooses manual entry or document
 import, then both paths converge on the same profile, clinical-detail or criterion, and final review
 steps. Routine catalog search remains local and authoritative. The authenticated read-only
-`GET /api/v1/patient-fact-catalog/suggestions` endpoint can add advisory RxNorm or LOINC matches to
-medication and observation searches; external-only matches remain review items and cannot create a
-catalog concept, patient fact, trial criterion, or screening result.
+`GET /api/v1/patient-fact-catalog/suggestions` endpoint merges advisory NLM condition, RxNorm
+medication, and LOINC observation matches. External-only patient matches can be retained as
+record-only review items; trial matches require mapping before use. They cannot create a supported
+catalog concept, patient fact, deterministic trial rule, or screening result.
 
 The screening conversation is scoped to one authorized saved screening. The server rebuilds authoritative context each request, validates citations, persists at most ten messages, and rejects unsupported, advice, cross-record, and prompt-injection requests. Conversation content is never evidence.
 

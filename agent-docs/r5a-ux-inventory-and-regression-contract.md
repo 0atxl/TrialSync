@@ -235,6 +235,10 @@ Smallest accepted addition:
 GET /api/v1/overview
 ```
 
+R5A-4 also added optional `patient_id` and `trial_id` query filters to the existing owner-scoped
+`GET /api/v1/screenings` route. This keeps patient/trial related-screening sections within the
+existing 100-row bound without changing the response shape or persistence model.
+
 Owner-scoped response:
 
 - eligibility counts;
@@ -270,8 +274,8 @@ prediction remains missing, never `0%`.
 
 ### 9.4 Gap B3 — Routine inline terminology suggestions
 
-The active local catalog is readable by every authenticated user, but RxNorm/LOINC suggestions are
-currently restricted to catalog administrators. R5A needs inline suggestions without allowing a
+The active local catalog is readable by every authenticated user, but external terminology suggestions were
+restricted to catalog administrators. R5A needs inline suggestions without allowing a
 routine user to silently create screening concepts.
 
 Smallest accepted addition:
@@ -283,10 +287,13 @@ GET /api/v1/patient-fact-catalog/suggestions
 Rules:
 
 - available to authenticated users;
-- returns active local matches first and optional advisory RxNorm/LOINC matches;
+- returns active local matches first and optional advisory condition, RxNorm, and LOINC matches;
 - selecting an active local match uses the existing catalog-backed mutation contract;
-- selecting an external-only match creates or pre-fills a review-only unsupported detail/criterion;
-- only catalog administrators can promote a new canonical concept;
+- selecting an external-only match opens one compact setup dialog with its inferred category and
+  suggested unit where available;
+- routine users can keep it as a review-only unsupported detail/criterion;
+- catalog administrators can explicitly promote it through the existing catalog API and continue
+  into the normal value or criterion editor;
 - provider unavailability leaves local catalog search functional.
 
 ### 9.5 Gap B4 — Human cohort presentation

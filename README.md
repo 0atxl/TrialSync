@@ -242,7 +242,7 @@ POST               /api/v1/trials/{trial_id}/versions/{version_id}/unsupported-c
 PUT|DELETE         /api/v1/trials/{trial_id}/versions/{version_id}/criteria/{criterion_id}
 
 POST               /api/v1/screenings
-GET                /api/v1/screenings
+GET                /api/v1/screenings[?patient_id=&trial_id=]
 GET                /api/v1/screenings/{screening_id}
 GET                /api/v1/screenings/{screening_id}/report.pdf
 POST               /api/v1/screening-batches
@@ -274,7 +274,7 @@ not recorded is allowed with a review warning. Patient reads expose stable
 never infers pregnancy absence or rewrites either value automatically.
 
 See [Clinical Catalog Management](agent-docs/clinical-catalog-management.md) for
-the database schema, administrator lifecycle, optional RxNorm/LOINC suggestions,
+the database schema, administrator lifecycle, optional condition/RxNorm/LOINC suggestions,
 configuration, safety boundaries, and the staged follow-up plan.
 
 The trial workspace likewise uses the same catalog for guided demographic,
@@ -305,6 +305,10 @@ immutable snapshot and screening history. A trial referenced by a saved screenin
 cannot be deleted. Editing current patient or trial labels never rewrites a stored
 criterion outcome.
 
+`GET /api/v1/screenings` remains owner-scoped and returns the latest 100 matching records. Optional
+`patient_id` and `trial_id` filters support reliable related-screening sections on record details;
+the response shape is unchanged.
+
 `POST /api/v1/screening-batches` accepts unique or repeated current `patient_ids`
 or existing `patient_snapshot_ids`, plus approved `trial_version_ids`. Current
 patients are snapshotted transactionally before screening. IDs are deduplicated before
@@ -317,10 +321,10 @@ evidence-backed screening ID for every matrix cell.
 ## Screening workspace
 
 After creating structured synthetic patients and approving a trial version, use the
-workspace dashboard to run a single screening. The result page shows the immutable
-patient snapshot, approved trial version, every criterion's stored source text,
-canonical explanation, supporting evidence, and missing information. Unknown
-criteria are shown first. **Download report** produces a canonical PDF from that
+workspace dashboard to run a single screening. The result page leads with patient and trial names
+and the unchanged deterministic eligibility result. Complete criteria are grouped into not-met,
+review, and satisfied evidence, while engine and rule metadata are available through **Technical
+details**. **Download report** produces a canonical PDF from that
 same saved screening; it does not call an LLM or recalculate eligibility. The PDF
 includes report schema/template versions and a generation timestamp, so the source
 screening remains the authority while the downloaded artifact is easy to identify.
@@ -329,8 +333,7 @@ screening remains the authority while the downloaded artifact is easy to identif
 current patients and all trials, clearly disabling trials that have no approved
 version. It previews the bounded Cartesian pair count and creates a synchronous
 batch. Each batch matrix cell links back to the ordinary evidence-rich screening
-detail page. The UI is educational and uses synthetic data only; it does not provide
-medical advice or enrollment guidance.
+detail page.
 
 ## Reviewed imports
 
@@ -396,18 +399,20 @@ or `disabled`. Never send real patient data. The held-out synthetic evaluation a
 its live-provider limitations are documented in
 `backend/evaluation/PHASE7_EVALUATION.md`.
 
-Catalog administrators can optionally ask for terminology suggestions while adding
-a local detail. Medication suggestions use RxNav's active approximate-match API;
-observation suggestions use LOINC's Search API when
+Patient and trial entry search the supported catalog and live terminology sources from the same
+field. Condition suggestions use NLM Clinical Tables, medication suggestions use RxNav's active
+approximate-match API, and observation suggestions use LOINC's Search API when
 `TRIALSYNC_LOINC_USERNAME` and `TRIALSYNC_LOINC_PASSWORD` are configured. A free LOINC website
 login supplies those two values; there is no separate API key for this Search API integration.
 LOINC uses HTTP Basic Authentication and currently describes the Search API as a pilot, so the app
-treats both sources as best-effort lookup only. See the official
-[LOINC API authentication guidance](https://loinc.org/kb/api/auth). A suggestion never creates,
-changes, or screens a concept
-on its own: the administrator must select it, review the populated fields, and
-save the local concept. Selected RxNorm/LOINC code provenance is stored on that
-local concept. Set `TRIALSYNC_TERMINOLOGY_SUGGESTIONS_ENABLED=false` to disable
+treats all external sources as best-effort lookup only. See the official
+[LOINC API authentication guidance](https://loinc.org/kb/api/auth). An external patient match can
+be retained as a record-only review item, while an external trial match remains unresolved until
+it is mapped to a supported screening concept. Neither changes deterministic screening logic.
+Selecting a new match opens a compact category/unit setup dialog. Catalog administrators can
+explicitly add it to the supported catalog there and continue directly into the normal value or
+criterion editor; routine users retain the review-only path. Set
+`TRIALSYNC_TERMINOLOGY_SUGGESTIONS_ENABLED=false` to disable
 external lookup entirely.
 
 ## Reproducible demo and evaluation

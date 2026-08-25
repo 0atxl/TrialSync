@@ -110,7 +110,7 @@ class ClinicalConceptRead(ORMModel):
 
 
 class TerminologySuggestionRead(BaseModel):
-    source: Literal["rxnorm", "loinc"]
+    source: Literal["conditions", "rxnorm", "loinc"]
     code: str = Field(min_length=1, max_length=80)
     display_label: str = Field(min_length=1, max_length=240)
     detail: str | None = Field(default=None, max_length=500)

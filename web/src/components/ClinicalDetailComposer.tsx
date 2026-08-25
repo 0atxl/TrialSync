@@ -1,18 +1,22 @@
 import { Search, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 
 import {
-  apiRequest,
   type BiologicalSex,
   type ClinicalDetailValue,
   type Fact,
   type PatientFactCatalogEntry,
-  type PatientFactCatalogSuggestionResponse,
   type PatientFactGroup,
   type PatientUnsupportedDetailCategory,
   type TerminologySuggestion,
 } from '../api/client'
+import {
+  suggestionCategory,
+  suggestionSourceLabel,
+  useTerminologySuggestions,
+} from '../hooks/useTerminologySuggestions'
 import { todayIsoDate } from '../utils/dates'
+import { TerminologySetupDialog } from './TerminologySetupDialog'
 
 export type ClinicalDetailDraft = {
   id: string
@@ -37,12 +41,6 @@ const groupLabels: Record<PatientFactGroup | 'all', string> = {
   observations: 'Labs and observations',
 }
 
-const categoryForGroup: Record<PatientFactGroup, PatientUnsupportedDetailCategory> = {
-  conditions: 'condition',
-  medications: 'medication',
-  observations: 'observation',
-}
-
 let draftSequence = 0
 function draftId(prefix: string) {
   draftSequence += 1
@@ -63,19 +61,23 @@ function valueSummary(detail: ClinicalDetailDraft) {
 export function ClinicalDetailComposer({
   entries,
   token,
+  canCreateSupportedTerm,
   biologicalSex,
   details,
   unsupported,
   onDetailsChange,
   onUnsupportedChange,
+  onCatalogEntryCreated,
 }: {
   entries: PatientFactCatalogEntry[]
   token: string | null
+  canCreateSupportedTerm: boolean
   biologicalSex: BiologicalSex | null
   details: ClinicalDetailDraft[]
   unsupported: UnsupportedClinicalDraft[]
   onDetailsChange: (details: ClinicalDetailDraft[]) => void
   onUnsupportedChange: (details: UnsupportedClinicalDraft[]) => void
+  onCatalogEntryCreated: (entry: PatientFactCatalogEntry) => void
 }) {
   const [query, setQuery] = useState('')
   const [group, setGroup] = useState<PatientFactGroup | 'all'>('all')
@@ -84,9 +86,9 @@ export function ClinicalDetailComposer({
   const [numericValue, setNumericValue] = useState('')
   const [effectiveDate, setEffectiveDate] = useState('')
   const [fieldError, setFieldError] = useState('')
-  const [suggestions, setSuggestions] = useState<TerminologySuggestion[]>([])
-  const [suggesting, setSuggesting] = useState(false)
-  const [suggestionNotice, setSuggestionNotice] = useState('')
+  const [setupSuggestion, setSetupSuggestion] = useState<TerminologySuggestion | null>(null)
+  const { suggestions, suggesting, suggestionNotice } =
+    useTerminologySuggestions(query, group, token)
 
   const available = useMemo(() => {
     const term = query.trim().toLowerCase()
@@ -97,37 +99,6 @@ export function ClinicalDetailComposer({
       (!term || `${entry.display_label} ${entry.help_text}`.toLowerCase().includes(term)),
     ).slice(0, 10)
   }, [details, entries, group, query])
-
-  useEffect(() => {
-    const term = query.trim()
-    const factType = group === 'medications' ? 'medication' : group === 'observations' ? 'observation' : null
-    if (term.length < 2 || !factType) {
-      setSuggestions([])
-      setSuggestionNotice('')
-      return
-    }
-    const controller = new AbortController()
-    const timer = window.setTimeout(async () => {
-      setSuggesting(true)
-      try {
-        const response = await apiRequest<PatientFactCatalogSuggestionResponse>(
-          `/patient-fact-catalog/suggestions?query=${encodeURIComponent(term)}&fact_type=${factType}`,
-          { signal: controller.signal },
-          token,
-        )
-        setSuggestions(response.suggestions)
-        setSuggestionNotice(response.unavailable_sources.length ? 'External suggestions are temporarily unavailable. Local matches still work.' : '')
-      } catch {
-        if (!controller.signal.aborted) {
-          setSuggestions([])
-          setSuggestionNotice('External suggestions are temporarily unavailable. Local matches still work.')
-        }
-      } finally {
-        if (!controller.signal.aborted) setSuggesting(false)
-      }
-    }, 250)
-    return () => { window.clearTimeout(timer); controller.abort() }
-  }, [group, query, token])
 
   const selectEntry = (entry: PatientFactCatalogEntry) => {
     setSelected(entry)
@@ -175,16 +146,37 @@ export function ClinicalDetailComposer({
     setFieldError('')
   }
 
-  const keepForReview = (suggestion: TerminologySuggestion) => {
-    if (group === 'all') return
+  const selectSuggestion = (suggestion: TerminologySuggestion) => {
+    const supported = entries.find(
+      (entry) => entry.display_label.trim().toLowerCase() === suggestion.display_label.trim().toLowerCase(),
+    )
+    if (supported) {
+      selectEntry(supported)
+      setQuery('')
+      return
+    }
+    setSetupSuggestion(suggestion)
+  }
+
+  const keepForReview = (
+    suggestion: TerminologySuggestion,
+    category = suggestionCategory(suggestion),
+  ) => {
     onUnsupportedChange([...unsupported, {
       id: draftId('review'),
-      category: categoryForGroup[group],
+      category,
       label: suggestion.display_label,
-      context: 'Suggested terminology match; review before adding it to the available clinical details.',
+      context: null,
     }])
+    setSetupSuggestion(null)
     setQuery('')
-    setSuggestions([])
+  }
+
+  const useSupportedTerm = (entry: PatientFactCatalogEntry) => {
+    onCatalogEntryCreated(entry)
+    selectEntry(entry)
+    setSetupSuggestion(null)
+    setQuery('')
   }
 
   return (
@@ -222,7 +214,7 @@ export function ClinicalDetailComposer({
           {query.trim() || group !== 'all' ? (
             <div className="inline-catalog-results">
               {available.map((entry) => <button key={entry.key} type="button" onClick={() => selectEntry(entry)}><span><strong>{entry.display_label}</strong><small>{groupLabels[entry.group]}</small></span>{entry.fixed_unit ? <b>{entry.fixed_unit}</b> : null}</button>)}
-              {suggestions.map((suggestion) => <button className="external-suggestion" key={`${suggestion.source}-${suggestion.code}`} type="button" onClick={() => keepForReview(suggestion)}><span><strong>{suggestion.display_label}</strong><small>Not available yet · keep for review</small></span></button>)}
+              {suggestions.map((suggestion) => <button className="external-suggestion" key={`${suggestion.source}-${suggestion.code}`} type="button" onClick={() => selectSuggestion(suggestion)}><span><strong>{suggestion.display_label}</strong><small>{suggestionSourceLabel(suggestion)} · set up</small></span></button>)}
               {!available.length && !suggestions.length && !suggesting ? <p>No matching clinical details.</p> : null}
               {suggesting ? <p>Checking more suggestions…</p> : null}
               {suggestionNotice ? <p className="suggestion-notice" role="status">{suggestionNotice}</p> : null}
@@ -239,6 +231,15 @@ export function ClinicalDetailComposer({
           <button className="secondary-button" type="submit">Add detail</button>
         </form>
       )}
+      <TerminologySetupDialog
+        suggestion={setupSuggestion}
+        token={token}
+        canCreateSupportedTerm={canCreateSupportedTerm}
+        reviewLabel="Keep in patient record"
+        onCancel={() => setSetupSuggestion(null)}
+        onKeepForReview={keepForReview}
+        onSupported={useSupportedTerm}
+      />
     </div>
   )
 }

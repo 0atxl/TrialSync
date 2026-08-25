@@ -7,14 +7,17 @@ import {
   type Criterion,
   type PatientFactCatalog,
   type PatientFactCatalogEntry,
+  type Screening,
   type Trial,
   type TrialVersion,
 } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { ConfirmationDialog } from '../components/ConfirmationDialog'
+import { RelatedScreenings } from '../components/RelatedScreenings'
+import { TechnicalDetails } from '../components/UiPrimitives'
+import { TrialCriteriaSection } from '../components/TrialCriteriaSection'
 import { useToast } from '../components/ToastProvider'
 import {
-  criterionSubjectKey,
   TrialCriterionEditor,
   type GuidedCriterionSubmission,
   type UnsupportedCriterionSubmission,
@@ -28,10 +31,11 @@ type TrialProfileDraft = {
 
 export function TrialDetailPage() {
   const { trialId = '' } = useParams()
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [trial, setTrial] = useState<Trial | null>(null)
+  const [screenings, setScreenings] = useState<Screening[]>([])
   const [catalog, setCatalog] = useState<PatientFactCatalogEntry[]>([])
   const [catalogError, setCatalogError] = useState('')
   const [error, setError] = useState('')
@@ -47,7 +51,13 @@ export function TrialDetailPage() {
 
   const load = useCallback(async () => {
     try {
-      setTrial(await apiRequest<Trial>(`/trials/${trialId}`, {}, token))
+      const [record, savedScreenings] = await Promise.all([
+        apiRequest<Trial>(`/trials/${trialId}`, {}, token),
+        apiRequest<Screening[]>(`/screenings?trial_id=${encodeURIComponent(trialId)}`, {}, token)
+          .catch(() => []),
+      ])
+      setTrial(record)
+      setScreenings(Array.isArray(savedScreenings) ? savedScreenings : [])
       setError('')
     } catch {
       setError('Trial could not be loaded.')
@@ -358,10 +368,7 @@ export function TrialDetailPage() {
     <section className="route-entry workspace-page">
       <Link className="back-link" to="/trials">← Trials</Link>
       <header className="page-heading">
-        <div>
-          <p className="eyebrow">{trial.registry_id}</p>
-          <h1>{trial.title}</h1>
-        </div>
+        <h1>{trial.title}</h1>
         <button
           className="danger-button danger-button-subtle"
           type="button"
@@ -373,10 +380,7 @@ export function TrialDetailPage() {
 
       <section className="demographics-panel trial-profile-panel" aria-labelledby="trial-profile-heading">
         <div className="demographics-heading">
-          <div>
-            <p className="eyebrow">Protocol profile</p>
-            <h2 id="trial-profile-heading">Trial details</h2>
-          </div>
+          <h2 id="trial-profile-heading">Trial details</h2>
           {!editingProfile ? (
             <button className="secondary-button" type="button" onClick={beginProfileEdit}>
               Edit trial details
@@ -434,9 +438,9 @@ export function TrialDetailPage() {
           </form>
         ) : (
           <dl className="demographics-summary">
-            <div><dt>Title</dt><dd>{trial.title}</dd></div>
             <div><dt>Primary condition</dt><dd>{trial.condition}</dd></div>
             <div><dt>Phase</dt><dd>{trial.phase ?? 'Not recorded'}</dd></div>
+            <div><dt>Registry reference</dt><dd>{trial.registry_id}</dd></div>
           </dl>
         )}
       </section>
@@ -451,133 +455,26 @@ export function TrialDetailPage() {
         </div>
       ) : null}
 
-      <section className="trial-criteria-workspace" aria-labelledby="trial-criteria-heading">
-        <div className="clinical-details-heading">
-          <div>
-            <p className="eyebrow">Deterministic screening</p>
-            <h2 id="trial-criteria-heading">Eligibility criteria</h2>
-            <p>
-              Build readable inclusion and exclusion rules from the same controlled
-              clinical catalog used by patient records.
-            </p>
-          </div>
-          {editingCriteria ? (
-            <button
-              className="primary-button"
-              disabled={saving || !activeDraft || activeDraft.criteria.length === 0}
-              type="button"
-              onClick={() => void approveVersion()}
-            >
-              {saving ? 'Saving…' : 'Save protocol'}
-            </button>
-          ) : (
-            <button
-              className="primary-button"
-              disabled={saving}
-              type="button"
-              onClick={() => void startEditingCriteria()}
-            >
-              {saving ? 'Opening…' : 'Edit criteria'}
-            </button>
-          )}
-        </div>
-
-        {currentProtocol ? (
-          <>
-            <div className="draft-banner" role="status">
-              <div>
-                <strong>{editingCriteria ? 'Editing criteria' : 'Current protocol'}</strong>
-                <span>
-                  {editingCriteria
-                    ? 'Save when you are finished. Saved screenings remain unchanged.'
-                    : 'Select Edit criteria to make changes. Saved screenings remain unchanged.'}
-                </span>
-              </div>
-            </div>
-            <div className="trial-criteria-groups">
-              {(['inclusion', 'exclusion'] as const).map((kind) => (
-                <section className={`trial-criterion-group criterion-${kind}`} key={kind}>
-                  <header>
-                    <div>
-                      <p className="eyebrow">
-                        {kind === 'inclusion' ? 'Must be satisfied' : 'Must not be present'}
-                      </p>
-                      <h3>{kind === 'inclusion' ? 'Inclusion criteria' : 'Exclusion criteria'}</h3>
-                    </div>
-                    <button
-                      className="secondary-button"
-                      disabled={!editingCriteria || Boolean(catalogError)}
-                      type="button"
-                      onClick={() => openAddCriterion(kind)}
-                    >
-                      Add criterion
-                    </button>
-                  </header>
-                  {criteriaByKind[kind].length === 0 ? (
-                    <div className="trial-criterion-empty">
-                      No {kind} criteria have been added.
-                    </div>
-                  ) : (
-                    <div className="trial-criterion-rows">
-                      {criteriaByKind[kind].map((criterion) => {
-                        const supported = Boolean(
-                          criterion.normalized_rule &&
-                          criterionSubjectKey(criterion, catalog),
-                        )
-                        return (
-                          <article className="trial-criterion-row" key={criterion.id}>
-                            <div>
-                              <strong>{criterion.source_text}</strong>
-                              <span>
-                                {supported
-                                  ? 'Structured screening rule'
-                                  : 'Review only · no screening rule'}
-                              </span>
-                            </div>
-                            <div className="record-actions">
-                              {editingCriteria && supported ? (
-                                <button
-                                  className="text-button"
-                                  type="button"
-                                  onClick={() => openEditCriterion(criterion)}
-                                >
-                                  Edit
-                                </button>
-                              ) : !supported ? (
-                                <span className="unsupported-detail">Needs mapping</span>
-                              ) : null}
-                              {editingCriteria ? (
-                                <button
-                                  className="text-button danger"
-                                  disabled={saving}
-                                  type="button"
-                                  onClick={() => void deleteCriterion(criterion)}
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                            </div>
-                          </article>
-                        )
-                      })}
-                    </div>
-                  )}
-                </section>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="trial-draft-empty">
-            <strong>No eligibility criteria yet.</strong>
-            <p>
-              Select Edit criteria to add inclusion and exclusion rules using the clinical catalog.
-            </p>
-          </div>
-        )}
-      </section>
+      <TrialCriteriaSection
+        currentProtocol={Boolean(currentProtocol)}
+        criteriaByKind={criteriaByKind}
+        editing={editingCriteria}
+        saving={saving}
+        catalogError={catalogError}
+        canSave={Boolean(activeDraft?.criteria.length)}
+        onAdd={openAddCriterion}
+        onEdit={openEditCriterion}
+        onRemove={(criterion) => { void deleteCriterion(criterion) }}
+        onSave={() => { void approveVersion() }}
+        onStartEditing={() => { void startEditingCriteria() }}
+        catalog={catalog}
+      />
 
       <TrialCriterionEditor
         open={criterionEditorOpen}
+        presentation="inline"
+        token={token}
+        canCreateSupportedTerm={Boolean(user?.is_catalog_admin)}
         entries={catalog}
         criterion={editingCriterion}
         initialKind={criterionKind}
@@ -586,10 +483,28 @@ export function TrialDetailPage() {
         onCancel={closeCriterionEditor}
         onSubmit={(submission) => void saveCriterion(submission)}
         onSubmitUnsupported={(submission) => void saveUnsupportedCriterion(submission)}
+        onCatalogEntryCreated={(entry) => setCatalog((current) => [...current, entry])}
       />
+
+      <RelatedScreenings screenings={screenings} counterpart="patient" />
+      <TechnicalDetails>
+        <dl className="technical-details-list">
+          <div><dt>Record reference</dt><dd>{trial.registry_id}</dd></div>
+          <div>
+            <dt>Protocol status</dt>
+            <dd>{editingCriteria ? 'Draft changes in progress' : 'Current protocol saved'}</dd>
+          </div>
+          {currentProtocol ? (
+            <div><dt>Protocol version</dt><dd>{currentProtocol.version}</dd></div>
+          ) : null}
+          {trial.updated_at ? (
+            <div><dt>Last updated</dt><dd>{new Date(trial.updated_at).toLocaleString()}</dd></div>
+          ) : null}
+        </dl>
+      </TechnicalDetails>
+
       <ConfirmationDialog
         open={deleteOpen}
-        eyebrow="Permanent action"
         title="Delete this trial?"
         confirmLabel="Delete trial"
         busyLabel="Deleting…"
@@ -598,8 +513,8 @@ export function TrialDetailPage() {
         onConfirm={() => void deleteTrial()}
       >
         <p>
-          <strong>{trial.title}</strong> and its protocol data will be removed.
-          Protocols referenced by saved screening history remain protected.
+          <strong>{trial.title}</strong> will be removed. Trials used by saved screenings
+          cannot be deleted.
         </p>
       </ConfirmationDialog>
     </section>

@@ -39,7 +39,7 @@ export type PatientFactCatalogEntry = {
   display_order: number
 }
 export type TerminologySuggestion = {
-  source: 'rxnorm' | 'loinc'
+  source: 'conditions' | 'rxnorm' | 'loinc'
   code: string
   display_label: string
   detail: string | null
@@ -71,6 +71,8 @@ export type ClinicalConcept = {
   effective_date_required: boolean
   screening_supported: boolean
   help_text: string
+  terminology_system: string | null
+  terminology_code: string | null
   display_order: number
   active: boolean
   created_at: string
@@ -156,6 +158,8 @@ export type TrialVersion = {
   status: 'draft' | 'approved'
   source_text: string | null
   criteria: Criterion[]
+  created_at?: string
+  updated_at?: string
 }
 export type Trial = {
   id: string
@@ -164,6 +168,8 @@ export type Trial = {
   condition: string
   phase: string | null
   versions: TrialVersion[]
+  created_at?: string
+  updated_at?: string
 }
 export type ScreeningState = 'potentially_eligible' | 'likely_ineligible' | 'needs_review'
 export type ScreeningCounts = { pass_count: number; fail_count: number; unknown_count: number }

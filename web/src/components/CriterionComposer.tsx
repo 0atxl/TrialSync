@@ -1,18 +1,22 @@
 import { Search, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 
 import {
-  apiRequest,
   type Criterion,
   type PatientFactCatalogEntry,
-  type PatientFactCatalogSuggestionResponse,
   type PatientFactGroup,
   type TerminologySuggestion,
 } from '../api/client'
+import {
+  suggestionCategory,
+  suggestionSourceLabel,
+  useTerminologySuggestions,
+} from '../hooks/useTerminologySuggestions'
 import type {
   GuidedCriterionSubmission,
   UnsupportedCriterionSubmission,
 } from './TrialCriterionEditor'
+import { TerminologySetupDialog } from './TerminologySetupDialog'
 
 export type CriterionDraft = GuidedCriterionSubmission & {
   id: string
@@ -59,18 +63,22 @@ export function CriterionComposer({
   kind,
   entries,
   token,
+  canCreateSupportedTerm,
   criteria,
   unsupported,
   onCriteriaChange,
   onUnsupportedChange,
+  onCatalogEntryCreated,
 }: {
   kind: Criterion['kind']
   entries: PatientFactCatalogEntry[]
   token: string | null
+  canCreateSupportedTerm: boolean
   criteria: CriterionDraft[]
   unsupported: UnsupportedCriterionDraft[]
   onCriteriaChange: (criteria: CriterionDraft[]) => void
   onUnsupportedChange: (criteria: UnsupportedCriterionDraft[]) => void
+  onCatalogEntryCreated: (entry: PatientFactCatalogEntry) => void
 }) {
   const [query, setQuery] = useState('')
   const [group, setGroup] = useState<PatientFactGroup | 'demographics' | 'all'>('all')
@@ -81,8 +89,9 @@ export function CriterionComposer({
   const [maximum, setMaximum] = useState('')
   const [biologicalSex, setBiologicalSex] = useState<'female' | 'male'>('female')
   const [fieldError, setFieldError] = useState('')
-  const [suggestions, setSuggestions] = useState<TerminologySuggestion[]>([])
-  const [suggesting, setSuggesting] = useState(false)
+  const [setupSuggestion, setSetupSuggestion] = useState<TerminologySuggestion | null>(null)
+  const { suggestions, suggesting, suggestionNotice } =
+    useTerminologySuggestions(query, group, token)
 
   const subjects = useMemo<Subject[]>(() => [
     { key: 'age', label: 'Age', group: 'demographics', numeric: true, unit: 'years' },
@@ -103,29 +112,6 @@ export function CriterionComposer({
       (!term || subject.label.toLowerCase().includes(term)),
     ).slice(0, 10)
   }, [group, query, subjects])
-
-  useEffect(() => {
-    const term = query.trim()
-    const factType = group === 'medications' ? 'medication' : group === 'observations' ? 'observation' : null
-    if (term.length < 2 || !factType) { setSuggestions([]); return }
-    const controller = new AbortController()
-    const timer = window.setTimeout(async () => {
-      setSuggesting(true)
-      try {
-        const response = await apiRequest<PatientFactCatalogSuggestionResponse>(
-          `/patient-fact-catalog/suggestions?query=${encodeURIComponent(term)}&fact_type=${factType}`,
-          { signal: controller.signal },
-          token,
-        )
-        setSuggestions(response.suggestions)
-      } catch {
-        if (!controller.signal.aborted) setSuggestions([])
-      } finally {
-        if (!controller.signal.aborted) setSuggesting(false)
-      }
-    }, 250)
-    return () => { window.clearTimeout(timer); controller.abort() }
-  }, [group, query, token])
 
   const chooseSubject = (subject: Subject) => {
     setSelected(subject)
@@ -165,16 +151,43 @@ export function CriterionComposer({
     setQuery('')
   }
 
-  const keepForReview = (suggestion: TerminologySuggestion) => {
-    const category = group === 'medications' ? 'medication' : 'observation'
+  const selectSuggestion = (suggestion: TerminologySuggestion) => {
+    const supported = subjects.find(
+      (subject) => subject.label.trim().toLowerCase() === suggestion.display_label.trim().toLowerCase(),
+    )
+    if (supported) {
+      chooseSubject(supported)
+      setQuery('')
+      return
+    }
+    setSetupSuggestion(suggestion)
+  }
+
+  const keepForReview = (
+    suggestion: TerminologySuggestion,
+    category = suggestionCategory(suggestion),
+  ) => {
     onUnsupportedChange([...unsupported, {
       id: criterionId('review'),
       kind,
       category,
       source_text: suggestion.display_label,
     }])
+    setSetupSuggestion(null)
     setQuery('')
-    setSuggestions([])
+  }
+
+  const useSupportedTerm = (entry: PatientFactCatalogEntry) => {
+    onCatalogEntryCreated(entry)
+    chooseSubject({
+      key: entry.key,
+      label: entry.display_label,
+      group: entry.group,
+      numeric: entry.input_kind === 'numeric',
+      unit: entry.fixed_unit,
+    })
+    setSetupSuggestion(null)
+    setQuery('')
   }
 
   return (
@@ -187,13 +200,22 @@ export function CriterionComposer({
         <div className="inline-search-heading"><div><h3 id={`${kind}-criterion-search-title`}>Add {kind} criterion</h3></div></div>
         <label className="catalog-search-input"><Search aria-hidden="true" size={17} /><span className="sr-only">Search supported criteria</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Age, condition, medication, or lab" /></label>
         <div className="catalog-groups compact" aria-label="Criterion categories">{(Object.keys(groupLabels) as Array<PatientFactGroup | 'demographics' | 'all'>).map((key) => <button aria-pressed={group === key} className={group === key ? 'selected' : ''} key={key} type="button" onClick={() => setGroup(key)}>{groupLabels[key]}</button>)}</div>
-        {query.trim() || group !== 'all' ? <div className="inline-catalog-results">{available.map((subject) => <button key={subject.key} type="button" onClick={() => chooseSubject(subject)}><span><strong>{subject.label}</strong><small>{groupLabels[subject.group]}</small></span>{subject.unit ? <b>{subject.unit}</b> : null}</button>)}{suggestions.map((suggestion) => <button className="external-suggestion" key={`${suggestion.source}-${suggestion.code}`} type="button" onClick={() => keepForReview(suggestion)}><span><strong>{suggestion.display_label}</strong><small>Not available yet · keep for review</small></span></button>)}{!available.length && !suggestions.length && !suggesting ? <p>No matching criteria.</p> : null}{suggesting ? <p>Checking more suggestions…</p> : null}</div> : null}
+        {query.trim() || group !== 'all' ? <div className="inline-catalog-results">{available.map((subject) => <button key={subject.key} type="button" onClick={() => chooseSubject(subject)}><span><strong>{subject.label}</strong><small>{groupLabels[subject.group]}</small></span>{subject.unit ? <b>{subject.unit}</b> : null}</button>)}{suggestions.map((suggestion) => <button className="external-suggestion" key={`${suggestion.source}-${suggestion.code}`} type="button" onClick={() => selectSuggestion(suggestion)}><span><strong>{suggestion.display_label}</strong><small>{suggestionSourceLabel(suggestion)} · set up</small></span></button>)}{!available.length && !suggestions.length && !suggesting ? <p>No matching criteria.</p> : null}{suggesting ? <p>Checking live suggestions…</p> : null}{suggestionNotice ? <p className="suggestion-notice">{suggestionNotice}</p> : null}</div> : null}
       </section> : <form className="inline-detail-editor criterion-inline-editor" onSubmit={addCriterion}>
         <div className="inline-editor-head"><div><small>{kind} criterion</small><h3>{selected.label}</h3></div><button className="text-button" type="button" onClick={() => setSelected(null)}>Choose another</button></div>
         {selected.key === 'biological_sex' ? <fieldset className="detail-status-field"><legend>Required biological sex</legend><div>{(['female', 'male'] as const).map((sex) => <label key={sex}><input checked={biologicalSex === sex} name={`${kind}-criterion-sex`} type="radio" onChange={() => setBiologicalSex(sex)} /><span>{sex === 'female' ? 'Female' : 'Male'}</span></label>)}</div></fieldset> : selected.numeric ? <><fieldset className="detail-status-field"><legend>Comparison</legend><div>{([['gte', 'At least'], ['lte', 'At most'], ['between', 'Between']] as const).map(([nextOperator, label]) => <label key={nextOperator}><input checked={operator === nextOperator} name={`${kind}-criterion-operator`} type="radio" onChange={() => setOperator(nextOperator)} /><span>{label}</span></label>)}</div></fieldset>{operator === 'between' ? <div className="form-pair"><label>Minimum<input aria-label="Minimum" type="number" step="any" value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label><label>Maximum<input aria-label="Maximum" type="number" step="any" value={maximum} onChange={(event) => setMaximum(event.target.value)} /></label></div> : <label>Threshold<input aria-label="Threshold" type="number" step="any" value={value} onChange={(event) => setValue(event.target.value)} /></label>}</> : <fieldset className="detail-status-field"><legend>Required state</legend><div>{([['present', 'Present'], ['absent', 'Absent']] as const).map(([nextOperator, label]) => <label key={nextOperator}><input checked={operator === nextOperator} name={`${kind}-criterion-state`} type="radio" onChange={() => setOperator(nextOperator)} /><span>{label}</span></label>)}</div></fieldset>}
         {fieldError ? <div className="field-error" role="alert">{fieldError}</div> : null}
         <button className="secondary-button" type="submit">Add criterion</button>
       </form>}
+      <TerminologySetupDialog
+        suggestion={setupSuggestion}
+        token={token}
+        canCreateSupportedTerm={canCreateSupportedTerm}
+        reviewLabel="Keep for review"
+        onCancel={() => setSetupSuggestion(null)}
+        onKeepForReview={keepForReview}
+        onSupported={useSupportedTerm}
+      />
     </div>
   )
 }

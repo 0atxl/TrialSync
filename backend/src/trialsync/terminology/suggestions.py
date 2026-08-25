@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,6 +12,7 @@ from trialsync.schemas import TerminologySuggestionRead
 
 RXNAV_APPROXIMATE_URL = "https://rxnav.nlm.nih.gov/REST/approximateTerm.json"
 LOINC_SEARCH_URL = "https://loinc.regenstrief.org/searchapi/loincs"
+CONDITIONS_SEARCH_URL = "https://clinicaltables.nlm.nih.gov/api/conditions/v3/search"
 
 
 @dataclass(frozen=True)
@@ -45,14 +47,52 @@ class TerminologySuggestionService:
     ) -> TerminologySuggestionResult:
         if not self.enabled:
             return TerminologySuggestionResult([], ["Terminology suggestions are disabled."])
+        if fact_type is FactType.condition:
+            return await self._conditions(query)
         if fact_type is FactType.medication:
             return await self._rxnorm(query)
         if fact_type is FactType.observation:
             return await self._loinc(query)
         return TerminologySuggestionResult(
             [],
-            ["External suggestions are available for medications and observations only."],
+            ["External suggestions are available for conditions, medications, and observations."],
         )
+
+    async def suggest_all(self, *, query: str) -> TerminologySuggestionResult:
+        results = await asyncio.gather(
+            self.suggest(query=query, fact_type=FactType.condition),
+            self.suggest(query=query, fact_type=FactType.medication),
+            self.suggest(query=query, fact_type=FactType.observation),
+        )
+        return TerminologySuggestionResult(
+            [suggestion for result in results for suggestion in result.suggestions],
+            [source for result in results for source in result.unavailable_sources],
+        )
+
+    async def _conditions(self, query: str) -> TerminologySuggestionResult:
+        try:
+            payload = await self._get_json(
+                CONDITIONS_SEARCH_URL,
+                params={"terms": query, "maxList": self.max_results, "df": "primary_name"},
+            )
+        except httpx.HTTPError:
+            return TerminologySuggestionResult(
+                [], ["Condition suggestions could not be reached. Try again later."]
+            )
+        if not isinstance(payload, list) or len(payload) < 4:
+            return TerminologySuggestionResult([], [])
+        codes = payload[1] if isinstance(payload[1], list) else []
+        rows = payload[3] if isinstance(payload[3], list) else []
+        suggestions = [
+            TerminologySuggestionRead(
+                source="conditions",
+                code=str(code),
+                display_label=str(row[0]),
+            )
+            for code, row in zip(codes, rows, strict=False)
+            if code and isinstance(row, list) and row and row[0]
+        ]
+        return TerminologySuggestionResult(suggestions[: self.max_results], [])
 
     async def _rxnorm(self, query: str) -> TerminologySuggestionResult:
         try:
@@ -96,7 +136,7 @@ class TerminologySuggestionService:
             )
         except httpx.HTTPError:
             return TerminologySuggestionResult([], ["LOINC could not be reached. Try again later."])
-        rows = _loinc_rows(payload)
+        rows = _loinc_rows(payload if isinstance(payload, dict) else {})
         suggestions = [suggestion for row in rows if (suggestion := _loinc_suggestion(row))]
         return TerminologySuggestionResult(suggestions[: self.max_results], [])
 
@@ -106,7 +146,7 @@ class TerminologySuggestionService:
         *,
         params: dict[str, str | int],
         auth: tuple[str, str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> Any:
         client = self._client or httpx.AsyncClient(timeout=self.timeout_seconds)
         try:
             response = await client.get(url, params=params, auth=auth)
@@ -115,7 +155,7 @@ class TerminologySuggestionService:
         finally:
             if self._client is None:
                 await client.aclose()
-        return payload if isinstance(payload, dict) else {}
+        return payload
 
 
 def _loinc_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:

@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 
 type ConfirmationDialogProps = {
   open: boolean
-  eyebrow: string
+  eyebrow?: string
   title: string
   children: ReactNode
   confirmLabel: string
@@ -46,7 +46,7 @@ export function ConfirmationDialog({
       aria-labelledby={titleId}
       onCancel={(event) => { event.preventDefault(); onCancel() }}
     >
-      <p className="eyebrow">{eyebrow}</p>
+      {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
       <h2 id={titleId}>{title}</h2>
       <div className="confirmation-copy">{children}</div>
       <div className="warning-actions">

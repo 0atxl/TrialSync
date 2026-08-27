@@ -52,13 +52,13 @@ The model uses the exact 22-feature R3 day-30 schema:
 
 Every value has an explicit source. The saved screening supplies only baseline values it owns,
 such as age from the immutable date of birth and condition category from the approved trial
-version. The accepted integration derives remaining values from the platform research enrollment
-and its dose, visit, measurement, and adverse-event records. Missing, non-finite, out-of-range, or
-unknown fields prevent a ready follow-up snapshot; missing values are never converted to zero.
+version. The active integration requests one explicit aggregate through-day-30 summary and derives
+the ten frozen follow-up features on the server. Missing, non-finite, out-of-range, or unknown
+fields prevent snapshot creation; missing values are never converted to zero.
 
 ## Immutable linkage and persistence
 
-The current foundation migration `20260820_0013` adds:
+The foundation migration `20260820_0013` adds:
 
 - `research_model_versions`, containing the approved runtime metadata;
 - `research_enrollments`, joining an owner-scoped saved screening to its immutable patient snapshot
@@ -69,6 +69,10 @@ The current foundation migration `20260820_0013` adds:
   missing fields;
 - `research_predictions`, storing the exact follow-up snapshot hash, probability, risk band, model
   metadata, and top contributions.
+
+Migration `20260827_0014` adds `input_summary_json` to immutable follow-up snapshots. The earlier
+event tables remain for migration compatibility, but they are no longer exposed by the active R5
+API or used by the prediction-entry workflow.
 
 A screening may have only one immutable enrollment episode. No runtime row resolves into the R3
 training dataset. Predictions remain idempotent for the same owner, enrollment, model, and
@@ -85,23 +89,23 @@ GET  /api/v1/research/risk/models/{model_version}
 GET  /api/v1/research/screenings/{screening_id}/capabilities
 POST /api/v1/research/screenings/{screening_id}/enrollment
 GET  /api/v1/research/enrollments/{enrollment_id}
-GET  /api/v1/research/enrollments/{enrollment_id}/events
-POST /api/v1/research/enrollments/{enrollment_id}/dose-events
-POST /api/v1/research/enrollments/{enrollment_id}/visit-events
-POST /api/v1/research/enrollments/{enrollment_id}/measurements
-POST /api/v1/research/enrollments/{enrollment_id}/adverse-events
-POST /api/v1/research/enrollments/{enrollment_id}/follow-up-snapshots
+POST /api/v1/research/enrollments/{enrollment_id}/day30-summary
 GET  /api/v1/research/enrollments/{enrollment_id}/follow-up-snapshots
 GET  /api/v1/research/risk/screenings/{screening_id}/context
+GET  /api/v1/research/risk/worklist
 POST /api/v1/research/risk/predictions
+POST /api/v1/research/risk/scenarios
 GET  /api/v1/research/risk/predictions
 GET  /api/v1/research/risk/predictions/{prediction_id}
 GET  /api/v1/research/trial-overview
 GET  /api/v1/research/trial-overview/{trial_version_id}
 ```
 
-The context endpoint reports `unlinked`, `incomplete`, or `ready`. Follow-up snapshots return every
-required feature with its group, value, source, and missing state. A prediction response includes the
+The context endpoint reports `unlinked`, `incomplete`, or `ready`. Submitting changed aggregate
+inputs creates or reuses the corresponding immutable snapshot and estimate. The owner-scoped
+worklist returns one row per potentially eligible screening with patient/trial labels, workflow
+state, latest current estimate or `null`, update time, and next action. Follow-up snapshots return
+every required feature with its group, value, source, and missing state. A prediction response includes the
 day-90 dropout probability, stored threshold, versioned risk band, model identity, source-preserved
 feature snapshot, and the eight largest native XGBoost Tree SHAP contributions. Contributions
 describe model behavior; they are not causal explanations.
@@ -119,9 +123,15 @@ is `0.21347740292549133`; the versioned display bands are lower, near threshold,
 response always states: `Research prediction only; not a clinical or eligibility decision.`
 
 The R5 backend integration passes focused persistence, API, feature, and model-package tests. The
-saved-screening frontend now implements enrollment setup, sourced baseline review, dose/visit/
-measurement/adverse-event capture, explicit follow-up readiness, prediction, probability/threshold/
-horizon/model metadata, and SHAP contributions beside the unchanged eligibility result. The
-trial-level Recruitment Overview now reconciles deterministic screening-state totals with explicit
-linked-prediction and unlinked-potentially-eligible denominators, model version, day-90 horizon,
-and versioned risk bands.
+saved-screening frontend launches a focused route for baseline setup, one compact aggregate day-30
+form, and the dropout estimate. It asks directly for expected/missed doses, visit totals,
+assessment totals/latest severity, and adverse-event count/burden; missing values remain missing.
+The saved eligibility result is unchanged. Probability, threshold,
+horizon, and human-readable factors are primary;
+model/provenance values and numeric SHAP contributions are under Technical details. The Dropout
+dashboard lists every potentially eligible screening across not-started, information-needed,
+ready-to-predict, and estimate-available states.
+
+The scenario endpoint performs non-persisting inference for the current aggregate and exactly one
+or two additional missed-dose opportunities while holding every other feature fixed. XGBoost is
+piecewise constant, so adjacent scenario points may legitimately have the same probability.

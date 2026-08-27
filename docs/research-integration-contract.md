@@ -116,7 +116,10 @@ Categorical values are resolved through a versioned mapping registry. If a saved
 condition, site, or treatment value outside the model's frozen vocabulary, the risk capability
 returns `unsupported_model_input`; the user is never asked to disguise it as a known category.
 
-## 4. Complete longitudinal event schema
+## 4. Retained longitudinal event schema
+
+The tables below remain for migration compatibility and possible future record tracking. They are
+not exposed by the active prediction-entry API and do not drive the current frontend.
 
 Events are append-only. A correction creates a replacement row with `supersedes_event_id`, actor,
 reason, and timestamp; it never edits evidence used by an existing follow-up snapshot or prediction.
@@ -198,7 +201,7 @@ is missing.
 
 ### `research_follow_up_snapshots`
 
-One immutable row is produced from baseline plus non-superseded events through the declared cutoff:
+One immutable row is produced from baseline plus the explicit aggregate through-day-30 input:
 
 | Field | Contract |
 |---|---|
@@ -208,13 +211,14 @@ One immutable row is produced from baseline plus non-superseded events through t
 | `feature_values_json` | Validated baseline and derived follow-up values |
 | `feature_sources_json` | Source/provenance for every value |
 | `feature_snapshot_hash` | Canonical checksum |
-| `event_set_checksum` | Hash of contributing event IDs and versions |
+| `input_summary_json` | Explicit aggregate totals entered for prediction |
+| `event_set_checksum` | Compatibility field containing the aggregate-input checksum |
 | `missing_features_json` | Explicit unresolved fields |
 | `status` | `incomplete` or `ready` |
 | `created_at` | Version timestamp |
 
-Creating new events produces a new follow-up snapshot. Existing predictions retain the snapshot
-hash they used and are never recalculated in place.
+Submitting changed aggregate inputs produces a new follow-up snapshot. Existing predictions retain
+the snapshot hash they used and are never recalculated in place.
 
 Outcomes, withdrawal state, generated risk tiers, and post-cutoff events are excluded from the
 feature builder.
@@ -348,24 +352,27 @@ Returns three independent states:
 }
 ```
 
-### Enrollment and events
+### Enrollment and day-30 input
 
 ```text
 POST /api/v1/research/screenings/{screening_id}/enrollment
 GET  /api/v1/research/enrollments/{enrollment_id}
-GET  /api/v1/research/enrollments/{enrollment_id}/events
-POST /api/v1/research/enrollments/{enrollment_id}/dose-events
-POST /api/v1/research/enrollments/{enrollment_id}/visit-events
-POST /api/v1/research/enrollments/{enrollment_id}/measurements
-POST /api/v1/research/enrollments/{enrollment_id}/adverse-events
-POST /api/v1/research/enrollments/{enrollment_id}/follow-up-snapshots
+POST /api/v1/research/enrollments/{enrollment_id}/day30-summary
 GET  /api/v1/research/enrollments/{enrollment_id}/follow-up-snapshots
+GET  /api/v1/research/risk/screenings/{screening_id}/context
+GET  /api/v1/research/risk/worklist
 ```
+
+The worklist is owner-scoped and returns all potentially eligible screenings in one of four UI
+states: `not_started`, `information_needed`, `ready`, or `predicted`. Its estimate is `null` unless
+the active-model prediction belongs to the latest ready follow-up snapshot. Changed aggregate
+inputs create or reuse a matching immutable snapshot before prediction.
 
 ### Independent research actions
 
 ```text
 POST /api/v1/research/risk/predictions
+POST /api/v1/research/risk/scenarios
 POST /api/v1/research/screenings/{screening_id}/cohort-context
 POST /api/v1/research/screenings/{screening_id}/similarity
 ```
@@ -375,15 +382,14 @@ requests identify a representation and neighbor bound under a path-authorized pl
 `screening_id`; the server selects and reports the configured active run.
 Existing cohort-member endpoints remain available for reference-Atlas exploration.
 
-Follow-up snapshot creation explicitly confirms whether dose, visit, measurement, and adverse-event
-records are complete through day 30. A confirmation never supplies a numeric value: zero is derived
-only where an empty but reviewed record has a defined zero meaning. Missing dose/visit denominators
-and absent functional measurements remain incomplete.
+Day-30 snapshot creation requires all aggregate counts and the latest functional assessment.
+Blank values are rejected. Zero is accepted only where the caller explicitly sends zero, and
+impossible relationships such as missed doses exceeding expected doses are rejected.
 
 ## 10. UX contract
 
-The saved-screening workspace presents one **Research tools** region with three independent
-actions:
+The saved-screening workspace presents one compact **Research** region with three independent
+launch actions. It does not embed follow-up forms or Atlas results:
 
 ```text
 Retention risk       Cohort context        Similar participants
@@ -391,18 +397,22 @@ Day-30 readiness     Reference association Exact nearest records
 [Open]               [Explore]             [Find similar]
 ```
 
-Opening one tool does not run or reveal the others.
+Opening one tool does not run or reveal the others. Dropout follow-up opens a focused route linked
+to the saved screening; cohort context and similarity open the relevant saved-screening overlay in
+the Cohort Atlas.
 
-### Retention risk
+### Dropout follow-up
 
-- If no enrollment exists: show **Start research follow-up**.
-- Prefill screening-owned baseline values and request only unresolved enrollment fields.
-- Present event entry in four sections: doses, visits, functional measurements, adverse events.
-- Ask for observable counts/events; derive rates on the server.
-- Collapse complete inputs into a provenance summary.
-- Enable prediction only when the day-30 snapshot is ready.
-- Show probability, threshold, horizon, model version, and top contributions beside the unchanged
-  eligibility summary.
+- If no enrollment exists: show **Baseline setup** and **Start follow-up**.
+- Prefill screening-owned context and explicitly request every required enrollment-owned value.
+- Present one compact aggregate form grouped into doses, visits, assessment, and safety.
+- Ask for expected/missed counts and visible totals; derive rates and slopes on the server.
+- Keep completed baseline values in a collapsed summary.
+- Calculate directly after valid inputs; do not add record-history or review-confirmation steps.
+- Show probability, threshold, horizon, and human-readable factors beside the unchanged eligibility
+  summary. Put model identity and numeric SHAP values under Technical details.
+- Show exact current, one-additional-missed-dose, and two-additional-missed-dose model results with
+  every other feature fixed. A flat segment is valid for the piecewise-constant XGBoost model.
 
 ### Cohort context
 
@@ -414,7 +424,7 @@ Opening one tool does not run or reveal the others.
 
 ### Similar participants
 
-- Permit a compact drawer from the saved screening and a detailed view in the Atlas.
+- Open the saved-screening overlay directly in the Atlas.
 - Show representation, exact cosine score, and readable differences.
 - Never label similarity as level of care, eligibility, or predicted outcome.
 
@@ -432,13 +442,13 @@ The backend integration implements the following bridge before frontend wiring:
 8. add external-screening projection, DBSCAN association, and external-vector FAISS queries;
 9. resolve screening-profile UUID dimensions into canonical human-readable evidence metadata.
 
-The coordinated saved-screening frontend now exposes all three independent actions, enrollment and
-event capture, explicit day-30 readiness, XGBoost/SHAP results, out-of-sample cohort association,
-and exact cosine neighbors. The configured V3.1 run is readable through the live query bridge. A
+The coordinated saved-screening frontend exposes all three independent launch actions. A focused
+screening-linked route owns enrollment and event capture, explicit day-30 readiness, and
+XGBoost/SHAP results; the Atlas owns out-of-sample cohort association and exact cosine neighbors.
+The configured V3.1 run is readable through the live query bridge. A
 population-wide Cohort Atlas and Trial Recruitment Overview are available as linked research
-workspace routes. Saved-screening cohort and similarity results can open the Atlas with the same
-screening and representation selected, while participant-level actions remain independently usable
-in the screening detail. No compatibility layer or training-row mapping is required.
+workspace routes. Saved-screening cohort and similarity actions open the Atlas with the same
+screening and representation selected. No compatibility layer or training-row mapping is required.
 
 ## 12. Acceptance tests
 

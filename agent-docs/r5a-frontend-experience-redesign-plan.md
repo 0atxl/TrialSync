@@ -1,7 +1,7 @@
 # TrialSync R5A Frontend Experience Redesign
 
 **Date:** 2026-08-25
-**Status:** R5A-0 through R5A-3 and the shared-CSS audit are accepted. R5A-4 is implemented and awaiting visual review.
+**Status:** R5A-0 through R5A-4 and the shared-CSS audit are accepted. R5A-5 is implemented and awaiting visual review.
 **Relationship to the research plan:** R5A is the frontend experience gate after the implemented
 R5/R6 research integration and before R7. It redesigns the full application experience without
 changing deterministic eligibility, the accepted `xgboost-05` runtime model, or the sealed R6 V3
@@ -439,7 +439,7 @@ Requirements:
 - Missing prediction is shown as a workflow state, not `0%`.
 - Trial-level eligibility and prediction denominators remain correct but are expressed in plain
   language.
-- Selecting a row opens the relevant saved screening and dropout stage.
+- Selecting a row opens the relevant screening-linked dropout stage.
 - No model candidate names appear in the default dashboard.
 
 ### 7.11 Cohort Atlas
@@ -719,8 +719,8 @@ Steps:
 
 1. Implement the dropout worklist contract if required.
 2. Build Research > Dropout dashboard and filters.
-3. Replace the current all-at-once follow-up panel with the three-stage workflow.
-4. Build focused event add/review interactions and explicit reviewed-none handling.
+3. Replace the record-tracking follow-up panel with one compact aggregate day-30 form.
+4. Calculate directly from explicit totals without event history or review checkboxes.
 5. Present prediction probability, threshold, horizon, and human-readable factors.
 6. Move model/provenance values into Technical details and Help.
 7. Verify that eligibility is unchanged before and after every research mutation.
@@ -731,6 +731,16 @@ Exit criteria:
 - The next action is obvious for every row and every individual screening.
 - Missing follow-up data is never displayed or submitted as observed zero.
 - No model/feature jargon is necessary to use the workflow.
+
+Implementation note (2026-08-26): Research > Dropout uses an owner-scoped worklist covering all
+potentially eligible screenings and deep-links each next action into a focused, screening-linked
+workflow. The saved-screening detail remains compact: it shows eligibility and evidence plus three
+independent research launch actions, but no embedded follow-up forms. The dropout route is split
+into baseline setup, one aggregate day-30 input, and a compact dropout estimate. The form asks for
+explicit expected/missed dose and visit counts, assessment totals/latest severity, and safety
+totals; it never defaults blanks to zero. The result includes exact current/+1/+2 missed-dose model
+scenarios with other values fixed. Probability, review marker, horizon, and readable factors remain
+primary, while model identity and numeric contributions are under Technical details.
 
 ### R5A-6 — Interactive Cohort Atlas
 

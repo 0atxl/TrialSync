@@ -27,6 +27,7 @@ export function CohortAtlasPage() {
   const { token } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const screeningId = searchParams.get('screening')
+  const requestedTool = searchParams.get('tool')
   const requestedRepresentation = searchParams.get('representation')
   const [representation, setRepresentation] = useState<ResearchRepresentation>(requestedRepresentation === 'screening_profile' ? 'screening_profile' : 'patient_fact')
   const [runs, setRuns] = useState<CohortRuns | null>(null)
@@ -56,15 +57,17 @@ export function CohortAtlasPage() {
       ])
       setClusters(clusterResponse); setMembers(memberResponse)
       if (screeningId) {
+        const wantsContext = requestedTool !== 'similarity'
+        const wantsNeighbors = requestedTool !== 'cohort'
         const [contextResponse, neighborResponse] = await Promise.all([
-          apiRequest<CohortContext>(`/research/screenings/${screeningId}/cohort-context`, { method: 'POST', body: JSON.stringify({ representation }) }, token),
-          apiRequest<ScreeningSimilarity>(`/research/screenings/${screeningId}/similarity`, { method: 'POST', body: JSON.stringify({ representation, neighbor_count: 5 }) }, token),
+          wantsContext ? apiRequest<CohortContext>(`/research/screenings/${screeningId}/cohort-context`, { method: 'POST', body: JSON.stringify({ representation }) }, token) : Promise.resolve(null),
+          wantsNeighbors ? apiRequest<ScreeningSimilarity>(`/research/screenings/${screeningId}/similarity`, { method: 'POST', body: JSON.stringify({ representation, neighbor_count: 5 }) }, token) : Promise.resolve(null),
         ])
         setExternalContext(contextResponse); setExternalNeighbors(neighborResponse)
       } else { setExternalContext(null); setExternalNeighbors(null) }
     } catch (caught) { setError(errorMessage(caught, 'The Cohort Atlas could not be loaded.')) }
     finally { setLoading(false) }
-  }, [clusterFilter, representation, screeningId, token])
+  }, [clusterFilter, representation, requestedTool, screeningId, token])
   useEffect(() => { void load() }, [load])
 
   const selectMember = async (member: CohortPoint) => {

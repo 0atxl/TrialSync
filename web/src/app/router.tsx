@@ -23,6 +23,7 @@ import { RouteErrorPage } from '../pages/RouteErrorPage'
 import { CatalogManagementPage } from '../pages/CatalogManagementPage'
 import { CohortAtlasPage } from '../pages/CohortAtlasPage'
 import { RecruitmentOverviewPage } from '../pages/RecruitmentOverviewPage'
+import { DropoutWorkflowPage } from '../pages/DropoutWorkflowPage'
 
 export const routes = [
   { path: '/login', element: <AuthPage mode="login" />, errorElement: <RouteErrorPage /> },
@@ -48,6 +49,7 @@ export const routes = [
           { path: 'screenings', element: <ScreeningHistoryPage /> },
           { path: 'screenings/new', element: <NewScreeningPage /> },
           { path: 'screenings/:screeningId', element: <ScreeningDetailPage /> },
+          { path: 'screenings/:screeningId/dropout', element: <DropoutWorkflowPage /> },
           { path: 'batches/new', element: <BatchScreeningPage /> },
           { path: 'batches/:batchId', element: <BatchDetailPage /> },
           { path: 'catalog', element: <Navigate to="/administration/catalog" replace /> },

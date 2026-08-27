@@ -25,12 +25,13 @@ function EvaluationRow({ evaluation }: { evaluation: CriterionEvaluation }) {
   const configurationIssue = isConfigurationReason(evaluation.reason_code)
 
   return (
-    <article
+    <details
       className={`evaluation evaluation-${evaluation.result}`}
       id={`criterion-${evaluation.id}`}
+      role="article"
       tabIndex={-1}
     >
-      <div className="evaluation-head">
+      <summary className="evaluation-head">
         <span className="criterion-order">{evaluation.criterion_order}</span>
         <div>
           <span className="record-kind">
@@ -41,44 +42,22 @@ function EvaluationRow({ evaluation }: { evaluation: CriterionEvaluation }) {
         <span className={`state state-${evaluation.result}`}>
           {resultLabels[evaluation.result]}
         </span>
-      </div>
-      <p className="canonical">{evaluation.canonical_explanation}</p>
-      <div className="evidence-grid">
-        <div>
-          <strong>Assessment</strong>
-          <p>{reasonLabel(evaluation.reason_code)}</p>
-        </div>
-        <div>
-          <strong>{configurationIssue ? 'Required action' : 'Recorded evidence'}</strong>
-          {configurationIssue ? (
-            <p>Correct this trial criterion and run a new screening.</p>
-          ) : evaluation.evidence.length ? (
-            <ul>
-              {evaluation.evidence.map((evidence, index) => (
-                <li key={`${evidence.fact_id}-${index}`}>
-                  {evidenceValue(evidence)}
-                  {evidence.source_label ? <small>{evidence.source_label}</small> : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>No supporting information was recorded.</p>
-          )}
-        </div>
-        {evaluation.missing_information.length > 0 ? (
+      </summary>
+      <div className="evaluation-detail">
+        <p className="canonical">{evaluation.canonical_explanation}</p>
+        <div className="evidence-grid">
           <div>
-            <strong>Information needed</strong>
-            <ul>
-              {evaluation.missing_information.map((missing, index) => (
-                <li key={`${missing.fact}-${index}`}>
-                  {missing.detail || 'Additional information is required.'}
-                </li>
-              ))}
-            </ul>
+            <strong>Assessment</strong>
+            <p>{reasonLabel(evaluation.reason_code)}</p>
           </div>
-        ) : null}
+          <div>
+            <strong>{configurationIssue ? 'Required action' : 'Recorded evidence'}</strong>
+            {configurationIssue ? <p>Correct this trial criterion and run a new screening.</p> : evaluation.evidence.length ? <ul>{evaluation.evidence.map((evidence, index) => <li key={`${evidence.fact_id}-${index}`}>{evidenceValue(evidence)}{evidence.source_label ? <small>{evidence.source_label}</small> : null}</li>)}</ul> : <p>No supporting information was recorded.</p>}
+          </div>
+          {evaluation.missing_information.length > 0 ? <div><strong>Information needed</strong><ul>{evaluation.missing_information.map((missing, index) => <li key={`${missing.fact}-${index}`}>{missing.detail || 'Additional information is required.'}</li>)}</ul></div> : null}
+        </div>
       </div>
-    </article>
+    </details>
   )
 }
 

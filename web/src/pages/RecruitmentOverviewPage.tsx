@@ -1,54 +1,150 @@
+import { Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
-import { apiRequest, type TrialResearchOverview } from '../api/client'
+import {
+  apiRequest,
+  type DropoutWorkflowStatus,
+  type DropoutWorklistRow,
+} from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { ResearchNav } from '../components/ResearchNav'
-import { StateDistribution } from '../components/StateDistribution'
 
-const bandLabels = { lower: 'Lower model band', near_threshold: 'Near threshold', higher: 'Higher model band' }
+const statusOrder: DropoutWorkflowStatus[] = [
+  'not_started',
+  'information_needed',
+  'ready',
+  'predicted',
+]
+
+const statusLabels: Record<DropoutWorkflowStatus, string> = {
+  not_started: 'Not started',
+  information_needed: 'Information needed',
+  ready: 'Ready to predict',
+  predicted: 'Estimate available',
+}
+
+const actionLabels: Record<DropoutWorklistRow['next_action'], string> = {
+  start_follow_up: 'Start follow-up',
+  review_day30: 'Review information',
+  predict: 'Predict dropout risk',
+  view_prediction: 'View estimate',
+}
+
+const bandLabels = {
+  lower: 'Lower',
+  near_threshold: 'Near threshold',
+  higher: 'Higher',
+}
+
+function estimateLabel(row: DropoutWorklistRow) {
+  return row.estimate ? `${(row.estimate.probability * 100).toFixed(1)}%` : '—'
+}
 
 export function RecruitmentOverviewPage() {
   const { token } = useAuth()
-  const [overviews, setOverviews] = useState<TrialResearchOverview[]>([])
-  const [selectedId, setSelectedId] = useState('')
+  const [rows, setRows] = useState<DropoutWorklistRow[]>([])
+  const [status, setStatus] = useState<DropoutWorkflowStatus | 'all'>('all')
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const next = await apiRequest<TrialResearchOverview[]>('/research/trial-overview', {}, token)
-      setOverviews(next)
-      setSelectedId((current) => next.some((item) => item.trial_version_id === current) ? current : next[0]?.trial_version_id ?? '')
+      setRows(await apiRequest<DropoutWorklistRow[]>('/research/risk/worklist', {}, token))
       setError('')
-    } catch { setError('The recruitment overview could not be loaded.') }
-    finally { setLoading(false) }
+    } catch {
+      setError('Dropout follow-up could not be loaded.')
+    } finally {
+      setLoading(false)
+    }
   }, [token])
+
   useEffect(() => { void load() }, [load])
 
-  const selected = useMemo(() => overviews.find((item) => item.trial_version_id === selectedId) ?? null, [overviews, selectedId])
-  return <section className="route-entry workspace-page research-page">
-    <ResearchNav />
-    <header className="page-heading research-page-heading"><h1>Recruitment overview</h1>{overviews.length > 0 && <label className="research-trial-selector">Trial<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{overviews.map((item) => <option key={item.trial_version_id} value={item.trial_version_id}>{item.trial.title}</option>)}</select></label>}</header>
-    <p className="research-boundary overview-boundary">Eligibility totals and dropout-risk bands answer different questions. This view never turns a retention prediction into a screening result.</p>
-    {error ? <div className="form-error" role="alert">{error}<button className="text-button" type="button" onClick={() => { void load() }}>Retry</button></div> : loading ? <div className="loading-state">Loading approved trial versions and linked predictions…</div> : !selected ? <div className="empty-state"><h2>No saved screening results</h2><p>Run and save a deterministic screening before using the trial-level research overview.</p></div> : <RecruitmentDetail overview={selected} />}
-  </section>
-}
+  const counts = useMemo(() => Object.fromEntries(statusOrder.map((value) => [
+    value,
+    rows.filter((row) => row.workflow_status === value).length,
+  ])) as Record<DropoutWorkflowStatus, number>, [rows])
 
-function RecruitmentDetail({ overview }: { overview: TrialResearchOverview }) {
-  const { trial, screening_counts: screeningCounts, retention } = overview
-  const total = Object.values(screeningCounts).reduce((sum, count) => sum + count, 0)
-  const linkedPercent = retention.eligible_total ? retention.linked_predictions / retention.eligible_total * 100 : 0
-  return <div className="recruitment-detail">
-    <section className="recruitment-trial-head"><div><p className="eyebrow">{trial.registry_id} · approved v{trial.version}</p><h2>{trial.title}</h2></div><div><strong>{total}</strong><span>saved screenings</span></div></section>
-    <div className="recruitment-split">
-      <section className="eligibility-overview"><div className="section-heading"><div><p className="eyebrow">Authoritative result</p><h2>Deterministic eligibility</h2></div></div><StateDistribution counts={screeningCounts} label={`Eligibility distribution for ${trial.title}`} /><dl className="overview-ledger"><div><dt>Potentially eligible</dt><dd>{screeningCounts.potentially_eligible}</dd></div><div><dt>Needs review</dt><dd>{screeningCounts.needs_review}</dd></div><div><dt>Likely ineligible</dt><dd>{screeningCounts.likely_ineligible}</dd></div></dl></section>
-      <section className="retention-overview"><div className="section-heading"><div><p className="eyebrow">Separate research signal</p><h2>Linked retention predictions</h2></div><span className="linked-ratio">{retention.linked_predictions}/{retention.eligible_total}</span></div>
-        <div className="linkage-meter" aria-label={`${retention.linked_predictions} of ${retention.eligible_total} potentially eligible screenings have predictions`}><div style={{ width: `${linkedPercent}%` }} /></div><p className="linkage-copy"><strong>{retention.linked_predictions}</strong> linked predictions · <strong>{retention.unlinked_eligible}</strong> potentially eligible screenings without a prediction</p>
-        <div className="risk-band-chart">{Object.entries(retention.risk_bands).map(([band, count]) => { const denominator = Math.max(1, retention.linked_predictions); return <div key={band}><span>{bandLabels[band as keyof typeof bandLabels]}</span><div><i style={{ width: `${count / denominator * 100}%` }} /></div><strong>{count}</strong></div> })}</div>
-        {retention.linked_predictions === 0 && <div className="research-note overview-empty-note">No linked predictions yet. Eligibility totals remain complete and visible.</div>}
-      </section>
-    </div>
-    <footer className="overview-model-line"><span>Model {retention.model_version}</span><span>Day-{retention.horizon_day} horizon</span><span>Band policy {retention.band_policy_version}</span></footer>
-  </div>
+  const bands = useMemo(() => ({
+    lower: rows.filter((row) => row.estimate?.research_label === 'lower').length,
+    near_threshold: rows.filter((row) => row.estimate?.research_label === 'near_threshold').length,
+    higher: rows.filter((row) => row.estimate?.research_label === 'higher').length,
+  }), [rows])
+
+  const visible = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    return rows.filter((row) =>
+      (status === 'all' || row.workflow_status === status)
+      && (!term || `${row.patient_name} ${row.trial_title}`.toLowerCase().includes(term)))
+  }, [query, rows, status])
+
+  return (
+    <section className="route-entry workspace-page research-page dropout-page">
+      <ResearchNav />
+      <header className="page-heading research-page-heading"><h1>Dropout follow-up</h1></header>
+      <p className="research-boundary overview-boundary">Dropout estimates are separate from eligibility.</p>
+
+      {error ? (
+        <div className="form-error" role="alert">{error}<button className="text-button" type="button" onClick={() => { void load() }}>Retry</button></div>
+      ) : loading ? (
+        <div className="loading-state">Loading follow-up status…</div>
+      ) : rows.length === 0 ? (
+        <div className="empty-state"><h2>No eligible screenings</h2><p>Potentially eligible saved screenings will appear here.</p></div>
+      ) : (
+        <>
+          <div className="dropout-summary-grid">
+            <section className="dropout-workflow-summary" aria-labelledby="workflow-summary-title">
+              <div className="section-heading"><h2 id="workflow-summary-title">Follow-up status</h2><strong>{rows.length}</strong></div>
+              <div className="dropout-status-bar" aria-hidden="true">
+                {statusOrder.map((value) => <i className={`dropout-${value}`} key={value} style={{ width: `${counts[value] / rows.length * 100}%` }} />)}
+              </div>
+              <div className="dropout-status-filters">
+                {statusOrder.map((value) => (
+                  <button aria-pressed={status === value} className={status === value ? 'active' : ''} key={value} type="button" onClick={() => setStatus((current) => current === value ? 'all' : value)}>
+                    <span>{statusLabels[value]}</span><strong>{counts[value]}</strong>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="dropout-estimate-summary" aria-labelledby="estimate-summary-title">
+              <div className="section-heading"><h2 id="estimate-summary-title">Available estimates</h2><strong>{counts.predicted}</strong></div>
+              <div className="dropout-band-chart">
+                {(Object.keys(bands) as Array<keyof typeof bands>).map((band) => {
+                  const denominator = Math.max(1, counts.predicted)
+                  return <div key={band}><span>{bandLabels[band]}</span><div><i className={`band-${band}`} style={{ width: `${bands[band] / denominator * 100}%` }} /></div><strong>{bands[band]}</strong></div>
+                })}
+              </div>
+            </section>
+          </div>
+
+          <div className="dropout-toolbar">
+            <label className="search-field"><Search aria-hidden="true" size={17} /><span className="sr-only">Search follow-up records</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search patient or trial" /></label>
+            <span>{visible.length} of {rows.length}</span>
+          </div>
+
+          {visible.length ? (
+            <div className="dropout-worklist" role="table" aria-label="Dropout follow-up worklist">
+              <div className="dropout-worklist-head" role="row"><span>Patient</span><span>Trial</span><span>Follow-up</span><span>Estimate</span><span>Updated</span><span /></div>
+              {visible.map((row) => (
+                <div className="dropout-worklist-row" role="row" key={row.screening_id}>
+                  <strong role="cell">{row.patient_name}</strong>
+                  <span role="cell">{row.trial_title}</span>
+                  <span role="cell" className={`dropout-state dropout-state-${row.workflow_status}`}>{statusLabels[row.workflow_status]}</span>
+                  <span role="cell" className="dropout-estimate">{estimateLabel(row)}{row.estimate ? <small>by day {row.estimate.horizon_day}</small> : null}</span>
+                  <time role="cell" dateTime={row.updated_at}>{new Date(row.updated_at).toLocaleDateString()}</time>
+                  <span role="cell" className="dropout-row-action"><Link to={`/screenings/${row.screening_id}/dropout`}>{actionLabels[row.next_action]}</Link></span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state compact-empty"><h2>No matching follow-up records</h2><button className="text-button" type="button" onClick={() => { setQuery(''); setStatus('all') }}>Clear filters</button></div>
+          )}
+        </>
+      )}
+    </section>
+  )
 }

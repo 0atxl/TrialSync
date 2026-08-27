@@ -315,16 +315,18 @@ describe('TrialSync Phase 5 screening workflow', () => {
     expect(menu).not.toHaveAttribute('open')
   })
 
-  it('uses the single light theme and removes the legacy preference', async () => {
+  it('keeps the saved theme and exposes the universal toggle', async () => {
     authenticate()
     localStorage.setItem('trialsync_theme', 'dark')
     document.documentElement.dataset.theme = 'dark'
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(overviewEmpty)))
     renderRoute('/')
     await screen.findByText('No screening activity yet')
-    await waitFor(() => expect(document.documentElement).not.toHaveAttribute('data-theme'))
-    expect(localStorage.getItem('trialsync_theme')).toBeNull()
-    expect(screen.queryByRole('button', { name: /mode/i })).not.toBeInTheDocument()
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(localStorage.getItem('trialsync_theme')).toBe('dark')
+    await userEvent.click(screen.getByRole('button', { name: 'Switch to light mode' }))
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(localStorage.getItem('trialsync_theme')).toBe('light')
   })
 
   it('shows complete overview signals and links each chart into its workflow', async () => {
@@ -433,7 +435,7 @@ describe('TrialSync Phase 5 screening workflow', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json([])))
     renderRoute('/research/recruitment')
 
-    expect(await screen.findByRole('heading', { name: 'Recruitment overview' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Dropout follow-up' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Dropout' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'Research' })).toHaveAttribute('aria-current', 'page')
   })

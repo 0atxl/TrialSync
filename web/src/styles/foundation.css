@@ -30,6 +30,22 @@
   backdrop-filter: blur(12px);
 }
 
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.theme-toggle {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--surface);
+  transition: color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), background var(--duration) var(--ease-out);
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--muted); background: var(--surface-tint); }
+.auth-theme-toggle { position: fixed; top: 22px; right: 24px; z-index: 2; }
+
 .brand { display: inline-flex; gap: 10px; align-items: center; color: var(--ink); text-decoration: none; }
 .brand strong { font-size: 17px; letter-spacing: -.025em; }
 .brand-mark {
@@ -322,6 +338,7 @@
   .topbar { height: 60px; padding: 0 16px; }
   .brand-mark { width: 31px; height: 31px; }
   .account-name { display: none; }
+  .topbar-actions { gap: 6px; }
   .account-popover { position: fixed; top: 54px; right: 12px; }
   .shell-grid,
   .sidebar-collapsed .shell-grid { display: block; min-height: calc(100vh - 60px); }

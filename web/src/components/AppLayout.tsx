@@ -16,6 +16,7 @@ import {
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
+import { ThemeToggle } from './ThemeToggle'
 
 const SIDEBAR_KEY = 'trialsync_sidebar_collapsed'
 
@@ -56,11 +57,6 @@ export function AppLayout() {
   const accountMenuRef = useRef<HTMLDetailsElement>(null)
 
   useEffect(() => {
-    delete document.documentElement.dataset.theme
-    try { localStorage.removeItem('trialsync_theme') } catch { /* legacy preference cleanup */ }
-  }, [])
-
-  useEffect(() => {
     function closeOnOutsidePointer(event: PointerEvent) {
       if (event.target instanceof Node && !accountMenuRef.current?.contains(event.target)) {
         accountMenuRef.current?.removeAttribute('open')
@@ -87,7 +83,9 @@ export function AppLayout() {
           <strong>TrialSync</strong>
         </Link>
 
-        <details className="account-menu" ref={accountMenuRef}>
+        <div className="topbar-actions">
+          <ThemeToggle />
+          <details className="account-menu" ref={accountMenuRef}>
           <summary aria-label={`${user?.display_name ?? 'User'} account menu`}>
             <span className="account-avatar" aria-hidden="true">{initials(user?.display_name)}</span>
             <span className="account-name">{user?.display_name}</span>
@@ -109,7 +107,8 @@ export function AppLayout() {
               Sign out
             </button>
           </div>
-        </details>
+          </details>
+        </div>
       </header>
 
       <div className="shell-grid">

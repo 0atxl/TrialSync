@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { token, login, register } = useAuth()
@@ -38,6 +39,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   return (
     <main className="auth-page">
+      <ThemeToggle className="auth-theme-toggle" />
       <section className="auth-panel route-entry" aria-labelledby="auth-title">
         <div className="auth-intro">
           <div className="auth-brand">

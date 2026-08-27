@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Query, Request, status
@@ -10,33 +9,31 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
 from trialsync.api.errors import ApplicationError
 from trialsync.db.models import (
-    Document,
     OverallState,
-    ResearchAdverseEvent,
-    ResearchDoseEvent,
     ResearchEnrollment,
     ResearchFollowUpSnapshot,
-    ResearchMeasurement,
     ResearchModelVersion,
     ResearchPrediction,
-    ResearchVisitEvent,
     Screening,
 )
 from trialsync.research.artifacts import CohortArtifactService
 from trialsync.research.risk import RiskArtifactError, RiskArtifactService, SourcedFeatureValue
 from trialsync.research.risk.service import (
+    ACTIVE_MODEL_DATABASE_ID,
     USER_BASELINE_FEATURES,
     active_model,
-    build_follow_up_snapshot,
+    build_follow_up_summary,
     create_enrollment,
     create_prediction,
     enrollment_for_screening,
     enrollment_payload,
     follow_up_payload,
+    missed_dose_scenarios,
     owned_enrollment,
     owned_screening,
     prediction_payload,
@@ -44,10 +41,6 @@ from trialsync.research.risk.service import (
 )
 
 router = APIRouter(prefix="/api/v1/research", tags=["research risk"])
-
-EventRecord = (
-    ResearchDoseEvent | ResearchVisitEvent | ResearchMeasurement | ResearchAdverseEvent
-)
 
 
 class SourcedInput(BaseModel):
@@ -62,124 +55,55 @@ class EnrollmentCreate(BaseModel):
     baseline: dict[str, SourcedInput] = Field(default_factory=dict, max_length=7)
 
 
-class EventSource(BaseModel):
+class Day30SummaryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    source_label: str = Field(min_length=1, max_length=120)
-    source_document_id: uuid.UUID | None = None
-    supersedes_event_id: uuid.UUID | None = None
-    correction_reason: str | None = Field(default=None, min_length=1, max_length=500)
+    scheduled_doses: int = Field(ge=1, le=1000)
+    missed_doses: int = Field(ge=0, le=1000)
+    scheduled_visits: int = Field(ge=1, le=100)
+    missed_visits: int = Field(ge=0, le=100)
+    delayed_visits: int = Field(ge=0, le=100)
+    total_visit_delay_days: int = Field(ge=0, le=3000)
+    expected_assessments: int = Field(ge=1, le=100)
+    completed_assessments: int = Field(ge=1, le=100)
+    latest_functional_severity: float = Field(ge=0, le=1)
+    latest_assessment_day: int = Field(ge=1, le=30)
+    adverse_event_count: int = Field(ge=0, le=100)
+    adverse_event_burden: int = Field(ge=0, le=400)
 
     @model_validator(mode="after")
-    def correction_has_reason(self) -> EventSource:
-        if self.supersedes_event_id is not None and self.correction_reason is None:
-            raise ValueError("correction_reason is required when superseding an event")
-        if self.supersedes_event_id is None and self.correction_reason is not None:
-            raise ValueError("correction_reason requires supersedes_event_id")
+    def validate_totals(self) -> Day30SummaryCreate:
+        if self.missed_doses > self.scheduled_doses:
+            raise ValueError("missed_doses cannot exceed scheduled_doses")
+        if self.missed_visits > self.scheduled_visits:
+            raise ValueError("missed_visits cannot exceed scheduled_visits")
+        completed_visits = self.scheduled_visits - self.missed_visits
+        if self.delayed_visits > completed_visits:
+            raise ValueError("delayed_visits cannot exceed completed visits")
+        if self.delayed_visits == 0 and self.total_visit_delay_days != 0:
+            raise ValueError("total_visit_delay_days must be zero when no visits were delayed")
+        if self.delayed_visits and self.total_visit_delay_days < self.delayed_visits:
+            raise ValueError(
+                "total_visit_delay_days must include at least one day per delayed visit"
+            )
+        if self.total_visit_delay_days > completed_visits * 30:
+            raise ValueError("total_visit_delay_days exceeds the day-30 observation window")
+        if self.completed_assessments > self.expected_assessments:
+            raise ValueError("completed_assessments cannot exceed expected_assessments")
+        if self.adverse_event_count == 0 and self.adverse_event_burden != 0:
+            raise ValueError("adverse_event_burden must be zero when no events occurred")
+        if self.adverse_event_count and not (
+            self.adverse_event_count <= self.adverse_event_burden <= self.adverse_event_count * 4
+        ):
+            raise ValueError("adverse_event_burden must equal the sum of grades 1 through 4")
         return self
-
-
-class DoseEventCreate(EventSource):
-    medication_concept: str = Field(min_length=1, max_length=160)
-    scheduled_date: date
-    scheduled_count: int = Field(ge=1, le=1000)
-    administered_count: int = Field(ge=0, le=1000)
-    dose_amount: Decimal | None = Field(default=None, gt=0)
-    dose_unit: str | None = Field(default=None, min_length=1, max_length=40)
-    route: str | None = Field(default=None, min_length=1, max_length=40)
-    status: Literal["scheduled", "administered", "partially_administered", "missed", "held"]
-    reason: str | None = Field(default=None, min_length=1, max_length=500)
-
-    @model_validator(mode="after")
-    def validate_counts(self) -> DoseEventCreate:
-        if self.administered_count > self.scheduled_count:
-            raise ValueError("administered_count cannot exceed scheduled_count")
-        expected = (
-            "administered"
-            if self.administered_count == self.scheduled_count
-            else "missed"
-            if self.administered_count == 0
-            else "partially_administered"
-        )
-        if self.status not in {expected, "held", "scheduled"}:
-            raise ValueError("dose status does not match scheduled/administered counts")
-        if self.status == "held" and self.administered_count != 0:
-            raise ValueError("a held dose cannot have an administered count")
-        if (self.dose_amount is None) != (self.dose_unit is None):
-            raise ValueError("dose_amount and dose_unit must be supplied together")
-        return self
-
-
-class VisitEventCreate(EventSource):
-    visit_type: str = Field(min_length=1, max_length=120)
-    scheduled_date: date
-    completed_date: date | None = None
-    status: Literal["scheduled", "completed", "delayed", "missed"]
-    reason: str | None = Field(default=None, min_length=1, max_length=500)
-
-    @model_validator(mode="after")
-    def validate_dates(self) -> VisitEventCreate:
-        if self.status in {"completed", "delayed"} and self.completed_date is None:
-            raise ValueError("completed_date is required for a completed or delayed visit")
-        if self.status in {"scheduled", "missed"} and self.completed_date is not None:
-            raise ValueError("completed_date is not valid for a scheduled or missed visit")
-        if self.completed_date is not None and self.completed_date < self.scheduled_date:
-            raise ValueError("completed_date cannot precede scheduled_date")
-        delay = (self.completed_date - self.scheduled_date).days if self.completed_date else None
-        if self.status == "completed" and delay != 0:
-            raise ValueError("a visit completed after its scheduled date must be delayed")
-        if self.status == "delayed" and (delay is None or delay == 0):
-            raise ValueError("a delayed visit must occur after its scheduled date")
-        return self
-
-
-class MeasurementCreate(EventSource):
-    concept: str = Field(min_length=1, max_length=160)
-    value_numeric: Decimal | None = None
-    unit: str | None = Field(default=None, min_length=1, max_length=40)
-    observed: bool = True
-    observed_date: date
-    method: str | None = Field(default=None, min_length=1, max_length=120)
-    reference_range: dict[str, Any] | None = None
-
-    @model_validator(mode="after")
-    def validate_observation(self) -> MeasurementCreate:
-        if self.observed and (self.value_numeric is None or self.unit is None):
-            raise ValueError("observed measurements require a numeric value and unit")
-        if not self.observed and self.value_numeric is not None:
-            raise ValueError("an unobserved measurement cannot have a value")
-        if self.concept == "functional_severity" and self.observed and self.unit != "score":
-            raise ValueError("functional_severity measurements use the score unit")
-        return self
-
-
-class AdverseEventCreate(EventSource):
-    event_concept: str = Field(min_length=1, max_length=160)
-    onset_date: date
-    severity_grade: int = Field(ge=1, le=4)
-    resolved_date: date | None = None
-    serious: bool = False
-    relatedness: Literal["unrelated", "unlikely", "possible", "probable", "definite", "unknown"]
-    action_taken: str | None = Field(default=None, min_length=1, max_length=120)
-    outcome: Literal["ongoing", "resolved", "resolved_with_sequelae", "unknown"]
-
-    @model_validator(mode="after")
-    def validate_resolution(self) -> AdverseEventCreate:
-        if self.resolved_date is not None and self.resolved_date < self.onset_date:
-            raise ValueError("resolved_date cannot precede onset_date")
-        if self.outcome.startswith("resolved") and self.resolved_date is None:
-            raise ValueError("resolved outcomes require resolved_date")
-        return self
-
-
-class FollowUpSnapshotCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    dose_record_complete: bool = False
-    visit_record_complete: bool = False
-    measurement_record_complete: bool = False
-    adverse_event_record_complete: bool = False
 
 
 class PredictionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    follow_up_snapshot_id: uuid.UUID
+
+
+class ScenarioCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     follow_up_snapshot_id: uuid.UUID
 
@@ -190,6 +114,11 @@ def _artifacts(request: Request) -> RiskArtifactService:
 
 def _cohorts(request: Request) -> CohortArtifactService:
     return cast(CohortArtifactService, request.app.state.research_cohorts)
+
+
+def _patient_display_name(screening: Screening) -> str:
+    value = screening.patient_snapshot.source_summary.get("display_name")
+    return str(value).strip() if value else "Patient"
 
 
 def _model_payload(model: ResearchModelVersion, artifacts: RiskArtifactService) -> dict[str, Any]:
@@ -355,200 +284,17 @@ async def get_enrollment(
     return enrollment_payload(await owned_enrollment(session, user.id, enrollment_id))
 
 
-@router.get("/enrollments/{enrollment_id}/events")
-async def list_enrollment_events(
+@router.post("/enrollments/{enrollment_id}/day30-summary", status_code=201)
+async def create_day30_summary(
     enrollment_id: uuid.UUID,
-    session: SessionDep,
-    user: CurrentUser,
-    through_day: Annotated[int, Query(ge=0, le=3650)] = 30,
-) -> dict[str, Any]:
-    await owned_enrollment(session, user.id, enrollment_id)
-    groups: dict[str, list[dict[str, Any]]] = {}
-    for name, model in (
-        ("dose_events", ResearchDoseEvent),
-        ("visit_events", ResearchVisitEvent),
-        ("measurements", ResearchMeasurement),
-        ("adverse_events", ResearchAdverseEvent),
-    ):
-        rows = cast(
-            list[EventRecord],
-            list(
-                await session.scalars(
-                    select(model)
-                    .where(
-                        model.owner_id == user.id,
-                        model.research_enrollment_id == enrollment_id,
-                        model.event_day <= through_day,
-                    )
-                    .order_by(model.event_day, model.recorded_at, model.id)
-                )
-            ),
-        )
-        superseded = {
-            row.supersedes_event_id for row in rows if row.supersedes_event_id is not None
-        }
-        groups[name] = [
-            {**_event_payload(row), "is_superseded": row.id in superseded} for row in rows
-        ]
-    return {
-        "research_enrollment_id": enrollment_id,
-        "through_day": through_day,
-        **groups,
-    }
-
-
-async def _event_context(
-    session: AsyncSession,
-    user_id: uuid.UUID,
-    enrollment_id: uuid.UUID,
-    model: Any,
-    source: EventSource,
-    event_date: date,
-) -> tuple[ResearchEnrollment, Any | None, int]:
-    enrollment = await owned_enrollment(session, user_id, enrollment_id)
-    event_day = (event_date - enrollment.enrollment_date).days
-    if event_day < 0:
-        raise ApplicationError(
-            code="RESEARCH_EVENT_DATE_INVALID",
-            message="Event date cannot precede enrollment.",
-            status_code=422,
-        )
-    previous = None
-    if source.supersedes_event_id is not None:
-        previous = await session.scalar(
-            select(model).where(
-                model.id == source.supersedes_event_id,
-                model.owner_id == user_id,
-                model.research_enrollment_id == enrollment_id,
-            )
-        )
-        if previous is None:
-            raise ApplicationError(
-                code="RESEARCH_EVENT_NOT_FOUND",
-                message="The event being corrected was not found.",
-                status_code=404,
-            )
-    if source.source_document_id is not None:
-        document = await session.scalar(
-            select(Document.id).where(
-                Document.id == source.source_document_id, Document.owner_id == user_id
-            )
-        )
-        if document is None:
-            raise ApplicationError(
-                code="RESEARCH_EVENT_SOURCE_NOT_FOUND",
-                message="The source document was not found.",
-                status_code=404,
-            )
-    return enrollment, previous, event_day
-
-
-def _event_payload(row: Any) -> dict[str, Any]:
-    return {column.name: getattr(row, column.name) for column in row.__table__.columns}
-
-
-async def _commit_event(session: AsyncSession, row: Any) -> dict[str, Any]:
-    try:
-        session.add(row)
-        await session.commit()
-    except IntegrityError as exc:
-        await session.rollback()
-        raise ApplicationError(
-            code="RESEARCH_EVENT_CORRECTION_CONFLICT",
-            message="That event has already been superseded.",
-            status_code=409,
-        ) from exc
-    except Exception:
-        await session.rollback()
-        raise
-    return _event_payload(row)
-
-
-@router.post("/enrollments/{enrollment_id}/dose-events", status_code=201)
-async def add_dose_event(
-    enrollment_id: uuid.UUID, payload: DoseEventCreate, session: SessionDep, user: CurrentUser
-) -> dict[str, Any]:
-    _, _, event_day = await _event_context(
-        session, user.id, enrollment_id, ResearchDoseEvent, payload, payload.scheduled_date
-    )
-    row = ResearchDoseEvent(
-        owner_id=user.id,
-        research_enrollment_id=enrollment_id,
-        event_day=event_day,
-        recorded_by_id=user.id,
-        **payload.model_dump(),
-    )
-    return await _commit_event(session, row)
-
-
-@router.post("/enrollments/{enrollment_id}/visit-events", status_code=201)
-async def add_visit_event(
-    enrollment_id: uuid.UUID, payload: VisitEventCreate, session: SessionDep, user: CurrentUser
-) -> dict[str, Any]:
-    _, _, event_day = await _event_context(
-        session, user.id, enrollment_id, ResearchVisitEvent, payload, payload.scheduled_date
-    )
-    delay = (
-        (payload.completed_date - payload.scheduled_date).days if payload.completed_date else None
-    )
-    row = ResearchVisitEvent(
-        owner_id=user.id,
-        research_enrollment_id=enrollment_id,
-        event_day=event_day,
-        delay_days=delay,
-        recorded_by_id=user.id,
-        **payload.model_dump(),
-    )
-    return await _commit_event(session, row)
-
-
-@router.post("/enrollments/{enrollment_id}/measurements", status_code=201)
-async def add_measurement(
-    enrollment_id: uuid.UUID, payload: MeasurementCreate, session: SessionDep, user: CurrentUser
-) -> dict[str, Any]:
-    _, _, event_day = await _event_context(
-        session, user.id, enrollment_id, ResearchMeasurement, payload, payload.observed_date
-    )
-    values = payload.model_dump()
-    values["reference_range_json"] = values.pop("reference_range")
-    row = ResearchMeasurement(
-        owner_id=user.id,
-        research_enrollment_id=enrollment_id,
-        event_day=event_day,
-        recorded_by_id=user.id,
-        **values,
-    )
-    return await _commit_event(session, row)
-
-
-@router.post("/enrollments/{enrollment_id}/adverse-events", status_code=201)
-async def add_adverse_event(
-    enrollment_id: uuid.UUID, payload: AdverseEventCreate, session: SessionDep, user: CurrentUser
-) -> dict[str, Any]:
-    _, _, event_day = await _event_context(
-        session, user.id, enrollment_id, ResearchAdverseEvent, payload, payload.onset_date
-    )
-    row = ResearchAdverseEvent(
-        owner_id=user.id,
-        research_enrollment_id=enrollment_id,
-        event_day=event_day,
-        recorded_by_id=user.id,
-        **payload.model_dump(),
-    )
-    return await _commit_event(session, row)
-
-
-@router.post("/enrollments/{enrollment_id}/follow-up-snapshots", status_code=201)
-async def create_follow_up(
-    enrollment_id: uuid.UUID,
-    payload: FollowUpSnapshotCreate,
+    payload: Day30SummaryCreate,
     session: SessionDep,
     user: CurrentUser,
 ) -> dict[str, Any]:
     enrollment = await owned_enrollment(session, user.id, enrollment_id)
     try:
-        snapshot = await build_follow_up_snapshot(
-            session, enrollment=enrollment, confirmations=payload.model_dump()
+        snapshot = await build_follow_up_summary(
+            session, enrollment=enrollment, summary=payload.model_dump()
         )
         await session.commit()
     except Exception:
@@ -593,6 +339,7 @@ async def get_risk_context(
         else "incomplete",
         "enrollment": enrollment_payload(enrollment) if enrollment else None,
         "follow_up": follow_up_payload(follow_up) if follow_up else None,
+        "follow_up_stale": False,
         "model": _model_payload(model, _artifacts(request)),
     }
 
@@ -623,6 +370,34 @@ async def predict_dropout_risk(
     return prediction_payload(prediction, enrollment, model)
 
 
+@router.post("/risk/scenarios")
+async def dropout_scenarios(
+    payload: ScenarioCreate, request: Request, session: SessionDep, user: CurrentUser
+) -> dict[str, Any]:
+    snapshot = await session.scalar(
+        select(ResearchFollowUpSnapshot).where(
+            ResearchFollowUpSnapshot.id == payload.follow_up_snapshot_id,
+            ResearchFollowUpSnapshot.owner_id == user.id,
+        )
+    )
+    if snapshot is None:
+        raise ApplicationError(
+            code="RESEARCH_FOLLOW_UP_NOT_FOUND",
+            message="Day-30 inputs were not found.",
+            status_code=404,
+        )
+    model = await active_model(session)
+    artifacts = _artifacts(request)
+    validate_descriptor(model, artifacts.descriptor())
+    return {
+        "follow_up_snapshot_id": snapshot.id,
+        "scenario": "additional_missed_doses",
+        "points": missed_dose_scenarios(snapshot, artifacts),
+        "threshold": float(model.threshold),
+        "horizon_day": model.horizon_day,
+    }
+
+
 def _prediction_statement(owner_id: uuid.UUID) -> Any:
     return (
         select(ResearchPrediction, ResearchEnrollment, ResearchModelVersion)
@@ -632,6 +407,131 @@ def _prediction_statement(owner_id: uuid.UUID) -> Any:
         .join(ResearchModelVersion, ResearchModelVersion.id == ResearchPrediction.model_version_id)
         .where(ResearchPrediction.owner_id == owner_id)
     )
+
+
+@router.get("/risk/worklist")
+async def dropout_worklist(session: SessionDep, user: CurrentUser) -> list[dict[str, Any]]:
+    screenings = list(
+        await session.scalars(
+            select(Screening)
+            .options(selectinload(Screening.patient_snapshot))
+            .where(
+                Screening.owner_id == user.id,
+                Screening.overall_state == OverallState.potentially_eligible,
+            )
+            .order_by(Screening.created_at.desc(), Screening.id.desc())
+        )
+    )
+    screening_ids = [screening.id for screening in screenings]
+    enrollments = (
+        list(
+            await session.scalars(
+                select(ResearchEnrollment).where(
+                    ResearchEnrollment.owner_id == user.id,
+                    ResearchEnrollment.screening_id.in_(screening_ids),
+                )
+            )
+        )
+        if screening_ids
+        else []
+    )
+    enrollment_by_screening = {enrollment.screening_id: enrollment for enrollment in enrollments}
+    enrollment_ids = [enrollment.id for enrollment in enrollments]
+    follow_ups = (
+        list(
+            await session.scalars(
+                select(ResearchFollowUpSnapshot)
+                .where(
+                    ResearchFollowUpSnapshot.owner_id == user.id,
+                    ResearchFollowUpSnapshot.research_enrollment_id.in_(enrollment_ids),
+                )
+                .order_by(
+                    ResearchFollowUpSnapshot.created_at.desc(),
+                    ResearchFollowUpSnapshot.id.desc(),
+                )
+            )
+        )
+        if enrollment_ids
+        else []
+    )
+    latest_follow_up: dict[uuid.UUID, ResearchFollowUpSnapshot] = {}
+    for follow_up_row in follow_ups:
+        latest_follow_up.setdefault(follow_up_row.research_enrollment_id, follow_up_row)
+
+    prediction_rows = (
+        (
+            await session.execute(
+                _prediction_statement(user.id)
+                .where(
+                    ResearchPrediction.model_version_id == ACTIVE_MODEL_DATABASE_ID,
+                    ResearchEnrollment.id.in_(enrollment_ids),
+                )
+                .order_by(ResearchPrediction.created_at.desc(), ResearchPrediction.id.desc())
+            )
+        ).all()
+        if enrollment_ids
+        else []
+    )
+    latest_prediction: dict[uuid.UUID, tuple[ResearchPrediction, ResearchModelVersion]] = {}
+    for prediction_row, enrollment_row, model_row in prediction_rows:
+        latest_prediction.setdefault(enrollment_row.id, (prediction_row, model_row))
+
+    rows: list[dict[str, Any]] = []
+    for screening in screenings:
+        current_enrollment = enrollment_by_screening.get(screening.id)
+        current_follow_up = (
+            latest_follow_up.get(current_enrollment.id) if current_enrollment else None
+        )
+        prediction_pair = (
+            latest_prediction.get(current_enrollment.id) if current_enrollment else None
+        )
+        current_prediction_row = prediction_pair[0] if prediction_pair else None
+        current_model = prediction_pair[1] if prediction_pair else None
+        current_prediction = bool(
+            current_prediction_row
+            and current_follow_up
+            and current_prediction_row.follow_up_snapshot_id == current_follow_up.id
+        )
+        if current_enrollment is None:
+            workflow_status = "not_started"
+            next_action = "start_follow_up"
+        elif current_follow_up is None or current_follow_up.status != "ready":
+            workflow_status = "information_needed"
+            next_action = "review_day30"
+        elif not current_prediction:
+            workflow_status = "ready"
+            next_action = "predict"
+        else:
+            workflow_status = "predicted"
+            next_action = "view_prediction"
+        timestamps = [screening.created_at]
+        if current_enrollment:
+            timestamps.append(current_enrollment.created_at)
+        if current_follow_up:
+            timestamps.append(current_follow_up.created_at)
+        if current_prediction and current_prediction_row:
+            timestamps.append(current_prediction_row.created_at)
+        rows.append(
+            {
+                "screening_id": screening.id,
+                "patient_name": _patient_display_name(screening),
+                "trial_title": screening.trial_title,
+                "screening_date": screening.screening_date,
+                "workflow_status": workflow_status,
+                "next_action": next_action,
+                "updated_at": max(timestamps),
+                "estimate": {
+                    "probability": float(current_prediction_row.probability),
+                    "threshold": float(current_model.threshold),
+                    "research_label": current_prediction_row.research_label,
+                    "horizon_day": current_model.horizon_day,
+                    "created_at": current_prediction_row.created_at,
+                }
+                if current_prediction and current_prediction_row and current_model
+                else None,
+            }
+        )
+    return rows
 
 
 @router.get("/risk/predictions")

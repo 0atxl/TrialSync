@@ -288,10 +288,25 @@ export type ResearchFollowUp = {
   feature_schema_version: string
   feature_snapshot_hash: string | null
   event_set_checksum: string
+  input_summary: Day30Summary | null
   status: 'incomplete' | 'ready'
   features: ResearchFeature[]
   missing_features: string[]
   created_at: string
+}
+export type Day30Summary = {
+  scheduled_doses: number
+  missed_doses: number
+  scheduled_visits: number
+  missed_visits: number
+  delayed_visits: number
+  total_visit_delay_days: number
+  expected_assessments: number
+  completed_assessments: number
+  latest_functional_severity: number
+  latest_assessment_day: number
+  adverse_event_count: number
+  adverse_event_burden: number
 }
 export type ResearchModel = {
   id: string
@@ -315,6 +330,7 @@ export type RiskContext = {
   status: 'unlinked' | 'incomplete' | 'ready'
   enrollment: ResearchEnrollment | null
   follow_up: ResearchFollowUp | null
+  follow_up_stale?: boolean
   model: ResearchModel
 }
 export type RiskContribution = {
@@ -340,6 +356,37 @@ export type RiskPrediction = {
   top_contributions: RiskContribution[]
   created_at: string
   disclaimer: string
+}
+export type RiskScenarioPoint = {
+  additional_missed_doses: number
+  scheduled_doses: number
+  missed_doses: number
+  missed_dose_rate: number
+  probability: number
+}
+export type RiskScenarioResponse = {
+  follow_up_snapshot_id: string
+  scenario: 'additional_missed_doses'
+  points: RiskScenarioPoint[]
+  threshold: number
+  horizon_day: number
+}
+export type DropoutWorkflowStatus = 'not_started' | 'information_needed' | 'ready' | 'predicted'
+export type DropoutWorklistRow = {
+  screening_id: string
+  patient_name: string
+  trial_title: string
+  screening_date: string
+  workflow_status: DropoutWorkflowStatus
+  next_action: 'start_follow_up' | 'review_day30' | 'predict' | 'view_prediction'
+  updated_at: string
+  estimate: null | {
+    probability: number
+    threshold: number
+    research_label: 'lower' | 'near_threshold' | 'higher'
+    horizon_day: number
+    created_at: string
+  }
 }
 export type CohortContext = {
   run_id: string

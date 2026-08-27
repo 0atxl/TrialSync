@@ -15,14 +15,10 @@ from sqlalchemy.orm import selectinload
 from trialsync.api.errors import ApplicationError
 from trialsync.db.models import (
     Assertion,
-    ResearchAdverseEvent,
-    ResearchDoseEvent,
     ResearchEnrollment,
     ResearchFollowUpSnapshot,
-    ResearchMeasurement,
     ResearchModelVersion,
     ResearchPrediction,
-    ResearchVisitEvent,
     Screening,
     TrialVersion,
 )
@@ -245,161 +241,142 @@ async def create_enrollment(
     return enrollment
 
 
-async def _active_events(
-    session: AsyncSession,
-    model: Any,
+def _day30_features(
     enrollment: ResearchEnrollment,
-    cutoff_day: int,
-) -> list[Any]:
-    rows = list(
-        await session.scalars(
-            select(model)
-            .where(
-                model.owner_id == enrollment.owner_id,
-                model.research_enrollment_id == enrollment.id,
-                model.event_day <= cutoff_day,
-            )
-            .order_by(model.event_day, model.recorded_at, model.id)
-        )
+    summary: Mapping[str, int | float],
+) -> dict[str, SourcedFeatureValue]:
+    values = _enrollment_values(enrollment)
+    scheduled_doses = int(summary["scheduled_doses"])
+    missed_doses = int(summary["missed_doses"])
+    scheduled_visits = int(summary["scheduled_visits"])
+    missed_visits = int(summary["missed_visits"])
+    completed_visits = scheduled_visits - missed_visits
+    expected_assessments = int(summary["expected_assessments"])
+    completed_assessments = int(summary["completed_assessments"])
+    latest_severity = float(summary["latest_functional_severity"])
+    latest_day = int(summary["latest_assessment_day"])
+    baseline_severity = float(values["baseline_functional_severity"].value)
+    source = "derived:day30_summary"
+    values.update(
+        {
+            "latest_functional_severity": SourcedFeatureValue(latest_severity, source),
+            "functional_severity_slope": SourcedFeatureValue(
+                (latest_severity - baseline_severity) / latest_day, source
+            ),
+            "functional_observation_count": SourcedFeatureValue(
+                completed_assessments, source
+            ),
+            "missed_dose_rate": SourcedFeatureValue(
+                missed_doses / scheduled_doses, source
+            ),
+            "delayed_visit_count": SourcedFeatureValue(
+                int(summary["delayed_visits"]), source
+            ),
+            "missed_visit_rate": SourcedFeatureValue(
+                missed_visits / scheduled_visits, source
+            ),
+            "mean_visit_delay_days": SourcedFeatureValue(
+                float(summary["total_visit_delay_days"]) / completed_visits
+                if completed_visits
+                else 0.0,
+                source,
+            ),
+            "measurement_missingness_rate": SourcedFeatureValue(
+                (expected_assessments - completed_assessments) / expected_assessments,
+                source,
+            ),
+            "adverse_event_count": SourcedFeatureValue(
+                int(summary["adverse_event_count"]), source
+            ),
+            "adverse_event_burden": SourcedFeatureValue(
+                int(summary["adverse_event_burden"]), source
+            ),
+        }
     )
-    superseded = {row.supersedes_event_id for row in rows if row.supersedes_event_id is not None}
-    return [row for row in rows if row.id not in superseded]
+    return values
 
 
-async def build_follow_up_snapshot(
+async def build_follow_up_summary(
     session: AsyncSession,
     *,
     enrollment: ResearchEnrollment,
-    confirmations: Mapping[str, bool],
+    summary: Mapping[str, int | float],
 ) -> ResearchFollowUpSnapshot:
     cutoff = enrollment.observation_cutoff_day
-    doses = await _active_events(session, ResearchDoseEvent, enrollment, cutoff)
-    visits = await _active_events(session, ResearchVisitEvent, enrollment, cutoff)
-    measurements = await _active_events(session, ResearchMeasurement, enrollment, cutoff)
-    adverse = await _active_events(session, ResearchAdverseEvent, enrollment, cutoff)
-    values = _enrollment_values(enrollment)
-
-    resolved_doses = [row for row in doses if row.status != "scheduled"]
-    scheduled_doses = sum(row.scheduled_count for row in resolved_doses)
-    if (
-        confirmations.get("dose_record_complete") is True
-        and len(resolved_doses) == len(doses)
-        and scheduled_doses
-    ):
-        missed = sum(row.scheduled_count - row.administered_count for row in resolved_doses)
-        values["missed_dose_rate"] = SourcedFeatureValue(
-            missed / scheduled_doses, "derived:research_dose_events"
-        )
-
-    resolved_visits = [row for row in visits if row.status != "scheduled"]
-    if (
-        confirmations.get("visit_record_complete") is True
-        and len(resolved_visits) == len(visits)
-        and resolved_visits
-    ):
-        missed_visits = sum(row.status == "missed" for row in resolved_visits)
-        delayed_visits = sum(row.status == "delayed" for row in resolved_visits)
-        delays = [row.delay_days for row in resolved_visits if row.delay_days is not None]
-        if len(delays) == len([row for row in resolved_visits if row.status != "missed"]):
-            values["mean_visit_delay_days"] = SourcedFeatureValue(
-                sum(delays) / len(delays) if delays else 0.0,
-                "derived:research_visit_events",
-            )
-        values["missed_visit_rate"] = SourcedFeatureValue(
-            missed_visits / len(resolved_visits), "derived:research_visit_events"
-        )
-        values["delayed_visit_count"] = SourcedFeatureValue(
-            delayed_visits, "derived:research_visit_events"
-        )
-
-    if measurements and confirmations.get("measurement_record_complete") is True:
-        missing_count = sum(not row.observed for row in measurements)
-        values["measurement_missingness_rate"] = SourcedFeatureValue(
-            missing_count / len(measurements), "derived:research_measurements"
-        )
-    functional = sorted(
-        (
-            row
-            for row in measurements
-            if row.concept == "functional_severity"
-            and row.unit == "score"
-            and row.observed
-            and row.value_numeric is not None
-        ),
-        key=lambda row: (row.event_day, row.recorded_at, row.id),
+    normalized_summary = dict(summary)
+    input_checksum = _checksum(
+        {"summary": normalized_summary, "baseline_snapshot_hash": enrollment.baseline_snapshot_hash}
     )
-    if functional:
-        values["latest_functional_severity"] = SourcedFeatureValue(
-            float(functional[-1].value_numeric), "derived:research_measurements"
-        )
-        values["functional_observation_count"] = SourcedFeatureValue(
-            len(functional), "derived:research_measurements"
-        )
-    baseline_severity = values.get("baseline_functional_severity")
-    if functional and baseline_severity is not None and functional[-1].event_day > 0:
-        last = functional[-1]
-        slope = (float(last.value_numeric) - float(baseline_severity.value)) / last.event_day
-        values["functional_severity_slope"] = SourcedFeatureValue(
-            slope, "derived:research_measurements"
-        )
-
-    if adverse or confirmations.get("adverse_event_record_complete") is True:
-        values["adverse_event_count"] = SourcedFeatureValue(
-            len(adverse), "derived:research_adverse_events"
-        )
-        values["adverse_event_burden"] = SourcedFeatureValue(
-            sum(row.severity_grade for row in adverse), "derived:research_adverse_events"
-        )
-
-    event_ids = {
-        "dose": [str(row.id) for row in doses],
-        "visit": [str(row.id) for row in visits],
-        "measurement": [str(row.id) for row in measurements],
-        "adverse_event": [str(row.id) for row in adverse],
-        "confirmations": dict(sorted(confirmations.items())),
-        "baseline_snapshot_hash": enrollment.baseline_snapshot_hash,
-    }
-    event_checksum = _checksum(event_ids)
-    raw_values = {name: item.value for name, item in values.items()}
-    raw_sources = {name: item.source for name, item in values.items()}
-    missing = [name for name in FEATURE_NAMES if name not in values]
-    snapshot_hash: str | None = None
-    status = "incomplete"
-    if not missing:
-        try:
-            complete = build_feature_snapshot(values)
-        except FeatureSnapshotError as exc:
-            raise ApplicationError(
-                code="RESEARCH_FEATURE_SNAPSHOT_INVALID", message=str(exc), status_code=422
-            ) from exc
-        raw_values = complete.values
-        raw_sources = complete.sources
-        snapshot_hash = complete.checksum
-        status = "ready"
     existing = await session.scalar(
         select(ResearchFollowUpSnapshot).where(
             ResearchFollowUpSnapshot.research_enrollment_id == enrollment.id,
             ResearchFollowUpSnapshot.cutoff_day == cutoff,
-            ResearchFollowUpSnapshot.event_set_checksum == event_checksum,
+            ResearchFollowUpSnapshot.event_set_checksum == input_checksum,
         )
     )
     if existing is not None:
         return existing
+    try:
+        complete = build_feature_snapshot(_day30_features(enrollment, normalized_summary))
+    except (FeatureSnapshotError, KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
+        raise ApplicationError(
+            code="RESEARCH_DAY30_SUMMARY_INVALID", message=str(exc), status_code=422
+        ) from exc
     snapshot = ResearchFollowUpSnapshot(
         owner_id=enrollment.owner_id,
         research_enrollment_id=enrollment.id,
         cutoff_day=cutoff,
         feature_schema_version=FEATURE_CONTRACT_VERSION,
-        feature_values_json=raw_values,
-        feature_sources_json=raw_sources,
-        feature_snapshot_hash=snapshot_hash,
-        event_set_checksum=event_checksum,
-        missing_features_json=missing,
-        status=status,
+        feature_values_json=complete.values,
+        feature_sources_json=complete.sources,
+        feature_snapshot_hash=complete.checksum,
+        input_summary_json=normalized_summary,
+        event_set_checksum=input_checksum,
+        missing_features_json=[],
+        status="ready",
     )
     session.add(snapshot)
     await session.flush()
     return snapshot
+
+
+def missed_dose_scenarios(
+    snapshot: ResearchFollowUpSnapshot,
+    artifacts: RiskArtifactService,
+) -> list[dict[str, int | float]]:
+    summary = snapshot.input_summary_json
+    if not summary:
+        raise ApplicationError(
+            code="RESEARCH_DAY30_SUMMARY_REQUIRED",
+            message="Enter the compact day-30 inputs before calculating scenarios.",
+            status_code=409,
+        )
+    base_scheduled = int(cast(int | float, summary["scheduled_doses"]))
+    base_missed = int(cast(int | float, summary["missed_doses"]))
+    base_values = {
+        name: SourcedFeatureValue(
+            cast(FeatureValue, snapshot.feature_values_json[name]), "scenario"
+        )
+        for name in FEATURE_NAMES
+    }
+    points: list[dict[str, int | float]] = []
+    for additional in (0, 1, 2):
+        scheduled = base_scheduled + additional
+        missed = base_missed + additional
+        rate = missed / scheduled
+        values = dict(base_values)
+        values["missed_dose_rate"] = SourcedFeatureValue(rate, "scenario:additional_missed_dose")
+        output = artifacts.predict(build_feature_snapshot(values), top_k=0)
+        points.append(
+            {
+                "additional_missed_doses": additional,
+                "scheduled_doses": scheduled,
+                "missed_doses": missed,
+                "missed_dose_rate": rate,
+                "probability": output.probability,
+            }
+        )
+    return points
 
 
 async def active_model(session: AsyncSession) -> ResearchModelVersion:
@@ -565,6 +542,7 @@ def follow_up_payload(snapshot: ResearchFollowUpSnapshot) -> dict[str, Any]:
         "feature_schema_version": snapshot.feature_schema_version,
         "feature_snapshot_hash": snapshot.feature_snapshot_hash,
         "event_set_checksum": snapshot.event_set_checksum,
+        "input_summary": snapshot.input_summary_json,
         "status": snapshot.status,
         "features": [
             {

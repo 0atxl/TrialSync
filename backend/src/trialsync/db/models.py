@@ -758,6 +758,7 @@ class ResearchFollowUpSnapshot(Base):
     feature_values_json: Mapped[dict[str, object]] = mapped_column(JSON)
     feature_sources_json: Mapped[dict[str, object]] = mapped_column(JSON)
     feature_snapshot_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_summary_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     event_set_checksum: Mapped[str] = mapped_column(String(64))
     missing_features_json: Mapped[list[str]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(16))

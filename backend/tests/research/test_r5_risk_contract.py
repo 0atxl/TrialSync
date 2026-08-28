@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
-from research.package_r5_model import MODEL_ID, package_model
+from research.package_r5_model import (
+    FIXED_INPUT_ABS_TOLERANCE,
+    FIXED_INPUT_PROBABILITY,
+    MODEL_ID,
+    package_model,
+)
 
 from trialsync.research.risk.artifacts import RiskArtifactError, RiskArtifactService
 from trialsync.research.risk.features import (
@@ -32,9 +38,14 @@ def _complete_values() -> dict[str, SourcedFeatureValue]:
         "latest_functional_severity": 0.4,
         "functional_severity_slope": 0.01,
         "functional_observation_count": 4,
+        "scheduled_dose_count": 10,
+        "missed_dose_count": 1,
         "missed_dose_rate": 0.1,
+        "longest_missed_dose_streak": 1,
         "delayed_visit_count": 0,
+        "missed_visit_count": 1,
         "missed_visit_rate": 0.25,
+        "longest_missed_visit_streak": 1,
         "mean_visit_delay_days": 0.0,
         "measurement_missingness_rate": 0.1,
         "adverse_event_count": 0,
@@ -71,6 +82,18 @@ def test_feature_snapshot_rejects_invalid_values_instead_of_coercing_missing_to_
         build_feature_snapshot(values)
 
 
+def test_feature_snapshot_rejects_invented_or_inconsistent_streaks() -> None:
+    values = _complete_values()
+    del values["longest_missed_dose_streak"]
+    with pytest.raises(FeatureSnapshotError, match="longest_missed_dose_streak"):
+        build_feature_snapshot(values)
+
+    values = _complete_values()
+    values["longest_missed_visit_streak"] = SourcedFeatureValue(value=2, source="test")
+    with pytest.raises(FeatureSnapshotError, match="cannot exceed missed_visit_count"):
+        build_feature_snapshot(values)
+
+
 def test_unconfigured_artifact_service_is_explicitly_degraded(tmp_path: Path) -> None:
     with pytest.raises(RiskArtifactError, match="No active R5 risk model"):
         RiskArtifactService(tmp_path, None).descriptor()
@@ -86,11 +109,28 @@ def test_packager_rejects_an_unreviewed_model(tmp_path: Path) -> None:
 
 
 def test_reviewed_local_model_packages_without_retraining(tmp_path: Path) -> None:
-    source = Path("artifacts/r4/imported/r4_manual")
+    source = Path("artifacts/r4/imported/xgboost_06")
     if not source.exists():
-        pytest.skip("The ignored reviewed R4 package is not present in this checkout.")
+        bundle = Path("/home/rinzler/Downloads/trialsync_v2_bundle.zip")
+        if not bundle.exists():
+            pytest.skip("The ignored reviewed XGBoost-06 source bundle is not present.")
+        source = tmp_path / "reviewed-source"
+        with zipfile.ZipFile(bundle) as archive:
+            for name in (
+                "models/xgboost_pipeline.joblib",
+                "feature_schema.json",
+                "input_example.json",
+            ):
+                target = source / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(archive.read(name))
     result = package_model(source, tmp_path)
-    assert result["model"]["candidate_id"] == "xgboost-05"
+    assert result["model"]["candidate_id"] == "xgboost-06"
+    assert result["model"]["feature_schema_version"] == "r4-day30-features-v2"
+    assert result["verification"]["input_example_probability"] == pytest.approx(
+        FIXED_INPUT_PROBABILITY, abs=FIXED_INPUT_ABS_TOLERANCE
+    )
+    assert result["verification"]["contribution_count"] == 8
     manifest = json.loads((tmp_path / MODEL_ID / "manifest.json").read_text())
     assert manifest["selection_status"] == "user_selected_runtime_after_review"
     assert manifest["source"]["retraining_performed"] is False

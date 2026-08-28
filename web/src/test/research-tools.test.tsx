@@ -20,27 +20,37 @@ const screening: Screening = {
 }
 
 const model = {
-  id: 'model-1', name: 'dropout-xgboost', version: '1', alias: 'r5_runtime', candidate_id: 'xgboost-05',
-  training_dataset_version: 'r3-dataset-contract-v1', feature_schema_version: 'r4-day30-features-v1',
-  threshold: 0.21347740292549133, horizon_day: 90, validation_status: 'approved_runtime_choice', metrics: {},
+  id: 'model-1', name: 'dropout-xgboost', version: '2', alias: 'r5_runtime', candidate_id: 'xgboost-06',
+  training_dataset_version: 'r3-dataset-contract-v2', feature_schema_version: 'r4-day30-features-v2',
+  threshold: 0.445, horizon_day: 90, validation_status: 'approved_runtime_choice', metrics: {},
   band_policy_version: 'r5-risk-bands-v1', artifact_status: 'ready' as const, artifact_message: null, created_at: '',
 }
 
 const enrollment = {
   id: 'enrollment-1', screening_id: 'screen-1', enrollment_date: '2026-08-20', observation_cutoff_day: 30,
-  prediction_horizon_day: 90, feature_contract_version: 'r4-day30-features-v1', tracking_status: 'active' as const,
+  prediction_horizon_day: 90, feature_contract_version: 'r4-day30-features-v2', tracking_status: 'active' as const,
   missing_baseline_features: [], created_at: '',
-  baseline: [{ name: 'condition_category', group: 'baseline' as const, value: 'respiratory', source: 'approved_trial_version', missing: false }],
+  baseline: [
+    { name: 'condition_category', group: 'baseline' as const, value: 'respiratory', source: 'approved_trial_version', missing: false },
+    { name: 'site_region', group: 'baseline' as const, value: 'west', source: 'Research follow-up intake', missing: false },
+    { name: 'treatment_arm', group: 'baseline' as const, value: 'active', source: 'Research follow-up intake', missing: false },
+    { name: 'baseline_functional_severity', group: 'baseline' as const, value: 0.3, source: 'Research follow-up intake', missing: false },
+    { name: 'patient_reported_burden', group: 'baseline' as const, value: 0.2, source: 'Research follow-up intake', missing: false },
+    { name: 'baseline_treatment_burden', group: 'baseline' as const, value: 2, source: 'Research follow-up intake', missing: false },
+    { name: 'travel_access_burden', group: 'baseline' as const, value: 2, source: 'Research follow-up intake', missing: false },
+    { name: 'support_availability', group: 'baseline' as const, value: 1, source: 'Research follow-up intake', missing: false },
+  ],
 }
 
 const summary: Day30Summary = {
-  scheduled_doses: 8, missed_doses: 2, scheduled_visits: 4, missed_visits: 1, delayed_visits: 1,
+  scheduled_doses: 8, missed_doses: 2, longest_missed_dose_streak: 1,
+  scheduled_visits: 4, missed_visits: 1, longest_missed_visit_streak: 1, delayed_visits: 1,
   total_visit_delay_days: 2, expected_assessments: 4, completed_assessments: 3,
   latest_functional_severity: 0.4, latest_assessment_day: 30, adverse_event_count: 0, adverse_event_burden: 0,
 }
 
 const followUp = {
-  id: 'follow-1', research_enrollment_id: enrollment.id, cutoff_day: 30, feature_schema_version: 'r4-day30-features-v1',
+  id: 'follow-1', research_enrollment_id: enrollment.id, cutoff_day: 30, feature_schema_version: 'r4-day30-features-v2',
   feature_snapshot_hash: 'hash', event_set_checksum: 'summary-hash', input_summary: summary, status: 'ready' as const,
   missing_features: [], created_at: '', features: [],
 }
@@ -54,11 +64,11 @@ const prediction = {
 }
 
 const scenarios = {
-  follow_up_snapshot_id: followUp.id, scenario: 'additional_missed_doses' as const, threshold: model.threshold, horizon_day: 90,
+  follow_up_snapshot_id: followUp.id, scenario: 'additional_consecutive_missed_doses' as const, threshold: model.threshold, horizon_day: 90,
   points: [
-    { additional_missed_doses: 0, scheduled_doses: 8, missed_doses: 2, missed_dose_rate: 0.25, probability: 0.516 },
-    { additional_missed_doses: 1, scheduled_doses: 9, missed_doses: 3, missed_dose_rate: 1 / 3, probability: 0.516 },
-    { additional_missed_doses: 2, scheduled_doses: 10, missed_doses: 4, missed_dose_rate: 0.4, probability: 0.56 },
+    { additional_missed_doses: 0, scheduled_doses: 8, missed_doses: 2, missed_dose_rate: 0.25, longest_missed_dose_streak: 1, probability: 0.516 },
+    { additional_missed_doses: 1, scheduled_doses: 9, missed_doses: 3, missed_dose_rate: 1 / 3, longest_missed_dose_streak: 2, probability: 0.516 },
+    { additional_missed_doses: 2, scheduled_doses: 10, missed_doses: 4, missed_dose_rate: 0.4, longest_missed_dose_streak: 3, probability: 0.56 },
   ],
 }
 
@@ -121,10 +131,30 @@ describe('saved-screening research tools', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Calculate estimate' }))
     await waitFor(() => expect(submitted).toEqual(summary))
     expect(await screen.findAllByText('51.6%')).toHaveLength(3)
-    expect(screen.getByText('If more doses are missed')).toBeInTheDocument()
+    expect(screen.getByText('If consecutive doses are missed')).toBeInTheDocument()
     expect(screen.getByText('56.0%')).toBeInTheDocument()
     expect(screen.getByText('2/8')).toBeInTheDocument()
     expect(screen.getByText('4/10')).toBeInTheDocument()
+  })
+
+  it('uses PUT when correcting an existing baseline', async () => {
+    let correctionMethod = ''
+    const linkedContext: RiskContext = { screening_id: screening.id, status: 'incomplete', enrollment, follow_up: null, model }
+    vi.stubGlobal('fetch', vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes('/risk/screenings/') && input.endsWith('/context')) return Promise.resolve(json(linkedContext))
+      if (input.endsWith('/enrollment') && init?.method === 'PUT') {
+        correctionMethod = init.method
+        return Promise.resolve(json(enrollment))
+      }
+      throw new Error(`unexpected request ${input}`)
+    }))
+    renderRisk()
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit baseline' }))
+    expect(screen.getByText('Edit baseline setup')).toBeInTheDocument()
+    await userEvent.clear(screen.getByLabelText(/^Baseline functional severity/))
+    await userEvent.type(screen.getByLabelText(/^Baseline functional severity/), '0.35')
+    await userEvent.click(screen.getByRole('button', { name: 'Save baseline changes' }))
+    await waitFor(() => expect(correctionMethod).toBe('PUT'))
   })
 
   it('loads a saved result and keeps model details collapsed', async () => {
@@ -137,8 +167,22 @@ describe('saved-screening research tools', () => {
     renderRisk()
     expect(await screen.findAllByText('51.6%')).toHaveLength(3)
     expect(screen.getByText('Raised estimate')).toBeInTheDocument()
-    expect(screen.getByText(/xgboost-05/i)).not.toBeVisible()
+    expect(screen.getByText(/xgboost-06/i)).not.toBeVisible()
     await userEvent.click(screen.getByText('Technical details'))
-    expect(screen.getByText(/xgboost-05/i)).toBeVisible()
+    expect(screen.getByText(/xgboost-06/i)).toBeVisible()
+  })
+
+  it('shows an unsupported condition without opening baseline entry', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json({
+      screening_id: screening.id,
+      status: 'unsupported_model_input',
+      status_message: 'This condition is outside the current model scope.',
+      enrollment: null,
+      follow_up: null,
+      model,
+    }))))
+    renderRisk()
+    expect(await screen.findByText('Dropout model not available for this condition')).toBeInTheDocument()
+    expect(screen.queryByText('Complete baseline setup')).not.toBeInTheDocument()
   })
 })

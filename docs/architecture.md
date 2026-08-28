@@ -11,6 +11,7 @@ structured records -> immutable patient snapshot + approved trial version
 stored screening + authoritative evidence -> canonical PDF report
 stored screening + authoritative evidence -> bounded explanation conversation
 stored screening -> platform-owned research enrollment
+                 -> append-only baseline revisions for corrections
                  -> explicit aggregate day-30 input
                  -> immutable sourced feature snapshot
                    -> checksum-verified XGBoost inference + Tree SHAP/scenarios
@@ -93,16 +94,20 @@ estimate**. The owner-scoped Dropout dashboard lists every potentially eligible 
 deep-links its next action into that route. TrialSync resolves the immutable snapshot, approved
 trial version, screening, and platform-owned research enrollment. Baseline fields are prefilled
 from that context. Required day-30 adherence, visit, adverse-event, and updated-severity fields are
-entered once as explicit aggregate totals. The server derives the frozen rates and slopes and
+entered once as explicit aggregate totals plus the two longest missed streaks. The server derives
+the frozen rates and slopes and
 creates an immutable feature snapshot; changed totals create or reuse their own snapshot rather
 than editing prior prediction inputs.
+Baseline corrections use PUT to append a revision. When earlier day-30 inputs exist, the server
+creates a new feature snapshot from the corrected revision, leaving every historical snapshot and
+prediction unchanged and making the worklist ready for a new prediction.
 Unavailable follow-up values remain missing and are never silently interpreted as zero. The
 accepted versioned research API validates the resulting feature snapshot and returns probability,
 threshold, horizon, and contribution factors in the linked workflow. The saved eligibility result
 remains unchanged and one navigation step away. Model and
 numeric contribution details remain available under Technical details.
-The result also shows exact current, one-additional-missed-dose, and two-additional-missed-dose
-inference points with all other model inputs held fixed.
+The result also shows exact current, one-additional-consecutive-missed-dose, and
+two-additional-consecutive-missed-dose inference points with all other model inputs held fixed.
 
 The same saved screening independently exposes **View cohort context** and **Find similar
 participants**. The server projects its immutable facts and deterministic evidence pattern through

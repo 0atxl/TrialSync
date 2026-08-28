@@ -8,6 +8,7 @@ import {
   type DropoutWorklistRow,
 } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { Pagination } from '../components/Pagination'
 import { ResearchNav } from '../components/ResearchNav'
 
 const statusOrder: DropoutWorkflowStatus[] = [
@@ -37,6 +38,8 @@ const bandLabels = {
   higher: 'Higher',
 }
 
+const PAGE_SIZE = 15
+
 function estimateLabel(row: DropoutWorklistRow) {
   return row.estimate ? `${(row.estimate.probability * 100).toFixed(1)}%` : '—'
 }
@@ -46,6 +49,7 @@ export function RecruitmentOverviewPage() {
   const [rows, setRows] = useState<DropoutWorklistRow[]>([])
   const [status, setStatus] = useState<DropoutWorkflowStatus | 'all'>('all')
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -80,6 +84,15 @@ export function RecruitmentOverviewPage() {
       (status === 'all' || row.workflow_status === status)
       && (!term || `${row.patient_name} ${row.trial_title}`.toLowerCase().includes(term)))
   }, [query, rows, status])
+
+  useEffect(() => {
+    setPage(1)
+  }, [query, status])
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return visible.slice(start, start + PAGE_SIZE)
+  }, [visible, page])
 
   return (
     <section className="route-entry workspace-page research-page dropout-page">
@@ -127,19 +140,22 @@ export function RecruitmentOverviewPage() {
           </div>
 
           {visible.length ? (
-            <div className="dropout-worklist" role="table" aria-label="Dropout follow-up worklist">
-              <div className="dropout-worklist-head" role="row"><span>Patient</span><span>Trial</span><span>Follow-up</span><span>Estimate</span><span>Updated</span><span /></div>
-              {visible.map((row) => (
-                <div className="dropout-worklist-row" role="row" key={row.screening_id}>
-                  <strong role="cell">{row.patient_name}</strong>
-                  <span role="cell">{row.trial_title}</span>
-                  <span role="cell" className={`dropout-state dropout-state-${row.workflow_status}`}>{statusLabels[row.workflow_status]}</span>
-                  <span role="cell" className="dropout-estimate">{estimateLabel(row)}{row.estimate ? <small>by day {row.estimate.horizon_day}</small> : null}</span>
-                  <time role="cell" dateTime={row.updated_at}>{new Date(row.updated_at).toLocaleDateString()}</time>
-                  <span role="cell" className="dropout-row-action"><Link to={`/screenings/${row.screening_id}/dropout`}>{actionLabels[row.next_action]}</Link></span>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="dropout-worklist" role="table" aria-label="Dropout follow-up worklist">
+                <div className="dropout-worklist-head" role="row"><span>Patient</span><span>Trial</span><span>Follow-up</span><span>Estimate</span><span>Updated</span><span /></div>
+                {paginated.map((row) => (
+                  <div className="dropout-worklist-row" role="row" key={row.screening_id}>
+                    <strong role="cell">{row.patient_name}</strong>
+                    <span role="cell">{row.trial_title}</span>
+                    <span role="cell" className={`dropout-state dropout-state-${row.workflow_status}`}>{statusLabels[row.workflow_status]}</span>
+                    <span role="cell" className="dropout-estimate">{estimateLabel(row)}{row.estimate ? <small>by day {row.estimate.horizon_day}</small> : null}</span>
+                    <time role="cell" dateTime={row.updated_at}>{new Date(row.updated_at).toLocaleDateString()}</time>
+                    <span role="cell" className="dropout-row-action"><Link to={`/screenings/${row.screening_id}/dropout`}>{actionLabels[row.next_action]}</Link></span>
+                  </div>
+                ))}
+              </div>
+              <Pagination currentPage={page} totalItems={visible.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+            </>
           ) : (
             <div className="empty-state compact-empty"><h2>No matching follow-up records</h2><button className="text-button" type="button" onClick={() => { setQuery(''); setStatus('all') }}>Clear filters</button></div>
           )}

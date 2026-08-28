@@ -21,7 +21,7 @@ COPY backend/src /app/backend/src
 COPY backend/migrations /app/backend/migrations
 COPY backend/alembic.ini /app/backend/alembic.ini
 
-RUN pip install --no-cache-dir '/app/backend[research-runtime]' \
+RUN pip install --no-cache-dir '/app/backend[research-runtime,research-risk]' \
     && chown -R trialsync:trialsync /app
 
 USER trialsync

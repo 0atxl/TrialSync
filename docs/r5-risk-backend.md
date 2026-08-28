@@ -6,10 +6,10 @@
 > [`research-integration-contract.md`](research-integration-contract.md). The 4,000-row R3 data is
 > model-training lineage only.
 
-R5 exposes the user-selected XGBoost candidate `xgboost-05` through an authenticated,
-versioned research API. It does not retrain R4, change the frozen comparison result, or alter
-deterministic eligibility. The original R4 validation rule selected LightGBM; XGBoost remains the
-separately documented runtime choice made after review of the frozen comparison.
+R5 exposes the active XGBoost candidate `xgboost-06` as model
+`dropout-xgboost-06-v1` through an authenticated, versioned research API. This integration does
+not retrain the supplied model or alter deterministic eligibility. Its reported performance is
+limited to the controlled synthetic task and is not clinical or real-world validation.
 
 ## Runtime model package
 
@@ -27,11 +27,11 @@ backend/.venv/bin/python -m research.package_r5_model --output-root artifacts/r5
 ```
 
 The reviewed source pipeline must be available at
-`artifacts/r4/imported/r4_manual/models/xgboost_pipeline.joblib`. Binary model packages remain
+`artifacts/r4/imported/xgboost_06/models/xgboost_pipeline.joblib`. Binary model packages remain
 ignored local artifacts. Configure the accepted package with:
 
 ```text
-TRIALSYNC_RESEARCH_RISK_ACTIVE_MODEL=dropout-xgboost-05-v1
+TRIALSYNC_RESEARCH_RISK_ACTIVE_MODEL=dropout-xgboost-06-v1
 ```
 
 The service loads the package lazily. It verifies the artifact and feature-schema checksums and
@@ -41,20 +41,23 @@ screening API unavailable.
 
 ## Feature contract
 
-The model uses the exact 22-feature R3 day-30 schema:
+The model uses the exact 27-feature `r4-day30-features-v2` day-30 schema:
 
 - 12 baseline fields: condition category, site region, treatment arm, age, sex, baseline
   functional severity, reported burden, comorbidity burden, treatment burden, travel/access
   burden, support availability, and medication count;
-- 10 day-30 follow-up fields: latest functional severity, severity slope, observation count,
-  missed-dose rate, delayed-visit count, missed-visit rate, mean visit delay, measurement
-  missingness, adverse-event count, and adverse-event burden.
+- 15 day-30 follow-up fields: latest functional severity, severity slope, observation count,
+  scheduled- and missed-dose counts, missed-dose rate, longest missed-dose streak,
+  delayed- and missed-visit counts, missed-visit rate, longest missed-visit streak, mean visit
+  delay, measurement missingness, adverse-event count, and adverse-event burden.
 
 Every value has an explicit source. The saved screening supplies only baseline values it owns,
 such as age from the immutable date of birth and condition category from the approved trial
-version. The active integration requests one explicit aggregate through-day-30 summary and derives
-the ten frozen follow-up features on the server. Missing, non-finite, out-of-range, or unknown
-fields prevent snapshot creation; missing values are never converted to zero.
+version. The active integration requests one explicit aggregate through-day-30 summary, including
+the two longest-streak values, and derives rates and slopes on the server. Streaks are not guessed
+from totals. Missing, non-finite, out-of-range, or unknown fields prevent snapshot creation;
+missing values are never converted to zero. Unsupported trial conditions return
+`unsupported_model_input` and leave deterministic eligibility unchanged.
 
 ## Immutable linkage and persistence
 
@@ -74,6 +77,17 @@ Migration `20260827_0014` adds `input_summary_json` to immutable follow-up snaps
 event tables remain for migration compatibility, but they are no longer exposed by the active R5
 API or used by the prediction-entry workflow.
 
+Migration `20260828_0015` adds append-only enrollment baseline revisions and links new follow-up
+snapshots to the revision used to build them. POST creates an enrollment once; PUT appends an
+idempotent correction and materializes a new follow-up snapshot when prior day-30 inputs exist.
+Corrections never rewrite an existing snapshot or prediction. The migration changes no historical
+feature values, hashes, prediction outputs, explanations, or timestamps. It labels v2 only when a
+payload satisfies the frozen 27-feature contract and repairs legacy link mismatches by inserting
+exact snapshots from the immutable feature copies already stored on predictions. The historical
+XGBoost-05/v1 model row remains immutable; XGBoost-06/v2 has a separate model-version ID. Migration
+`20260828_0016` applies the same provenance split forward to local databases that had already run
+the earlier development form of `0015`.
+
 A screening may have only one immutable enrollment episode. No runtime row resolves into the R3
 training dataset. Predictions remain idempotent for the same owner, enrollment, model, and
 feature-snapshot hash. No risk field is added to `patients`, `screenings`, or deterministic
@@ -88,6 +102,7 @@ GET  /api/v1/research/risk/models
 GET  /api/v1/research/risk/models/{model_version}
 GET  /api/v1/research/screenings/{screening_id}/capabilities
 POST /api/v1/research/screenings/{screening_id}/enrollment
+PUT  /api/v1/research/screenings/{screening_id}/enrollment
 GET  /api/v1/research/enrollments/{enrollment_id}
 POST /api/v1/research/enrollments/{enrollment_id}/day30-summary
 GET  /api/v1/research/enrollments/{enrollment_id}/follow-up-snapshots
@@ -101,7 +116,8 @@ GET  /api/v1/research/trial-overview
 GET  /api/v1/research/trial-overview/{trial_version_id}
 ```
 
-The context endpoint reports `unlinked`, `incomplete`, or `ready`. Submitting changed aggregate
+The context endpoint reports `unlinked`, `incomplete`, `ready`, or
+`unsupported_model_input`. Submitting changed aggregate
 inputs creates or reuses the corresponding immutable snapshot and estimate. The owner-scoped
 worklist returns one row per potentially eligible screening with patient/trial labels, workflow
 state, latest current estimate or `null`, update time, and next action. Follow-up snapshots return
@@ -119,12 +135,13 @@ explicitly.
 
 The output is a day-30-to-day-90 research prediction for the generated R3 task. It is not a day-0
 prediction, clinical probability, eligibility score, or retention recommendation. The threshold
-is `0.21347740292549133`; the versioned display bands are lower, near threshold, and higher. The
+is `0.445`; the versioned display bands are lower, near threshold, and higher. The
 response always states: `Research prediction only; not a clinical or eligibility decision.`
 
 The R5 backend integration passes focused persistence, API, feature, and model-package tests. The
 saved-screening frontend launches a focused route for baseline setup, one compact aggregate day-30
-form, and the dropout estimate. It asks directly for expected/missed doses, visit totals,
+form, and the dropout estimate. It asks directly for expected/missed doses, their longest missed
+run, visit totals and their longest missed run,
 assessment totals/latest severity, and adverse-event count/burden; missing values remain missing.
 The saved eligibility result is unchanged. Probability, threshold,
 horizon, and human-readable factors are primary;
@@ -133,5 +150,6 @@ dashboard lists every potentially eligible screening across not-started, informa
 ready-to-predict, and estimate-available states.
 
 The scenario endpoint performs non-persisting inference for the current aggregate and exactly one
-or two additional missed-dose opportunities while holding every other feature fixed. XGBoost is
-piecewise constant, so adjacent scenario points may legitimately have the same probability.
+or two additional consecutive missed-dose opportunities, updating counts, rate, and streak while
+holding every other feature fixed. XGBoost is piecewise constant, so adjacent scenario points may
+legitimately have the same probability.

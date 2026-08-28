@@ -297,8 +297,10 @@ export type ResearchFollowUp = {
 export type Day30Summary = {
   scheduled_doses: number
   missed_doses: number
+  longest_missed_dose_streak: number
   scheduled_visits: number
   missed_visits: number
+  longest_missed_visit_streak: number
   delayed_visits: number
   total_visit_delay_days: number
   expected_assessments: number
@@ -327,7 +329,8 @@ export type ResearchModel = {
 }
 export type RiskContext = {
   screening_id: string
-  status: 'unlinked' | 'incomplete' | 'ready'
+  status: 'unlinked' | 'incomplete' | 'ready' | 'unsupported_model_input'
+  status_message?: string | null
   enrollment: ResearchEnrollment | null
   follow_up: ResearchFollowUp | null
   follow_up_stale?: boolean
@@ -362,11 +365,12 @@ export type RiskScenarioPoint = {
   scheduled_doses: number
   missed_doses: number
   missed_dose_rate: number
+  longest_missed_dose_streak: number
   probability: number
 }
 export type RiskScenarioResponse = {
   follow_up_snapshot_id: string
-  scenario: 'additional_missed_doses'
+  scenario: 'additional_consecutive_missed_doses'
   points: RiskScenarioPoint[]
   threshold: number
   horizon_day: number

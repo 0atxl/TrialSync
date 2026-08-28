@@ -11,10 +11,12 @@ const fields: Array<{
   max: number
   step?: number
 }> = [
-  { name: 'scheduled_doses', label: 'Doses expected', min: 1, max: 1000 },
-  { name: 'missed_doses', label: 'Doses missed', min: 0, max: 1000 },
+  { name: 'scheduled_doses', label: 'Doses expected', min: 1, max: 100 },
+  { name: 'missed_doses', label: 'Doses missed', min: 0, max: 100 },
+  { name: 'longest_missed_dose_streak', label: 'Longest missed-dose run', min: 0, max: 30 },
   { name: 'scheduled_visits', label: 'Visits expected', min: 1, max: 100 },
-  { name: 'missed_visits', label: 'Visits missed', min: 0, max: 100 },
+  { name: 'missed_visits', label: 'Visits missed', min: 0, max: 50 },
+  { name: 'longest_missed_visit_streak', label: 'Longest missed-visit run', min: 0, max: 15 },
   { name: 'delayed_visits', label: 'Visits delayed', min: 0, max: 100 },
   { name: 'total_visit_delay_days', label: 'Total delay days', min: 0, max: 3000 },
   { name: 'expected_assessments', label: 'Assessments expected', min: 1, max: 100 },
@@ -26,8 +28,8 @@ const fields: Array<{
 ]
 
 const groups = [
-  { title: 'Doses', names: ['scheduled_doses', 'missed_doses'] },
-  { title: 'Visits', names: ['scheduled_visits', 'missed_visits', 'delayed_visits', 'total_visit_delay_days'] },
+  { title: 'Doses', names: ['scheduled_doses', 'missed_doses', 'longest_missed_dose_streak'] },
+  { title: 'Visits', names: ['scheduled_visits', 'missed_visits', 'longest_missed_visit_streak', 'delayed_visits', 'total_visit_delay_days'] },
   { title: 'Assessment', names: ['expected_assessments', 'completed_assessments', 'latest_functional_severity', 'latest_assessment_day'] },
   { title: 'Safety', names: ['adverse_event_count', 'adverse_event_burden'] },
 ] as const
@@ -43,7 +45,11 @@ function value(draft: Draft, name: keyof Day30Summary) {
 function validate(draft: Draft) {
   if (fields.some(({ name }) => draft[name].trim() === '')) return 'Complete every field. Enter 0 when none occurred.'
   if (value(draft, 'missed_doses') > value(draft, 'scheduled_doses')) return 'Missed doses cannot exceed expected doses.'
+  if (value(draft, 'missed_doses') === 0 && value(draft, 'longest_missed_dose_streak') !== 0) return 'Enter 0 for the longest missed-dose run when no doses were missed.'
+  if (value(draft, 'missed_doses') > 0 && (value(draft, 'longest_missed_dose_streak') < 1 || value(draft, 'longest_missed_dose_streak') > value(draft, 'missed_doses'))) return 'The longest missed-dose run must be between 1 and the number of missed doses.'
   if (value(draft, 'missed_visits') > value(draft, 'scheduled_visits')) return 'Missed visits cannot exceed expected visits.'
+  if (value(draft, 'missed_visits') === 0 && value(draft, 'longest_missed_visit_streak') !== 0) return 'Enter 0 for the longest missed-visit run when no visits were missed.'
+  if (value(draft, 'missed_visits') > 0 && (value(draft, 'longest_missed_visit_streak') < 1 || value(draft, 'longest_missed_visit_streak') > value(draft, 'missed_visits'))) return 'The longest missed-visit run must be between 1 and the number of missed visits.'
   if (value(draft, 'delayed_visits') > value(draft, 'scheduled_visits') - value(draft, 'missed_visits')) return 'Delayed visits cannot exceed completed visits.'
   if (value(draft, 'delayed_visits') === 0 && value(draft, 'total_visit_delay_days') !== 0) return 'Enter 0 delay days when no visits were delayed.'
   if (value(draft, 'delayed_visits') > 0 && value(draft, 'total_visit_delay_days') < value(draft, 'delayed_visits')) return 'Total delay days must be at least the number of delayed visits.'

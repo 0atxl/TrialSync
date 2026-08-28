@@ -23,6 +23,7 @@ export function ResearchRiskPanel({ screening, token }: { screening: Screening; 
   const [prediction, setPrediction] = useState<RiskPrediction | null>(null)
   const [scenarios, setScenarios] = useState<RiskScenarioResponse | null>(null)
   const [editing, setEditing] = useState(false)
+  const [editingBaseline, setEditingBaseline] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -89,7 +90,7 @@ export function ResearchRiskPanel({ screening, token }: { screening: Screening; 
 
   return <div className="research-detail-panel risk-workspace">
     {error ? <div className="form-error" role="alert">{error}</div> : null}
-    {context.status === 'unlinked' ? <EnrollmentSetup screening={screening} busy={busy} onSubmit={async (payload) => {
+    {context.status === 'unsupported_model_input' ? <div className="empty-state compact-empty"><h2>Dropout model not available for this condition</h2><p>{context.status_message ?? 'This trial condition is outside the current model scope.'}</p><p>The saved eligibility result is unchanged.</p></div> : context.status === 'unlinked' ? <EnrollmentSetup screening={screening} busy={busy} onSubmit={async (payload) => {
       setBusy(true)
       setError('')
       try {
@@ -101,7 +102,39 @@ export function ResearchRiskPanel({ screening, token }: { screening: Screening; 
         setBusy(false)
       }
     }} /> : context.enrollment ? <>
-      <BaselineSummary enrollment={context.enrollment} />
+      {editingBaseline ? (
+        <EnrollmentSetup
+          screening={screening}
+          busy={busy}
+          initialEnrollment={context.enrollment}
+          onCancel={() => setEditingBaseline(false)}
+          onSubmit={async (payload) => {
+            setBusy(true)
+            setError('')
+      try {
+        await apiRequest(`/research/screenings/${screening.id}/enrollment`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        }, token)
+        setEditingBaseline(false)
+        const refreshedContext = await apiRequest<RiskContext>(`/research/risk/screenings/${screening.id}/context`, {}, token)
+        setContext(refreshedContext)
+        if (refreshedContext.follow_up?.input_summary && !refreshedContext.follow_up_stale) {
+          await saveSummary(refreshedContext.follow_up.input_summary)
+        } else {
+          setPrediction(null)
+          setScenarios(null)
+        }
+            } catch (caught) {
+              setError(requestMessage(caught, 'Baseline updates could not be saved.'))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        />
+      ) : (
+        <BaselineSummary enrollment={context.enrollment} onEdit={() => setEditingBaseline(true)} />
+      )}
       {!context.follow_up?.input_summary || editing ? <Day30SummaryForm summary={context.follow_up?.input_summary ?? null} busy={busy} onSubmit={saveSummary} onCancel={context.follow_up?.input_summary ? () => setEditing(false) : undefined} /> : prediction ? <PredictionStage followUp={context.follow_up} prediction={prediction} scenarios={scenarios} onEdit={() => setEditing(true)} /> : <Day30SummaryForm summary={context.follow_up.input_summary} busy={busy} onSubmit={saveSummary} />}
     </> : null}
   </div>

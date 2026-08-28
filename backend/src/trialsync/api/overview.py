@@ -186,7 +186,10 @@ async def overview(request: Request, session: SessionDep, user: CurrentUser) -> 
                     ResearchFollowUpSnapshot.owner_id == user.id,
                     ResearchFollowUpSnapshot.research_enrollment_id.in_(enrollment_ids),
                 )
-                .order_by(ResearchFollowUpSnapshot.created_at.desc())
+                .order_by(
+                    ResearchFollowUpSnapshot.created_at.desc(),
+                    ResearchFollowUpSnapshot.id.desc(),
+                )
             )
         )
         if enrollment_ids
@@ -201,7 +204,7 @@ async def overview(request: Request, session: SessionDep, user: CurrentUser) -> 
                     ResearchPrediction.research_enrollment_id.in_(enrollment_ids),
                     ResearchPrediction.model_version_id == ACTIVE_MODEL_DATABASE_ID,
                 )
-                .order_by(ResearchPrediction.created_at.desc())
+                .order_by(ResearchPrediction.created_at.desc(), ResearchPrediction.id.desc())
             )
         )
         if enrollment_ids
@@ -219,10 +222,20 @@ async def overview(request: Request, session: SessionDep, user: CurrentUser) -> 
     workflow_by_screening: dict[uuid.UUID, WorkflowKind] = {}
     for screening in eligible:
         enrollment = enrollment_by_screening.get(screening.id)
+        current_follow_up = follow_up_by_enrollment.get(enrollment.id) if enrollment else None
+        current_prediction = prediction_by_enrollment.get(enrollment.id) if enrollment else None
+        if (
+            current_prediction is not None
+            and (
+                current_follow_up is None
+                or current_prediction.follow_up_snapshot_id != current_follow_up.id
+            )
+        ):
+            current_prediction = None
         workflow_by_screening[screening.id] = _workflow_kind(
             enrollment,
-            follow_up_by_enrollment.get(enrollment.id) if enrollment else None,
-            prediction_by_enrollment.get(enrollment.id) if enrollment else None,
+            current_follow_up,
+            current_prediction,
         )
     workflow_counts = Counter(workflow_by_screening.values())
     research_status, research_message = await _research_status(request, session)

@@ -11,6 +11,10 @@ original frozen validation rule selected LightGBM; the user selected XGBoost (`x
 R5 runtime/product model based on the reviewed comparison. XGBoost is not described as
 validation-selected. The committed R4 experiment report records the selection, metrics,
 uncertainty, SHAP, reproducibility metadata, and R5 handoff.
+The later verified controlled-synthetic v2 bundle supplies the active runtime model
+`dropout-xgboost-06-v1` (`xgboost-06`), feature contract `r4-day30-features-v2`, threshold `0.445`,
+and day-90 horizon. Its stronger metrics remain limited to that controlled synthetic task and are
+not clinical or real-world validation.
 The user approved R5A, a product-wide frontend experience redesign, on 2026-08-25. R5A follows the
 implemented R5/R6 integration and is the next implementation gate before R7.
 **Relationship to the current application:** Incremental extension after the completed deterministic TrialSync workflow. This plan does not replace the existing architecture or reopen completed rebuild phases.
@@ -1014,7 +1018,7 @@ Required entities:
   snapshot and approved trial version, with day-0 baseline values and explicit sources;
 - append-only `research_dose_events`, `research_visit_events`, `research_measurements`, and
   `research_adverse_events`, including correction provenance through `supersedes_event_id`;
-- immutable `research_follow_up_snapshots`, containing the exact derived 22-feature values,
+- immutable `research_follow_up_snapshots`, containing the exact derived 27-feature values,
   sources, missing fields, contributing-event checksum, and cutoff;
 - `research_model_versions`
   - model name/version/alias;
@@ -1401,7 +1405,7 @@ points.
 - It preserves the completed patient-data semantic contract while replacing its presentation where
   required for one consistent ingestion flow.
 - It may add bounded owner-scoped dashboard/dropout aggregates and cohort display summaries.
-- It does not alter deterministic eligibility, retrain `xgboost-05`, or rebuild/overwrite the
+- It does not alter deterministic eligibility, retrain `xgboost-06`, or rebuild/overwrite the
   configured R6 run merely for presentation.
 - The R5A preflight and each implementation stage stop for user review before continuing.
 
@@ -1817,7 +1821,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
 | R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; original validation rule selected LightGBM, while the user selected XGBoost `xgboost-05` for R5 runtime; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
-| R5. Research-risk API/UI | In progress | User selected the XGBoost runtime model and requested a full platform enrollment/event integration contract, 2026-08-21 | `xgboost-05` packaging, platform enrollment, append-only longitudinal events, immutable day-30 snapshots, prediction APIs, saved-screening enrollment/event/readiness/prediction/SHAP frontend, and Trial Recruitment Overview implemented; final browser-based visual review remains |
+| R5. Research-risk API/UI | In progress | User selected the XGBoost runtime model and requested a full platform enrollment/event integration contract, 2026-08-21 | Active `xgboost-06`/v2 packaging, append-only baseline correction, explicit streak inputs, immutable day-30 snapshots, prediction APIs, saved-screening readiness/prediction/SHAP frontend, and Trial Recruitment Overview implemented; final browser-based visual review remains |
 | R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, authorized V3, and requested saved-screening integration | V3.1 passed review; saved-screening projection, external DBSCAN association, exact external-vector FAISS query, independent saved-screening cohort/similarity views, and population Cohort Atlas implemented; final browser-based visual review remains |
 | R5A. Frontend experience redesign | Awaiting review | User approved the R5A direction and accepted R5A-0 through R5A-2 plus the bounded shared-CSS audit, 2026-08-25 | R5A-3 unified patient/trial manual and import entry, inline catalog/terminology assistance, and common review steps implemented; frontend tests, lint, typecheck, build, and focused backend ingestion/catalog tests pass; desktop and narrow-laptop/tablet visual review remains |
 | R7. LangChain/Gemini eligibility RAG | Approved | Corrected to the supplied project brief, 2026-07-26 | |

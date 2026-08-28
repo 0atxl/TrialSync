@@ -21,6 +21,10 @@ export function ResearchToolsPanel({ screening, token }: { screening: Screening;
       try {
         const context = await apiRequest<RiskContext>(`/research/risk/screenings/${screening.id}/context`, {}, token)
         if (!active) return
+        if (context.status === 'unsupported_model_input') {
+          setDropoutStatus('Not supported for this condition')
+          return
+        }
         if (context.status === 'unlinked') {
           setDropoutStatus('Not started')
           return

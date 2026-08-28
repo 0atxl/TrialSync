@@ -563,6 +563,41 @@ class ResearchEnrollment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ResearchEnrollmentBaselineRevision(Base):
+    """Append-only enrollment baseline used to build future feature snapshots."""
+
+    __tablename__ = "research_enrollment_baseline_revisions"
+    __table_args__ = (
+        UniqueConstraint("supersedes_revision_id"),
+        Index("ix_research_baseline_revisions_owner", "owner_id"),
+        Index("ix_research_baseline_revisions_enrollment", "research_enrollment_id"),
+        Index("ix_research_baseline_revisions_creator", "created_by_id"),
+        Index(
+            "ix_research_baseline_revisions_enrollment_created",
+            "research_enrollment_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_enrollments.id", ondelete="CASCADE")
+    )
+    enrollment_date: Mapped[date] = mapped_column(Date)
+    baseline_values_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    baseline_sources_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    baseline_snapshot_hash: Mapped[str] = mapped_column(String(64))
+    feature_contract_version: Mapped[str] = mapped_column(String(80))
+    supersedes_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_enrollment_baseline_revisions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    correction_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ResearchDoseEvent(Base):
     __tablename__ = "research_dose_events"
     __table_args__ = (
@@ -744,6 +779,7 @@ class ResearchFollowUpSnapshot(Base):
         CheckConstraint("cutoff_day > 0", name="ck_research_follow_up_cutoff"),
         CheckConstraint("status IN ('incomplete', 'ready')", name="ck_research_follow_up_status"),
         UniqueConstraint("research_enrollment_id", "cutoff_day", "event_set_checksum"),
+        Index("ix_research_follow_ups_baseline_revision", "baseline_revision_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -752,6 +788,10 @@ class ResearchFollowUpSnapshot(Base):
     )
     research_enrollment_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("research_enrollments.id", ondelete="CASCADE"), index=True
+    )
+    baseline_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_enrollment_baseline_revisions.id", ondelete="RESTRICT"),
+        nullable=True,
     )
     cutoff_day: Mapped[int] = mapped_column(Integer)
     feature_schema_version: Mapped[str] = mapped_column(String(80))

@@ -3,10 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 
 import { apiRequest, type Screening, type ScreeningState } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { Pagination } from '../components/Pagination'
 import { stateLabel } from './screeningHelpers'
 
 const screeningStates: ScreeningState[] = ['potentially_eligible', 'likely_ineligible', 'needs_review']
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
+const PAGE_SIZE = 15
 
 export function ScreeningHistoryPage() {
   const { token, logout } = useAuth()
@@ -19,6 +21,7 @@ export function ScreeningHistoryPage() {
       : 'all',
   )
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -45,6 +48,15 @@ export function ScreeningHistoryPage() {
       .toLowerCase()
       .includes(query.toLowerCase()),
   ), [items, query, state, validFrom, validTo])
+
+  useEffect(() => {
+    setPage(1)
+  }, [query, state, validFrom, validTo])
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, page])
 
   function changeState(nextState: 'all' | ScreeningState) {
     setState(nextState)
@@ -83,6 +95,12 @@ export function ScreeningHistoryPage() {
       <label>To<input type="date" value={validTo ?? ''} onChange={(event) => changeDate('to', event.target.value)} /></label>
     </div>
     {hasDateFilter ? <div className="history-active-filter"><span>Date filter applied</span><button className="text-button" type="button" onClick={clearDateFilter}>Clear dates</button></div> : null}
-    {error ? <div className="form-error" role="alert">{error} {error.includes('expired') && <button className="text-button" onClick={logout}>Sign in</button>}</div> : loading ? <div className="loading-state">Loading saved screenings…</div> : filtered.length === 0 ? <div className="empty-state"><h2>No matching screenings</h2><p>Adjust the filters or run a new screening.</p></div> : <section className="history-table" aria-label="Screening history"><div className="history-table-head" aria-hidden="true"><span>Patient and trial</span><span>Result</span><span>Criteria</span><span>Date</span><span /></div>{filtered.map((item) => <article className="history-compact-row" key={item.id}><div><strong>{item.patient_snapshot?.display_name ?? 'Patient'}</strong><small>{item.trial_version?.title ?? 'Saved trial'}</small></div><span className={`state state-${item.overall_state}`}>{stateLabel(item.overall_state)}</span><span className="criterion-counts">{item.counts.pass_count} pass · {item.counts.fail_count} fail · {item.counts.unknown_count} unknown</span><time>{item.screening_date}</time><Link className="row-action" to={`/screenings/${item.id}`}>Review</Link></article>)}</section>}
+    {error ? <div className="form-error" role="alert">{error} {error.includes('expired') && <button className="text-button" onClick={logout}>Sign in</button>}</div> : loading ? <div className="loading-state">Loading saved screenings…</div> : filtered.length === 0 ? <div className="empty-state"><h2>No matching screenings</h2><p>Adjust the filters or run a new screening.</p></div> : <>
+      <section className="history-table" aria-label="Screening history">
+        <div className="history-table-head" aria-hidden="true"><span>Patient and trial</span><span>Result</span><span>Criteria</span><span>Date</span><span /></div>
+        {paginated.map((item) => <article className="history-compact-row" key={item.id}><div><strong>{item.patient_snapshot?.display_name ?? 'Patient'}</strong><small>{item.trial_version?.title ?? 'Saved trial'}</small></div><span className={`state state-${item.overall_state}`}>{stateLabel(item.overall_state)}</span><span className="criterion-counts">{item.counts.pass_count} pass · {item.counts.fail_count} fail · {item.counts.unknown_count} unknown</span><time>{item.screening_date}</time><Link className="row-action" to={`/screenings/${item.id}`}>Review</Link></article>)}
+      </section>
+      <Pagination currentPage={page} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+    </>}
   </section>
 }

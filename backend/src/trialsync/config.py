@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -53,6 +53,13 @@ class Settings(BaseSettings):
         default=None,
         pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$",
     )
+
+    @field_validator("research_cohort_active_run", "research_risk_active_model", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value: Any) -> Any:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @field_validator("database_url")
     @classmethod

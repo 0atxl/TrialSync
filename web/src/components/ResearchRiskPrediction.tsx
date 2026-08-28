@@ -35,7 +35,7 @@ function ScenarioChart({ scenarios }: { scenarios: RiskScenarioResponse }) {
   const thresholdY = y(scenarios.threshold)
 
   return <section className="scenario-panel" aria-labelledby="scenario-title">
-    <div><h3 id="scenario-title">If more doses are missed</h3><p>Exact model results with every other value unchanged.</p></div>
+    <div><h3 id="scenario-title">If consecutive doses are missed</h3><p>Exact model results with every other value unchanged.</p></div>
     <svg className="scenario-chart" viewBox="0 0 540 174" role="img" aria-label={scenarios.points.map((point) => `${point.additional_missed_doses ? `plus ${point.additional_missed_doses}` : 'current'}: ${(point.probability * 100).toFixed(1)} percent`).join(', ')}>
       <line className="scenario-axis" x1="42" y1="142" x2="498" y2="142" />
       <line className="scenario-threshold" x1="42" y1={thresholdY} x2="498" y2={thresholdY} />

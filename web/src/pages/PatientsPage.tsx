@@ -3,11 +3,15 @@ import { Link } from 'react-router-dom'
 
 import { apiRequest, type Patient } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { Pagination } from '../components/Pagination'
+
+const PAGE_SIZE = 10
 
 export function PatientsPage() {
   const { token } = useAuth()
   const [patients, setPatients] = useState<Patient[]>([])
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -31,6 +35,15 @@ export function PatientsPage() {
       ? patients.filter((patient) => patient.display_name.toLowerCase().includes(term))
       : patients
   }, [patients, query])
+
+  useEffect(() => {
+    setPage(1)
+  }, [query])
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, page])
 
   return (
     <section className="route-entry workspace-page">
@@ -62,22 +75,25 @@ export function PatientsPage() {
           <p>{patients.length ? 'Try another name.' : 'Add a patient to begin.'}</p>
         </div>
       ) : (
-        <div className="record-table">
-          <div className="record-table-head" aria-hidden="true">
-            <span>Patient</span><span>Profile</span><span>Details</span><span />
+        <>
+          <div className="record-table">
+            <div className="record-table-head" aria-hidden="true">
+              <span>Patient</span><span>Profile</span><span>Details</span><span />
+            </div>
+            {paginated.map((patient) => (
+              <article className="record-table-row" key={patient.id}>
+                <div><strong>{patient.display_name}</strong></div>
+                <span>
+                  {patient.sex || 'Not specified'}
+                  {patient.date_of_birth ? ` · born ${patient.date_of_birth}` : ''}
+                </span>
+                <span className="tabular">{patient.facts.length}</span>
+                <Link to={`/patients/${patient.id}`}>Open</Link>
+              </article>
+            ))}
           </div>
-          {filtered.map((patient) => (
-            <article className="record-table-row" key={patient.id}>
-              <div><strong>{patient.display_name}</strong></div>
-              <span>
-                {patient.sex || 'Not specified'}
-                {patient.date_of_birth ? ` · born ${patient.date_of_birth}` : ''}
-              </span>
-              <span className="tabular">{patient.facts.length}</span>
-              <Link to={`/patients/${patient.id}`}>Open</Link>
-            </article>
-          ))}
-        </div>
+          <Pagination currentPage={page} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+        </>
       )}
     </section>
   )

@@ -24,12 +24,14 @@ These boundaries keep TrialSync’s patient matching and dropout-risk research i
   model generalizes to another population. They do not alter deterministic patient–trial matching.
 - The planned trial-level dropout chart will cover only potentially eligible enrollments with an explicit
   versioned screening/enrollment/prediction linkage; linked and unlinked denominators must be shown.
-- The R5 platform enrollment/event/follow-up and inference backend is implemented, but dropout
-  prediction is not yet exposed through the saved-screening frontend.
-- The R6 V3 run is a fixed 750-member reference landscape. The saved-screening projection backend
-  is implemented, but the active run must be regenerated once to publish core-member, PCA-transform,
-  and patient-fact unit metadata before live queries become ready. External patients remain
-  out-of-sample overlays and never mutate the reference landscape.
+- The R5 platform enrollment/event/follow-up, inference backend, and saved-screening frontend
+  integration are implemented. The active XGBoost-06 model adds absolute adherence counts and
+  explicit longest-streak inputs. Its strong results are limited to the controlled synthetic task
+  and must not be read as clinical or real-world validation.
+- The R6 V3.1 run is a fixed 750-member reference landscape with verified core-member, PCA-
+  transform, and patient-fact unit metadata. The saved-screening projection backend and frontend
+  are implemented. External patients remain out-of-sample overlays and never mutate the reference
+  landscape.
 - The planned RAG workflow will use LangChain to rank candidate trials, expand each bounded
   candidate to its complete approved criteria set, and use Gemini for the structured summary.
   Ranked candidates will remain available when generation is unavailable.

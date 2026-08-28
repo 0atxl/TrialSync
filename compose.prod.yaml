@@ -35,6 +35,7 @@ services:
     image: trialsync-backend:local
     env_file: ${TRIALSYNC_ENV_FILE:-.env.production}
     volumes:
+      - ${TRIALSYNC_R5_ARTIFACT_HOST_PATH:-./artifacts/r5}:/app/artifacts/r5:ro
       - ${TRIALSYNC_R6_ARTIFACT_HOST_PATH:-./artifacts/r6}:/app/artifacts/r6:ro
     depends_on:
       migrate:

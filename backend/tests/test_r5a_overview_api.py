@@ -11,8 +11,14 @@ from sqlalchemy import delete
 
 from trialsync.db.models import User
 from trialsync.db.session import get_session_factory
+from trialsync.research.risk.artifacts import RiskArtifactError
 
 pytestmark = pytest.mark.anyio
+
+
+class UnavailableResearchArtifacts:
+    def descriptor(self) -> None:
+        raise RiskArtifactError("Unavailable for overview degradation test.")
 
 
 @pytest.fixture
@@ -117,8 +123,9 @@ async def _screening(
 
 
 async def test_overview_is_complete_owner_scoped_and_research_degraded_safe(
-    api: AsyncClient, email_prefix: str
+    app: FastAPI, api: AsyncClient, email_prefix: str
 ) -> None:
+    app.state.research_risk = UnavailableResearchArtifacts()
     account = await _register(api, f"{email_prefix}-owner@example.com")
     other = await _register(api, f"{email_prefix}-other@example.com")
     headers = _auth(account)

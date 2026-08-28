@@ -116,6 +116,13 @@ Categorical values are resolved through a versioned mapping registry. If a saved
 condition, site, or treatment value outside the model's frozen vocabulary, the risk capability
 returns `unsupported_model_input`; the user is never asked to disguise it as a known category.
 
+Enrollment creation and correction have distinct behavior. POST creates the single screening-linked
+enrollment and returns a conflict when it already exists. PUT requires that enrollment and appends
+a `research_enrollment_baseline_revisions` row. A repeated identical PUT reuses the latest revision;
+a real correction links to the revision it supersedes. Enrollment-owned baseline columns retain the
+initial record for migration compatibility, while reads and new feature construction use the latest
+revision. Existing follow-up snapshots and predictions are never updated in place.
+
 ## 4. Retained longitudinal event schema
 
 The tables below remain for migration compatibility and possible future record tracking. They are
@@ -206,8 +213,9 @@ One immutable row is produced from baseline plus the explicit aggregate through-
 | Field | Contract |
 |---|---|
 | `research_enrollment_id` | Parent episode |
+| `baseline_revision_id` | Exact append-only baseline revision used for new snapshots |
 | `cutoff_day` | `30` |
-| `feature_schema_version` | Exact ordered 22-feature schema |
+| `feature_schema_version` | Exact ordered 27-feature schema |
 | `feature_values_json` | Validated baseline and derived follow-up values |
 | `feature_sources_json` | Source/provenance for every value |
 | `feature_snapshot_hash` | Canonical checksum |
@@ -219,6 +227,11 @@ One immutable row is produced from baseline plus the explicit aggregate through-
 
 Submitting changed aggregate inputs produces a new follow-up snapshot. Existing predictions retain
 the snapshot hash they used and are never recalculated in place.
+
+The compact v2 aggregate requires longest missed-dose and missed-visit streaks in addition to
+totals. TrialSync has no visit-record-tracking sequence in this workflow, so it does not infer a
+streak from a total. Blank streaks are rejected, and each streak must be consistent with its
+explicit missed count.
 
 Outcomes, withdrawal state, generated risk tiers, and post-cutoff events are excluded from the
 feature builder.
@@ -356,6 +369,7 @@ Returns three independent states:
 
 ```text
 POST /api/v1/research/screenings/{screening_id}/enrollment
+PUT  /api/v1/research/screenings/{screening_id}/enrollment
 GET  /api/v1/research/enrollments/{enrollment_id}
 POST /api/v1/research/enrollments/{enrollment_id}/day30-summary
 GET  /api/v1/research/enrollments/{enrollment_id}/follow-up-snapshots
@@ -382,7 +396,8 @@ requests identify a representation and neighbor bound under a path-authorized pl
 `screening_id`; the server selects and reports the configured active run.
 Existing cohort-member endpoints remain available for reference-Atlas exploration.
 
-Day-30 snapshot creation requires all aggregate counts and the latest functional assessment.
+Day-30 snapshot creation requires all aggregate counts, both longest-streak values, and the latest
+functional assessment.
 Blank values are rejected. Zero is accepted only where the caller explicitly sends zero, and
 impossible relationships such as missed doses exceeding expected doses are rejected.
 
@@ -411,8 +426,9 @@ the Cohort Atlas.
 - Calculate directly after valid inputs; do not add record-history or review-confirmation steps.
 - Show probability, threshold, horizon, and human-readable factors beside the unchanged eligibility
   summary. Put model identity and numeric SHAP values under Technical details.
-- Show exact current, one-additional-missed-dose, and two-additional-missed-dose model results with
-  every other feature fixed. A flat segment is valid for the piecewise-constant XGBoost model.
+- Show exact current, one-additional-consecutive-missed-dose, and
+  two-additional-consecutive-missed-dose model results with every other feature fixed. A flat
+  segment is valid for the piecewise-constant XGBoost model.
 
 ### Cohort context
 

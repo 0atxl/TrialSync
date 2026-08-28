@@ -28,15 +28,19 @@ from trialsync.research.risk.service import (
     USER_BASELINE_FEATURES,
     active_model,
     build_follow_up_summary,
+    condition_category,
     create_enrollment,
     create_prediction,
     enrollment_for_screening,
     enrollment_payload,
     follow_up_payload,
+    latest_baseline_revision,
     missed_dose_scenarios,
     owned_enrollment,
     owned_screening,
     prediction_payload,
+    unsupported_condition_message,
+    update_enrollment,
     validate_descriptor,
 )
 
@@ -57,10 +61,12 @@ class EnrollmentCreate(BaseModel):
 
 class Day30SummaryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    scheduled_doses: int = Field(ge=1, le=1000)
-    missed_doses: int = Field(ge=0, le=1000)
+    scheduled_doses: int = Field(ge=1, le=100)
+    missed_doses: int = Field(ge=0, le=100)
+    longest_missed_dose_streak: int = Field(ge=0, le=30)
     scheduled_visits: int = Field(ge=1, le=100)
-    missed_visits: int = Field(ge=0, le=100)
+    missed_visits: int = Field(ge=0, le=50)
+    longest_missed_visit_streak: int = Field(ge=0, le=15)
     delayed_visits: int = Field(ge=0, le=100)
     total_visit_delay_days: int = Field(ge=0, le=3000)
     expected_assessments: int = Field(ge=1, le=100)
@@ -74,8 +80,16 @@ class Day30SummaryCreate(BaseModel):
     def validate_totals(self) -> Day30SummaryCreate:
         if self.missed_doses > self.scheduled_doses:
             raise ValueError("missed_doses cannot exceed scheduled_doses")
+        if self.missed_doses == 0 and self.longest_missed_dose_streak != 0:
+            raise ValueError("longest_missed_dose_streak must be zero when no doses were missed")
+        if self.missed_doses and not 1 <= self.longest_missed_dose_streak <= self.missed_doses:
+            raise ValueError("longest_missed_dose_streak must be between one and missed_doses")
         if self.missed_visits > self.scheduled_visits:
             raise ValueError("missed_visits cannot exceed scheduled_visits")
+        if self.missed_visits == 0 and self.longest_missed_visit_streak != 0:
+            raise ValueError("longest_missed_visit_streak must be zero when no visits were missed")
+        if self.missed_visits and not 1 <= self.longest_missed_visit_streak <= self.missed_visits:
+            raise ValueError("longest_missed_visit_streak must be between one and missed_visits")
         completed_visits = self.scheduled_visits - self.missed_visits
         if self.delayed_visits > completed_visits:
             raise ValueError("delayed_visits cannot exceed completed visits")
@@ -179,7 +193,8 @@ async def get_risk_model(
 async def research_capabilities(
     screening_id: uuid.UUID, request: Request, session: SessionDep, user: CurrentUser
 ) -> dict[str, Any]:
-    await owned_screening(session, user.id, screening_id)
+    _screening, version = await owned_screening(session, user.id, screening_id)
+    category = condition_category(version.trial.condition)
     enrollment = await enrollment_for_screening(session, user.id, screening_id)
     follow_up = None
     if enrollment is not None:
@@ -193,13 +208,18 @@ async def research_capabilities(
     return {
         "screening_id": screening_id,
         "dropout_prediction": {
-            "status": "needs_enrollment"
+            "status": "unsupported_model_input"
+            if category is None
+            else "needs_enrollment"
             if enrollment is None
             else "ready"
             if follow_up and follow_up.status == "ready"
             else "needs_follow_up",
             "enrollment_id": enrollment.id if enrollment else None,
             "follow_up_snapshot_id": follow_up.id if follow_up else None,
+            "message": unsupported_condition_message(version.trial.condition)
+            if category is None
+            else None,
         },
         "cohort_context": {
             "status": cohort_status,
@@ -234,27 +254,12 @@ async def start_enrollment(
         )
     existing = await enrollment_for_screening(session, user.id, screening_id)
     if existing is not None:
-        existing_user_baseline = {
-            name: (
-                existing.baseline_values_json.get(name),
-                existing.baseline_sources_json.get(name),
-            )
-            for name in USER_BASELINE_FEATURES
-            if name in existing.baseline_values_json
-        }
-        requested_user_baseline = {
-            name: (item.value, item.source) for name, item in supplied.items()
-        }
-        if (
-            existing.enrollment_date == payload.enrollment_date
-            and existing_user_baseline == requested_user_baseline
-        ):
-            return enrollment_payload(existing)
         raise ApplicationError(
-            code="RESEARCH_ENROLLMENT_CONFLICT",
-            message="The saved screening already has a different research enrollment context.",
+            code="RESEARCH_ENROLLMENT_EXISTS",
+            message="Research follow-up has already been started for this screening.",
             status_code=409,
         )
+
     try:
         enrollment = await create_enrollment(
             session,
@@ -274,14 +279,47 @@ async def start_enrollment(
     except Exception:
         await session.rollback()
         raise
-    return enrollment_payload(enrollment)
+    revision = await latest_baseline_revision(session, enrollment)
+    return enrollment_payload(enrollment, revision)
+
+
+@router.put("/screenings/{screening_id}/enrollment")
+async def correct_enrollment(
+    screening_id: uuid.UUID, payload: EnrollmentCreate, session: SessionDep, user: CurrentUser
+) -> dict[str, Any]:
+    supplied = {
+        name: SourcedFeatureValue(item.value, item.source)
+        for name, item in payload.baseline.items()
+    }
+    invalid = sorted(set(supplied) - set(USER_BASELINE_FEATURES))
+    if invalid:
+        raise ApplicationError(
+            code="RESEARCH_BASELINE_INVALID",
+            message="Only enrollment-owned baseline fields may be submitted.",
+            status_code=422,
+            details=[{"field": name} for name in invalid],
+        )
+    try:
+        enrollment, revision = await update_enrollment(
+            session,
+            owner_id=user.id,
+            screening_id=screening_id,
+            enrollment_date=payload.enrollment_date,
+            supplied_baseline=supplied,
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return enrollment_payload(enrollment, revision)
 
 
 @router.get("/enrollments/{enrollment_id}")
 async def get_enrollment(
     enrollment_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> dict[str, Any]:
-    return enrollment_payload(await owned_enrollment(session, user.id, enrollment_id))
+    enrollment = await owned_enrollment(session, user.id, enrollment_id)
+    return enrollment_payload(enrollment, await latest_baseline_revision(session, enrollment))
 
 
 @router.post("/enrollments/{enrollment_id}/day30-summary", status_code=201)
@@ -320,7 +358,7 @@ async def list_follow_ups(
 async def get_risk_context(
     screening_id: uuid.UUID, request: Request, session: SessionDep, user: CurrentUser
 ) -> dict[str, Any]:
-    await owned_screening(session, user.id, screening_id)
+    _screening, version = await owned_screening(session, user.id, screening_id)
     enrollment = await enrollment_for_screening(session, user.id, screening_id)
     follow_up = None
     if enrollment is not None:
@@ -330,16 +368,24 @@ async def get_risk_context(
             .order_by(ResearchFollowUpSnapshot.created_at.desc())
         )
     model = await active_model(session)
+    revision = await latest_baseline_revision(session, enrollment) if enrollment else None
+    unsupported = condition_category(version.trial.condition) is None
+    follow_up_stale = bool(follow_up and revision and follow_up.baseline_revision_id != revision.id)
     return {
         "screening_id": screening_id,
-        "status": "unlinked"
+        "status": "unsupported_model_input"
+        if unsupported
+        else "unlinked"
         if enrollment is None
         else "ready"
-        if follow_up and follow_up.status == "ready"
+        if follow_up and follow_up.status == "ready" and not follow_up_stale
         else "incomplete",
-        "enrollment": enrollment_payload(enrollment) if enrollment else None,
+        "status_message": unsupported_condition_message(version.trial.condition)
+        if unsupported
+        else None,
+        "enrollment": enrollment_payload(enrollment, revision) if enrollment else None,
         "follow_up": follow_up_payload(follow_up) if follow_up else None,
-        "follow_up_stale": False,
+        "follow_up_stale": follow_up_stale,
         "model": _model_payload(model, _artifacts(request)),
     }
 
@@ -391,7 +437,7 @@ async def dropout_scenarios(
     validate_descriptor(model, artifacts.descriptor())
     return {
         "follow_up_snapshot_id": snapshot.id,
-        "scenario": "additional_missed_doses",
+        "scenario": "additional_consecutive_missed_doses",
         "points": missed_dose_scenarios(snapshot, artifacts),
         "threshold": float(model.threshold),
         "horizon_day": model.horizon_day,
@@ -591,6 +637,40 @@ async def _overview(
         if screening.overall_state == OverallState.potentially_eligible
     }
     model = await active_model(session)
+    enrollments = (
+        list(
+            await session.scalars(
+                select(ResearchEnrollment).where(
+                    ResearchEnrollment.owner_id == owner_id,
+                    ResearchEnrollment.screening_id.in_(eligible_ids),
+                )
+            )
+        )
+        if eligible_ids
+        else []
+    )
+    enrollment_ids = [enrollment.id for enrollment in enrollments]
+    follow_ups = (
+        list(
+            await session.scalars(
+                select(ResearchFollowUpSnapshot)
+                .where(
+                    ResearchFollowUpSnapshot.owner_id == owner_id,
+                    ResearchFollowUpSnapshot.research_enrollment_id.in_(enrollment_ids),
+                )
+                .order_by(
+                    ResearchFollowUpSnapshot.created_at.desc(),
+                    ResearchFollowUpSnapshot.id.desc(),
+                )
+            )
+        )
+        if enrollment_ids
+        else []
+    )
+    current_follow_up: dict[uuid.UUID, ResearchFollowUpSnapshot] = {}
+    for follow_up_row in follow_ups:
+        current_follow_up.setdefault(follow_up_row.research_enrollment_id, follow_up_row)
+
     predictions = (
         (
             await session.execute(
@@ -602,17 +682,19 @@ async def _overview(
                 .where(
                     ResearchPrediction.owner_id == owner_id,
                     ResearchPrediction.model_version_id == model.id,
-                    ResearchEnrollment.screening_id.in_(eligible_ids),
+                    ResearchEnrollment.id.in_(enrollment_ids),
                 )
-                .order_by(ResearchPrediction.created_at.desc())
+                .order_by(ResearchPrediction.created_at.desc(), ResearchPrediction.id.desc())
             )
         ).all()
-        if eligible_ids
+        if enrollment_ids
         else []
     )
     latest: dict[uuid.UUID, ResearchPrediction] = {}
     for prediction, enrollment in predictions:
-        latest.setdefault(enrollment.id, prediction)
+        follow_up = current_follow_up.get(enrollment.id)
+        if follow_up is not None and prediction.follow_up_snapshot_id == follow_up.id:
+            latest.setdefault(enrollment.id, prediction)
     labels = [prediction.research_label for prediction in latest.values()]
     first = screenings[0]
     return {

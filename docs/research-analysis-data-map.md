@@ -22,12 +22,12 @@ patient similarity answer different questions.
 ```text
 R3 longitudinal enrollments (training/evaluation only)
   -> landmark_day30_features.parquet
-  -> reviewed xgboost-05 package
+  -> reviewed xgboost-06 package
 
 saved screening -> platform research enrollment
   -> dose / visit / measurement / adverse-event records through day 30
   -> immutable sourced feature snapshot
-  -> reviewed xgboost-05 package -> probability + Tree SHAP contributions
+  -> reviewed xgboost-06 package -> probability + Tree SHAP contributions
 
 R6 unique generated patients × fixed trial panel
   -> patient-fact vectors ---------> DBSCAN + FAISS
@@ -136,9 +136,10 @@ Two explanation levels were completed for both reviewed tree models:
 - **Local explanation:** shows which features pushed one enrollment's predicted risk higher or
 lower relative to the model's reference output.
 
-R5 packages the reviewed `xgboost-05` pipeline without retraining. The 4,000 R3 rows identify its
+R5 loads the reviewed `xgboost-06` pipeline without retraining it in this integration. The v2
+controlled synthetic rows identify its
 training lineage; runtime feature values come from a platform-owned enrollment and complete
-append-only day-30 events. Predictions use the same ordered 22-feature schema and persist every
+append-only day-30 summary. Predictions use the same ordered 27-feature schema and persist every
 value and source. The API groups transformed
 one-hot contributions back to the original feature names and returns the eight largest absolute
 native XGBoost Tree SHAP contributions. See [the R5 backend contract](r5-risk-backend.md).

@@ -205,6 +205,10 @@
   justify-self: stretch;
   padding: 42px clamp(28px, 5vw, 72px) 72px;
 }
+.page > * {
+  width: 100%;
+  margin-inline: auto;
+}
 
 .primary-button,
 .secondary-button {
@@ -354,4 +358,40 @@
   .compact-page-header .page-actions { width: 100%; }
   .ui-toolbar { align-items: stretch; flex-direction: column; }
   .route-state { margin-top: 4vh; padding: 26px; }
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 4px;
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+.pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pagination-button {
+  padding: 6px 14px;
+  font-size: 12px;
+  min-height: unset;
+}
+.pagination-page-indicator {
+  color: var(--ink);
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .pagination-bar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    text-align: center;
+  }
+  .pagination-actions {
+    justify-content: space-between;
+  }
 }

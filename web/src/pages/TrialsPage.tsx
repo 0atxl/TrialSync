@@ -3,11 +3,15 @@ import { Link } from 'react-router-dom'
 
 import { apiRequest, type Trial } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { Pagination } from '../components/Pagination'
+
+const PAGE_SIZE = 10
 
 export function TrialsPage() {
   const { token } = useAuth()
   const [trials, setTrials] = useState<Trial[]>([])
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -31,6 +35,15 @@ export function TrialsPage() {
       ? trials.filter((trial) => `${trial.title} ${trial.condition}`.toLowerCase().includes(term))
       : trials
   }, [trials, query])
+
+  useEffect(() => {
+    setPage(1)
+  }, [query])
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, page])
 
   return (
     <section className="route-entry workspace-page">
@@ -62,25 +75,28 @@ export function TrialsPage() {
           <p>{trials.length ? 'Try another title or condition.' : 'Add a trial to begin.'}</p>
         </div>
       ) : (
-        <div className="record-table">
-          <div className="record-table-head" aria-hidden="true">
-            <span>Trial</span><span>Condition</span><span>Criteria</span><span />
+        <>
+          <div className="record-table">
+            <div className="record-table-head" aria-hidden="true">
+              <span>Trial</span><span>Condition</span><span>Criteria</span><span />
+            </div>
+            {paginated.map((trial) => {
+              const draft = trial.versions.find((version) => version.status === 'draft')
+              const approved = trial.versions
+                .filter((version) => version.status === 'approved')
+                .at(-1)
+              return (
+                <article className="record-table-row" key={trial.id}>
+                  <div><strong>{trial.title}</strong></div>
+                  <span>{trial.condition}{trial.phase ? ` · ${trial.phase}` : ''}</span>
+                  <span className="tabular">{draft?.criteria.length ?? approved?.criteria.length ?? 0}</span>
+                  <Link to={`/trials/${trial.id}`}>Open</Link>
+                </article>
+              )
+            })}
           </div>
-          {filtered.map((trial) => {
-            const draft = trial.versions.find((version) => version.status === 'draft')
-            const approved = trial.versions
-              .filter((version) => version.status === 'approved')
-              .at(-1)
-            return (
-              <article className="record-table-row" key={trial.id}>
-                <div><strong>{trial.title}</strong></div>
-                <span>{trial.condition}{trial.phase ? ` · ${trial.phase}` : ''}</span>
-                <span className="tabular">{draft?.criteria.length ?? approved?.criteria.length ?? 0}</span>
-                <Link to={`/trials/${trial.id}`}>Open</Link>
-              </article>
-            )
-          })}
-        </div>
+          <Pagination currentPage={page} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+        </>
       )}
     </section>
   )

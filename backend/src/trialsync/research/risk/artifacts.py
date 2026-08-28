@@ -121,8 +121,8 @@ class RiskArtifactService:
             artifact_checksum=str(manifest["artifact"]["sha256"]),
             metrics={str(key): float(value) for key, value in manifest["metrics"].items()},
         )
-        if descriptor.candidate_id != "xgboost-05":
-            raise RiskArtifactError("The configured R5 package is not the approved XGBoost model.")
+        if descriptor.candidate_id != "xgboost-06":
+            raise RiskArtifactError("The configured package is not the active XGBoost-06 model.")
         self._descriptor = descriptor
         return descriptor
 

@@ -3,10 +3,10 @@
 TrialSync is an academic full-stack project for **Clinical Trial Patient Matching and Dropout Prediction**. It combines explainable patient–trial matching with an incremental research layer for fixed-horizon dropout-risk modelling, cohort intelligence, and RAG over trial eligibility criteria. The current core connects a deterministic `pass`, `fail`, and `unknown` eligibility engine to immutable patient snapshots, approved trial versions, transactional single/batch screening history, and an evidence-first screening workspace.
 
 The deterministic matching result is the foundation. The research extension has completed the R3
-dataset and R4 offline model experiment. R5 model-serving and R6 reference-artifact foundations are
-implemented; their platform enrollment/event and saved-screening projection bridges are the next
-backend work before a coordinated frontend pass. Later work adds a LangChain/Gemini RAG workflow that
-retrieves approved trial criteria and generates a structured eligibility summary.
+dataset, R4 offline model experiment, R5 model-serving backend and saved-screening frontend
+integration, and R6 reference-artifact cohort analysis with screening projection. Later work adds
+a LangChain/Gemini RAG workflow that retrieves approved trial criteria and generates a structured
+eligibility summary.
 
 ## Prerequisites
 
@@ -113,11 +113,11 @@ input is `landmark_day30_features.parquet`.
 
 R4 compared a dummy baseline, logistic regression, XGBoost, and LightGBM on the frozen split.
 The original frozen validation rule selected LightGBM; that historical result remains documented.
-The user-selected R5 runtime/product model is XGBoost (`xgboost-05`), informed by its strongest
-observed frozen-test results but not described as validation-selected. Calibration, threshold
-metrics, 1,000-repeat bootstrap intervals, global/local SHAP explanations, reproducibility
-metadata, and local MLflow artifacts are complete.
-R5 packages the reviewed `xgboost-05` pipeline without retraining and has a checksum-verified,
+The historical R4 product choice was XGBoost (`xgboost-05`). The active runtime is the separately
+verified `xgboost-06` package (`dropout-xgboost-06-v1`) with the
+`r4-day30-features-v2` contract, a `0.445` threshold, and a day-90 horizon. Its strong metrics apply
+only to its controlled synthetic task; they are not clinical or real-world validation.
+R5 loads the reviewed `xgboost-06` pipeline without retraining and has a checksum-verified,
 owner-scoped platform enrollment, longitudinal event, day-30 snapshot, inference, and API
 foundation. Every
 prediction preserves the exact sourced day-30 feature snapshot, threshold, day-90 horizon, model
@@ -127,8 +127,8 @@ than interpreted as zero. See [`docs/r5-risk-backend.md`](docs/r5-risk-backend.m
 The R6 foundation provides two versioned patient-level representations, bounded DBSCAN evaluation,
 and two brute-force-verified exact FAISS indexes over 750 unique patient snapshots. The backend
 projects an authorized saved screening into either frozen space for independent out-of-sample
-cohort-context and exact similarity requests. Regenerate the active V3 run once to publish the new
-core-member, PCA-transform, and patient-fact unit metadata. See
+cohort-context and exact similarity requests. The accepted V3.1 run remains sealed and is not
+regenerated for presentation changes. See
 [`docs/research-integration-contract.md`](docs/research-integration-contract.md) for the shared
 ingestion-to-research boundary. All research tools remain separate from deterministic eligibility.
 

@@ -14,8 +14,8 @@ BASELINE_FEATURES = (
     "condition_category",
     "site_region",
     "treatment_arm",
-    "age",
     "sex",
+    "age",
     "baseline_functional_severity",
     "patient_reported_burden",
     "baseline_comorbidity_burden",
@@ -28,9 +28,14 @@ FOLLOW_UP_FEATURES = (
     "latest_functional_severity",
     "functional_severity_slope",
     "functional_observation_count",
+    "scheduled_dose_count",
+    "missed_dose_count",
     "missed_dose_rate",
+    "longest_missed_dose_streak",
     "delayed_visit_count",
+    "missed_visit_count",
     "missed_visit_rate",
+    "longest_missed_visit_streak",
     "mean_visit_delay_days",
     "measurement_missingness_rate",
     "adverse_event_count",
@@ -54,7 +59,12 @@ _INTEGER_RANGES: dict[str, tuple[int, int]] = {
     "support_availability": (0, 4),
     "medication_count": (0, 50),
     "functional_observation_count": (0, 100),
+    "scheduled_dose_count": (1, 100),
+    "missed_dose_count": (0, 100),
+    "longest_missed_dose_streak": (0, 30),
     "delayed_visit_count": (0, 100),
+    "missed_visit_count": (0, 50),
+    "longest_missed_visit_streak": (0, 15),
     "adverse_event_count": (0, 100),
     "adverse_event_burden": (0, 500),
 }
@@ -139,6 +149,18 @@ def build_feature_snapshot(
             raise FeatureSnapshotError(f"{name} requires an explicit source")
         validated_values[name] = _validate_value(name, sourced.value)
         validated_sources[name] = source
+
+    scheduled_doses = int(validated_values["scheduled_dose_count"])
+    missed_doses = int(validated_values["missed_dose_count"])
+    dose_streak = int(validated_values["longest_missed_dose_streak"])
+    if missed_doses > scheduled_doses:
+        raise FeatureSnapshotError("missed_dose_count cannot exceed scheduled_dose_count")
+    if dose_streak > missed_doses:
+        raise FeatureSnapshotError("longest_missed_dose_streak cannot exceed missed_dose_count")
+    missed_visits = int(validated_values["missed_visit_count"])
+    visit_streak = int(validated_values["longest_missed_visit_streak"])
+    if visit_streak > missed_visits:
+        raise FeatureSnapshotError("longest_missed_visit_streak cannot exceed missed_visit_count")
 
     canonical = json.dumps(
         {"values": validated_values, "sources": validated_sources},

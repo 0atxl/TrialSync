@@ -16,6 +16,7 @@ from trialsync.api.errors import ApplicationError
 from trialsync.db.models import (
     Assertion,
     ResearchEnrollment,
+    ResearchEnrollmentBaselineRevision,
     ResearchFollowUpSnapshot,
     ResearchModelVersion,
     ResearchPrediction,
@@ -38,8 +39,8 @@ from trialsync.research.risk.features import (
     validate_partial_features,
 )
 
-ACTIVE_MODEL_DATABASE_ID = uuid.UUID("886f64ca-8b57-5dd1-babb-7dfa72480fcf")
-FEATURE_CONTRACT_VERSION = "r4-day30-features-v1"
+ACTIVE_MODEL_DATABASE_ID = uuid.UUID("c53eac18-2c71-55f5-a247-5228516fcf3f")
+FEATURE_CONTRACT_VERSION = "r4-day30-features-v2"
 OBSERVATION_CUTOFF_DAY = 30
 PREDICTION_HORIZON_DAY = 90
 DISCLAIMER = "Research prediction only; not a clinical or eligibility decision."
@@ -85,14 +86,72 @@ async def owned_screening(
     return screening, version
 
 
-def _condition_category(condition: str) -> str | None:
+def condition_category(condition: str) -> str | None:
     normalized = condition.casefold()
     mappings = {
-        "metabolic": ("metabolic", "diabetes", "glucose"),
-        "cardiovascular": ("cardiovascular", "hypertension", "cardiac"),
-        "renal": ("renal", "kidney", "egfr"),
-        "oncology": ("oncology", "cancer", "tumor"),
-        "respiratory": ("respiratory", "asthma", "pulmonary"),
+        "metabolic": (
+            "metabolic",
+            "diabetes",
+            "glucose",
+            "glycemic",
+            "lipid",
+            "dyslipidemia",
+            "cholesterol",
+            "obesity",
+            "hepatic",
+            "liver",
+            "mash",
+            "nash",
+            "fatty",
+            "endocrine",
+            "t1d",
+            "t2d",
+            "hba1c",
+        ),
+        "cardiovascular": (
+            "cardiovascular",
+            "hypertension",
+            "cardiac",
+            "heart",
+            "artery",
+            "vascular",
+            "blood pressure",
+            "coronary",
+            "stroke",
+            "atherosclerosis",
+            "arrhythmia",
+        ),
+        "renal": (
+            "renal",
+            "kidney",
+            "egfr",
+            "nephr",
+            "ckd",
+            "dialysis",
+            "glomerul",
+            "proteinuria",
+        ),
+        "oncology": (
+            "oncology",
+            "cancer",
+            "tumor",
+            "carcinoma",
+            "lymphoma",
+            "melanoma",
+            "leukemia",
+            "neoplasm",
+            "malignan",
+            "sarcoma",
+        ),
+        "respiratory": (
+            "respiratory",
+            "asthma",
+            "pulmonary",
+            "copd",
+            "bronch",
+            "lung",
+            "airway",
+        ),
     }
     return next(
         (
@@ -101,6 +160,13 @@ def _condition_category(condition: str) -> str | None:
             if any(word in normalized for word in words)
         ),
         None,
+    )
+
+
+def unsupported_condition_message(condition: str) -> str:
+    return (
+        f"The condition {condition!r} is not supported by the current dropout model. "
+        "The saved eligibility result is unchanged."
     )
 
 
@@ -132,21 +198,46 @@ def snapshot_baseline(
         condition_count, "immutable_patient_snapshot"
     )
     values["medication_count"] = SourcedFeatureValue(medication_count, "immutable_patient_snapshot")
-    category = _condition_category(version.trial.condition)
+    category = condition_category(version.trial.condition)
     if category is not None:
         values["condition_category"] = SourcedFeatureValue(category, "approved_trial_version")
     return values
 
 
-def _enrollment_values(enrollment: ResearchEnrollment) -> dict[str, SourcedFeatureValue]:
+def _baseline_values(
+    baseline_revision: ResearchEnrollmentBaselineRevision,
+) -> dict[str, SourcedFeatureValue]:
     return {
         name: SourcedFeatureValue(
             value=cast(FeatureValue, value),
-            source=str(enrollment.baseline_sources_json[name]),
+            source=str(baseline_revision.baseline_sources_json[name]),
         )
-        for name, value in enrollment.baseline_values_json.items()
-        if name in enrollment.baseline_sources_json
+        for name, value in baseline_revision.baseline_values_json.items()
+        if name in baseline_revision.baseline_sources_json
     }
+
+
+async def latest_baseline_revision(
+    session: AsyncSession, enrollment: ResearchEnrollment
+) -> ResearchEnrollmentBaselineRevision:
+    revision = await session.scalar(
+        select(ResearchEnrollmentBaselineRevision)
+        .where(
+            ResearchEnrollmentBaselineRevision.research_enrollment_id == enrollment.id,
+            ResearchEnrollmentBaselineRevision.owner_id == enrollment.owner_id,
+        )
+        .order_by(
+            ResearchEnrollmentBaselineRevision.created_at.desc(),
+            ResearchEnrollmentBaselineRevision.id.desc(),
+        )
+    )
+    if revision is None:
+        raise ApplicationError(
+            code="RESEARCH_BASELINE_REVISION_MISSING",
+            message="The enrollment baseline history is incomplete.",
+            status_code=409,
+        )
+    return revision
 
 
 async def enrollment_for_screening(
@@ -189,6 +280,12 @@ async def create_enrollment(
     supplied_baseline: Mapping[str, SourcedFeatureValue],
 ) -> ResearchEnrollment:
     screening, version = await owned_screening(session, owner_id, screening_id)
+    if condition_category(version.trial.condition) is None:
+        raise ApplicationError(
+            code="RESEARCH_MODEL_INPUT_UNSUPPORTED",
+            message=unsupported_condition_message(version.trial.condition),
+            status_code=422,
+        )
     if enrollment_date < screening.screening_date:
         raise ApplicationError(
             code="RESEARCH_ENROLLMENT_DATE_INVALID",
@@ -238,14 +335,119 @@ async def create_enrollment(
     )
     session.add(enrollment)
     await session.flush()
+    session.add(
+        ResearchEnrollmentBaselineRevision(
+            owner_id=owner_id,
+            research_enrollment_id=enrollment.id,
+            enrollment_date=enrollment_date,
+            baseline_values_json=values,
+            baseline_sources_json=sources,
+            baseline_snapshot_hash=baseline_hash,
+            feature_contract_version=FEATURE_CONTRACT_VERSION,
+            supersedes_revision_id=None,
+            correction_reason=None,
+            created_by_id=owner_id,
+        )
+    )
+    await session.flush()
     return enrollment
 
 
+async def update_enrollment(
+    session: AsyncSession,
+    *,
+    owner_id: uuid.UUID,
+    screening_id: uuid.UUID,
+    enrollment_date: date,
+    supplied_baseline: Mapping[str, SourcedFeatureValue],
+) -> tuple[ResearchEnrollment, ResearchEnrollmentBaselineRevision]:
+    screening, version = await owned_screening(session, owner_id, screening_id)
+    if condition_category(version.trial.condition) is None:
+        raise ApplicationError(
+            code="RESEARCH_MODEL_INPUT_UNSUPPORTED",
+            message=unsupported_condition_message(version.trial.condition),
+            status_code=422,
+        )
+    if enrollment_date < screening.screening_date:
+        raise ApplicationError(
+            code="RESEARCH_ENROLLMENT_DATE_INVALID",
+            message="Enrollment date cannot precede the saved screening date.",
+            status_code=422,
+        )
+    enrollment = await enrollment_for_screening(session, owner_id, screening_id)
+    if enrollment is None:
+        raise ApplicationError(
+            code="RESEARCH_ENROLLMENT_NOT_FOUND",
+            message="Research enrollment was not found.",
+            status_code=404,
+        )
+    try:
+        supplied = validate_partial_features(supplied_baseline, allowed=USER_BASELINE_FEATURES)
+        baseline = snapshot_baseline(screening, version)
+        baseline.update(supplied)
+        baseline = validate_partial_features(baseline, allowed=BASELINE_FEATURES)
+    except FeatureSnapshotError as exc:
+        raise ApplicationError(
+            code="RESEARCH_BASELINE_INVALID", message=str(exc), status_code=422
+        ) from exc
+    values = {name: item.value for name, item in baseline.items()}
+    sources = {name: item.source for name, item in baseline.items()}
+    baseline_hash = _checksum({"values": values, "sources": sources})
+    current = await latest_baseline_revision(session, enrollment)
+    if (
+        current.enrollment_date == enrollment_date
+        and current.baseline_snapshot_hash == baseline_hash
+    ):
+        return enrollment, current
+
+    latest_follow_up = await session.scalar(
+        select(ResearchFollowUpSnapshot)
+        .where(ResearchFollowUpSnapshot.research_enrollment_id == enrollment.id)
+        .order_by(
+            ResearchFollowUpSnapshot.created_at.desc(),
+            ResearchFollowUpSnapshot.id.desc(),
+        )
+    )
+    revision = ResearchEnrollmentBaselineRevision(
+        owner_id=owner_id,
+        research_enrollment_id=enrollment.id,
+        enrollment_date=enrollment_date,
+        baseline_values_json=values,
+        baseline_sources_json=sources,
+        baseline_snapshot_hash=baseline_hash,
+        feature_contract_version=FEATURE_CONTRACT_VERSION,
+        supersedes_revision_id=current.id,
+        correction_reason="Enrollment baseline correction",
+        created_by_id=owner_id,
+    )
+    session.add(revision)
+    await session.flush()
+    if latest_follow_up is not None and latest_follow_up.input_summary_json:
+        summary = dict(latest_follow_up.input_summary_json)
+        # Older compact summaries predate the explicit streak fields. The v2
+        # snapshot already stores those values, so carry them forward during a
+        # baseline-only correction instead of inventing defaults or forcing a
+        # second data-entry step.
+        for name in (
+            "longest_missed_dose_streak",
+            "longest_missed_visit_streak",
+        ):
+            if name not in summary and name in latest_follow_up.feature_values_json:
+                summary[name] = latest_follow_up.feature_values_json[name]
+        await build_follow_up_summary(
+            session,
+            enrollment=enrollment,
+            summary={name: cast(int | float, value) for name, value in summary.items()},
+            baseline_revision=revision,
+        )
+    return enrollment, revision
+
+
 def _day30_features(
-    enrollment: ResearchEnrollment,
+    baseline_revision: ResearchEnrollmentBaselineRevision,
     summary: Mapping[str, int | float],
 ) -> dict[str, SourcedFeatureValue]:
-    values = _enrollment_values(enrollment)
+    values = _baseline_values(baseline_revision)
     scheduled_doses = int(summary["scheduled_doses"])
     missed_doses = int(summary["missed_doses"])
     scheduled_visits = int(summary["scheduled_visits"])
@@ -263,17 +465,18 @@ def _day30_features(
             "functional_severity_slope": SourcedFeatureValue(
                 (latest_severity - baseline_severity) / latest_day, source
             ),
-            "functional_observation_count": SourcedFeatureValue(
-                completed_assessments, source
+            "functional_observation_count": SourcedFeatureValue(completed_assessments, source),
+            "scheduled_dose_count": SourcedFeatureValue(scheduled_doses, source),
+            "missed_dose_count": SourcedFeatureValue(missed_doses, source),
+            "missed_dose_rate": SourcedFeatureValue(missed_doses / scheduled_doses, source),
+            "longest_missed_dose_streak": SourcedFeatureValue(
+                int(summary["longest_missed_dose_streak"]), source
             ),
-            "missed_dose_rate": SourcedFeatureValue(
-                missed_doses / scheduled_doses, source
-            ),
-            "delayed_visit_count": SourcedFeatureValue(
-                int(summary["delayed_visits"]), source
-            ),
-            "missed_visit_rate": SourcedFeatureValue(
-                missed_visits / scheduled_visits, source
+            "delayed_visit_count": SourcedFeatureValue(int(summary["delayed_visits"]), source),
+            "missed_visit_count": SourcedFeatureValue(missed_visits, source),
+            "missed_visit_rate": SourcedFeatureValue(missed_visits / scheduled_visits, source),
+            "longest_missed_visit_streak": SourcedFeatureValue(
+                int(summary["longest_missed_visit_streak"]), source
             ),
             "mean_visit_delay_days": SourcedFeatureValue(
                 float(summary["total_visit_delay_days"]) / completed_visits
@@ -285,9 +488,7 @@ def _day30_features(
                 (expected_assessments - completed_assessments) / expected_assessments,
                 source,
             ),
-            "adverse_event_count": SourcedFeatureValue(
-                int(summary["adverse_event_count"]), source
-            ),
+            "adverse_event_count": SourcedFeatureValue(int(summary["adverse_event_count"]), source),
             "adverse_event_burden": SourcedFeatureValue(
                 int(summary["adverse_event_burden"]), source
             ),
@@ -301,11 +502,13 @@ async def build_follow_up_summary(
     *,
     enrollment: ResearchEnrollment,
     summary: Mapping[str, int | float],
+    baseline_revision: ResearchEnrollmentBaselineRevision | None = None,
 ) -> ResearchFollowUpSnapshot:
+    revision = baseline_revision or await latest_baseline_revision(session, enrollment)
     cutoff = enrollment.observation_cutoff_day
     normalized_summary = dict(summary)
     input_checksum = _checksum(
-        {"summary": normalized_summary, "baseline_snapshot_hash": enrollment.baseline_snapshot_hash}
+        {"summary": normalized_summary, "baseline_snapshot_hash": revision.baseline_snapshot_hash}
     )
     existing = await session.scalar(
         select(ResearchFollowUpSnapshot).where(
@@ -317,7 +520,7 @@ async def build_follow_up_summary(
     if existing is not None:
         return existing
     try:
-        complete = build_feature_snapshot(_day30_features(enrollment, normalized_summary))
+        complete = build_feature_snapshot(_day30_features(revision, normalized_summary))
     except (FeatureSnapshotError, KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
         raise ApplicationError(
             code="RESEARCH_DAY30_SUMMARY_INVALID", message=str(exc), status_code=422
@@ -325,6 +528,7 @@ async def build_follow_up_summary(
     snapshot = ResearchFollowUpSnapshot(
         owner_id=enrollment.owner_id,
         research_enrollment_id=enrollment.id,
+        baseline_revision_id=revision.id,
         cutoff_day=cutoff,
         feature_schema_version=FEATURE_CONTRACT_VERSION,
         feature_values_json=complete.values,
@@ -359,13 +563,26 @@ def missed_dose_scenarios(
         )
         for name in FEATURE_NAMES
     }
+    base_streak = int(cast(int | float, base_values["longest_missed_dose_streak"].value))
     points: list[dict[str, int | float]] = []
     for additional in (0, 1, 2):
         scheduled = base_scheduled + additional
         missed = base_missed + additional
         rate = missed / scheduled
+        streak = base_streak + additional
         values = dict(base_values)
-        values["missed_dose_rate"] = SourcedFeatureValue(rate, "scenario:additional_missed_dose")
+        values["scheduled_dose_count"] = SourcedFeatureValue(
+            scheduled, "scenario:additional_consecutive_missed_dose"
+        )
+        values["missed_dose_count"] = SourcedFeatureValue(
+            missed, "scenario:additional_consecutive_missed_dose"
+        )
+        values["missed_dose_rate"] = SourcedFeatureValue(
+            rate, "scenario:additional_consecutive_missed_dose"
+        )
+        values["longest_missed_dose_streak"] = SourcedFeatureValue(
+            min(streak, missed), "scenario:additional_consecutive_missed_dose"
+        )
         output = artifacts.predict(build_feature_snapshot(values), top_k=0)
         points.append(
             {
@@ -373,6 +590,7 @@ def missed_dose_scenarios(
                 "scheduled_doses": scheduled,
                 "missed_doses": missed,
                 "missed_dose_rate": rate,
+                "longest_missed_dose_streak": min(streak, missed),
                 "probability": output.probability,
             }
         )
@@ -453,6 +671,13 @@ async def create_prediction(
             details=[{"field": name} for name in follow_up.missing_features_json],
         )
     enrollment = await owned_enrollment(session, owner_id, follow_up.research_enrollment_id)
+    current_revision = await latest_baseline_revision(session, enrollment)
+    if follow_up.baseline_revision_id != current_revision.id:
+        raise ApplicationError(
+            code="RESEARCH_FOLLOW_UP_STALE",
+            message="The baseline was corrected after these day-30 inputs were assembled.",
+            status_code=409,
+        )
     sourced = {
         name: SourcedFeatureValue(
             value=cast(FeatureValue, value),
@@ -507,24 +732,46 @@ async def create_prediction(
     return prediction
 
 
-def enrollment_payload(enrollment: ResearchEnrollment) -> dict[str, Any]:
-    missing = [name for name in BASELINE_FEATURES if name not in enrollment.baseline_values_json]
+def enrollment_payload(
+    enrollment: ResearchEnrollment,
+    baseline_revision: ResearchEnrollmentBaselineRevision | None = None,
+) -> dict[str, Any]:
+    values = (
+        baseline_revision.baseline_values_json
+        if baseline_revision is not None
+        else enrollment.baseline_values_json
+    )
+    sources = (
+        baseline_revision.baseline_sources_json
+        if baseline_revision is not None
+        else enrollment.baseline_sources_json
+    )
+    enrollment_date = (
+        baseline_revision.enrollment_date
+        if baseline_revision is not None
+        else enrollment.enrollment_date
+    )
+    missing = [name for name in BASELINE_FEATURES if name not in values]
     return {
         "id": enrollment.id,
         "screening_id": enrollment.screening_id,
         "patient_snapshot_id": enrollment.patient_snapshot_id,
         "trial_version_id": enrollment.trial_version_id,
         "research_context_checksum": enrollment.research_context_checksum,
-        "enrollment_date": enrollment.enrollment_date,
+        "enrollment_date": enrollment_date,
         "observation_cutoff_day": enrollment.observation_cutoff_day,
         "prediction_horizon_day": enrollment.prediction_horizon_day,
-        "feature_contract_version": enrollment.feature_contract_version,
+        "feature_contract_version": (
+            baseline_revision.feature_contract_version
+            if baseline_revision is not None
+            else enrollment.feature_contract_version
+        ),
         "tracking_status": enrollment.tracking_status,
         "baseline": [
             {
                 "name": name,
-                "value": enrollment.baseline_values_json.get(name),
-                "source": enrollment.baseline_sources_json.get(name),
+                "value": values.get(name),
+                "source": sources.get(name),
                 "missing": name in missing,
             }
             for name in BASELINE_FEATURES

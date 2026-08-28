@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib
 import json
+import sys
 import zipfile
 from pathlib import Path
 
@@ -194,3 +196,19 @@ def test_training_rejects_inconsistent_streak_bounds() -> None:
     float_streak = pd.DataFrame([dict(base, longest_missed_dose_streak=1.5)])
     with pytest.raises(ValueError, match="must contain integer values"):
         validate_streak_features(float_streak)
+
+
+def test_legacy_training_script_import_is_side_effect_free() -> None:
+    sys.modules.pop("research.generate_and_train_r3_v2", None)
+
+    kaggle_dir = Path("/kaggle")
+    kaggle_existed = kaggle_dir.exists()
+
+    module = importlib.import_module("research.generate_and_train_r3_v2")
+
+    assert hasattr(module, "main")
+    assert callable(module.main)
+    assert hasattr(module, "get_split")
+
+    if not kaggle_existed:
+        assert not kaggle_dir.exists()

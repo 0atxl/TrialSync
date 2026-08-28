@@ -63,6 +63,42 @@ NUMERIC_FEATURES = [
 ALL_FEATURES = CATEGORICAL_FEATURES + NUMERIC_FEATURES
 
 
+def validate_streak_features(df: pd.DataFrame) -> None:
+    """Validate explicit streak and count columns in training data."""
+    required_cols = [
+        "longest_missed_dose_streak",
+        "longest_missed_visit_streak",
+        "scheduled_dose_count",
+        "missed_dose_count",
+        "scheduled_visit_count",
+        "missed_visit_count",
+    ]
+    missing = [col for col in required_cols if col not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Missing required training column(s): {', '.join(missing)}. "
+            "Training requires explicit streak features or event-level parquet sources."
+        )
+
+    for col in required_cols:
+        series = df[col]
+        if series.isna().any():
+            raise ValueError(f"Column '{col}' contains null/missing values.")
+        if not np.issubdtype(series.dtype, np.integer) and not (series == series.round()).all():
+            raise ValueError(f"Column '{col}' must contain integer values.")
+        if (series < 0).any():
+            raise ValueError(f"Column '{col}' contains negative values.")
+
+    if (df["missed_dose_count"] > df["scheduled_dose_count"]).any():
+        raise ValueError("missed_dose_count exceeds scheduled_dose_count in training data.")
+    if (df["missed_visit_count"] > df["scheduled_visit_count"]).any():
+        raise ValueError("missed_visit_count exceeds scheduled_visit_count in training data.")
+    if (df["longest_missed_dose_streak"] > df["missed_dose_count"]).any():
+        raise ValueError("longest_missed_dose_streak exceeds missed_dose_count in training data.")
+    if (df["longest_missed_visit_streak"] > df["missed_visit_count"]).any():
+        raise ValueError("longest_missed_visit_streak exceeds missed_visit_count in training data.")
+
+
 def compute_streaks_if_needed(
     data_dir: Path,
     landmarks: pd.DataFrame,
@@ -122,12 +158,7 @@ def compute_streaks_if_needed(
         df = df.merge(visit_streaks, on="research_enrollment_id", how="left")
         df["longest_missed_visit_streak"] = df["longest_missed_visit_streak"].fillna(0).astype(int)
 
-    if "longest_missed_dose_streak" not in df.columns:
-        # Fallback approximation from missed count
-        df["longest_missed_dose_streak"] = df["missed_dose_count"].clip(upper=4)
-    if "longest_missed_visit_streak" not in df.columns:
-        df["longest_missed_visit_streak"] = df["missed_visit_count"].clip(upper=2)
-
+    validate_streak_features(df)
     return df
 
 

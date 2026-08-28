@@ -4,6 +4,7 @@ import json
 import zipfile
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from research.package_r5_model import (
     FIXED_INPUT_ABS_TOLERANCE,
@@ -11,6 +12,7 @@ from research.package_r5_model import (
     MODEL_ID,
     package_model,
 )
+from research.train_xgboost_v2 import compute_streaks_if_needed, validate_streak_features
 
 from trialsync.research.risk.artifacts import RiskArtifactError, RiskArtifactService
 from trialsync.research.risk.features import (
@@ -134,3 +136,61 @@ def test_reviewed_local_model_packages_without_retraining(tmp_path: Path) -> Non
     manifest = json.loads((tmp_path / MODEL_ID / "manifest.json").read_text())
     assert manifest["selection_status"] == "user_selected_runtime_after_review"
     assert manifest["source"]["retraining_performed"] is False
+
+
+def test_training_requires_explicit_streak_features(tmp_path: Path) -> None:
+    valid_df = pd.DataFrame(
+        [
+            {
+                "scheduled_dose_count": 10,
+                "missed_dose_count": 2,
+                "longest_missed_dose_streak": 2,
+                "scheduled_visit_count": 4,
+                "missed_visit_count": 1,
+                "longest_missed_visit_streak": 1,
+            }
+        ]
+    )
+    validate_streak_features(valid_df)
+
+    # Missing streak column fails with actionable error
+    missing_streak = valid_df.drop(columns=["longest_missed_dose_streak"])
+    with pytest.raises(
+        ValueError, match=r"Missing required training column.*longest_missed_dose_streak"
+    ):
+        validate_streak_features(missing_streak)
+
+    # compute_streaks_if_needed fails without approximation when columns missing and parquets absent
+    with pytest.raises(ValueError, match="Missing required training column"):
+        compute_streaks_if_needed(tmp_path, missing_streak)
+
+
+def test_training_rejects_inconsistent_streak_bounds() -> None:
+    base = {
+        "scheduled_dose_count": 10,
+        "missed_dose_count": 2,
+        "longest_missed_dose_streak": 2,
+        "scheduled_visit_count": 4,
+        "missed_visit_count": 1,
+        "longest_missed_visit_streak": 1,
+    }
+
+    # Streak exceeds missed count
+    streak_exceeds_missed = pd.DataFrame([dict(base, longest_missed_dose_streak=3)])
+    with pytest.raises(ValueError, match="longest_missed_dose_streak exceeds missed_dose_count"):
+        validate_streak_features(streak_exceeds_missed)
+
+    # Missed count exceeds scheduled count
+    missed_exceeds_sched = pd.DataFrame([dict(base, missed_visit_count=5)])
+    with pytest.raises(ValueError, match="missed_visit_count exceeds scheduled_visit_count"):
+        validate_streak_features(missed_exceeds_sched)
+
+    # Negative values
+    negative_streak = pd.DataFrame([dict(base, longest_missed_visit_streak=-1)])
+    with pytest.raises(ValueError, match="contains negative values"):
+        validate_streak_features(negative_streak)
+
+    # Non-integer values
+    float_streak = pd.DataFrame([dict(base, longest_missed_dose_streak=1.5)])
+    with pytest.raises(ValueError, match="must contain integer values"):
+        validate_streak_features(float_streak)

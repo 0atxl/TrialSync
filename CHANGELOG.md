@@ -4,8 +4,8 @@
 
 - The deterministic screening workflow, evidence-backed reports, and CI are complete.
 - R3's longitudinal dataset and R4's offline model comparison are accepted.
-- LightGBM was selected by the original validation rule; XGBoost (`xgboost-05`) is the user-selected R5 runtime model.
-- The R5 backend packages and verifies `xgboost-05` without retraining and uses platform-owned
+- LightGBM was selected by the original validation rule; XGBoost (`xgboost-05`) is historical. The active research runtime is XGBoost-06 (`dropout-xgboost-06-v1`), user-selected after review for directional realism without changing deterministic eligibility.
+- The R5 backend packages and verifies `xgboost-06` without retraining and uses platform-owned
   enrollments, append-only dose/visit/measurement/adverse-event records, immutable day-30 snapshots,
   and source-preserved predictions.
 - The R6 V3 backend projects saved screenings into the frozen patient-fact and screening-profile

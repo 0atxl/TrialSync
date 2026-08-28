@@ -49,10 +49,7 @@ The original frozen validation rule selected LightGBM. Its validation AUPRC was 
 above XGBoost's 0.341860, so that historical rule chose `lightgbm-04`; its stored threshold is
 0.171399.
 
-XGBoost produced the strongest observed frozen-test results and has been selected by the project
-owner as the R5 runtime/product model (`xgboost-05`). Its stored threshold is 0.213477. This is a
-later product decision informed by the comparison; it does not rewrite the original validation
-selection or make XGBoost validation-selected.
+XGBoost produced the strongest observed frozen-test results and was previously chosen as the historical R5 runtime/product model (`xgboost-05`). The active runtime is the separately reviewed and packaged `xgboost-06` (`dropout-xgboost-06-v1`) under the `r4-day30-features-v2` schema. Neither model was validation-selected; both were reviewed and user-selected for directional realism, and research risk predictions do not affect deterministic eligibility.
 
 The two tree models are practically close. The experiment supports a moderate synthetic signal,
 not a claim that either model is clinically strong.
@@ -112,5 +109,4 @@ enrollment or requested explicitly. Missing values are never converted to zero. 
 probability, threshold, day-90 horizon, model version, and bounded SHAP contributions beside the
 unchanged deterministic eligibility result.
 
-R5 will package XGBoost `xgboost-05` as the runtime model. The historical LightGBM validation
-selection and XGBoost frozen-test comparison remain visible for provenance.
+The historical `xgboost-05` (v1) package remains recorded in database migrations for provenance. The active runtime model is `xgboost-06` (v2, `dropout-xgboost-06-v1`), packaged under the `r4-day30-features-v2` schema. Research risk predictions never alter deterministic trial eligibility.

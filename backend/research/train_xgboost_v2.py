@@ -89,10 +89,29 @@ def validate_streak_features(df: pd.DataFrame) -> None:
         if (series < 0).any():
             raise ValueError(f"Column '{col}' contains negative values.")
 
+    # Validate missed count <= scheduled count
     if (df["missed_dose_count"] > df["scheduled_dose_count"]).any():
         raise ValueError("missed_dose_count exceeds scheduled_dose_count in training data.")
     if (df["missed_visit_count"] > df["scheduled_visit_count"]).any():
         raise ValueError("missed_visit_count exceeds scheduled_visit_count in training data.")
+
+    # Validate zero misses require zero streak
+    if ((df["missed_dose_count"] == 0) & (df["longest_missed_dose_streak"] != 0)).any():
+        raise ValueError("longest_missed_dose_streak must be 0 when missed_dose_count is 0.")
+    if ((df["missed_visit_count"] == 0) & (df["longest_missed_visit_streak"] != 0)).any():
+        raise ValueError("longest_missed_visit_streak must be 0 when missed_visit_count is 0.")
+
+    # Validate positive misses require streak >= 1
+    if ((df["missed_dose_count"] > 0) & (df["longest_missed_dose_streak"] < 1)).any():
+        raise ValueError(
+            "longest_missed_dose_streak must be at least 1 when missed_dose_count > 0."
+        )
+    if ((df["missed_visit_count"] > 0) & (df["longest_missed_visit_streak"] < 1)).any():
+        raise ValueError(
+            "longest_missed_visit_streak must be at least 1 when missed_visit_count > 0."
+        )
+
+    # Validate streak <= missed count
     if (df["longest_missed_dose_streak"] > df["missed_dose_count"]).any():
         raise ValueError("longest_missed_dose_streak exceeds missed_dose_count in training data.")
     if (df["longest_missed_visit_streak"] > df["missed_visit_count"]).any():
@@ -124,12 +143,27 @@ def compute_streaks_if_needed(
                     current = 0
             return longest
 
-        dose_streaks = (
-            doses_30.groupby("research_enrollment_id")
-            .apply(_calc_dose_streak)
-            .reset_index(name="longest_missed_dose_streak")
-        )
+        if doses_30.empty:
+            dose_streaks = pd.DataFrame(
+                {
+                    "research_enrollment_id": pd.Series(dtype=str),
+                    "longest_missed_dose_streak": pd.Series(dtype=int),
+                }
+            )
+        else:
+            dose_streaks = (
+                doses_30.groupby("research_enrollment_id")
+                .apply(_calc_dose_streak, include_groups=False)
+                .reset_index(name="longest_missed_dose_streak")
+            )
         df = df.merge(dose_streaks, on="research_enrollment_id", how="left")
+        missing_history = df["longest_missed_dose_streak"].isna() & (df["missed_dose_count"] > 0)
+        if missing_history.any():
+            missing_count = int(missing_history.sum())
+            raise ValueError(
+                f"Cannot derive longest_missed_dose_streak: {missing_count} enrollment(s) with "
+                "positive missed doses lack dose event history."
+            )
         df["longest_missed_dose_streak"] = df["longest_missed_dose_streak"].fillna(0).astype(int)
 
     visit_path = data_dir / "research_visit_events.parquet"
@@ -150,12 +184,27 @@ def compute_streaks_if_needed(
                     current = 0
             return longest
 
-        visit_streaks = (
-            visits_30.groupby("research_enrollment_id")
-            .apply(_calc_visit_streak)
-            .reset_index(name="longest_missed_visit_streak")
-        )
+        if visits_30.empty:
+            visit_streaks = pd.DataFrame(
+                {
+                    "research_enrollment_id": pd.Series(dtype=str),
+                    "longest_missed_visit_streak": pd.Series(dtype=int),
+                }
+            )
+        else:
+            visit_streaks = (
+                visits_30.groupby("research_enrollment_id")
+                .apply(_calc_visit_streak, include_groups=False)
+                .reset_index(name="longest_missed_visit_streak")
+            )
         df = df.merge(visit_streaks, on="research_enrollment_id", how="left")
+        missing_history = df["longest_missed_visit_streak"].isna() & (df["missed_visit_count"] > 0)
+        if missing_history.any():
+            missing_count = int(missing_history.sum())
+            raise ValueError(
+                f"Cannot derive longest_missed_visit_streak: {missing_count} enrollment(s) with "
+                "positive missed visits lack visit event history."
+            )
         df["longest_missed_visit_streak"] = df["longest_missed_visit_streak"].fillna(0).astype(int)
 
     validate_streak_features(df)

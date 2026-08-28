@@ -197,6 +197,100 @@ def test_training_rejects_inconsistent_streak_bounds() -> None:
     with pytest.raises(ValueError, match="must contain integer values"):
         validate_streak_features(float_streak)
 
+    # Positive missed doses with zero streak
+    pos_dose_zero_streak = pd.DataFrame(
+        [dict(base, missed_dose_count=2, longest_missed_dose_streak=0)]
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"longest_missed_dose_streak must be at least 1 when missed_dose_count > 0",
+    ):
+        validate_streak_features(pos_dose_zero_streak)
+
+    # Positive missed visits with zero streak
+    pos_visit_zero_streak = pd.DataFrame(
+        [dict(base, missed_visit_count=2, longest_missed_visit_streak=0)]
+    )
+    with pytest.raises(
+        ValueError,
+        match=r"longest_missed_visit_streak must be at least 1 when missed_visit_count > 0",
+    ):
+        validate_streak_features(pos_visit_zero_streak)
+
+    # Zero missed doses with nonzero streak
+    zero_dose_nonzero_streak = pd.DataFrame(
+        [dict(base, missed_dose_count=0, longest_missed_dose_streak=1)]
+    )
+    with pytest.raises(
+        ValueError, match=r"longest_missed_dose_streak must be 0 when missed_dose_count is 0"
+    ):
+        validate_streak_features(zero_dose_nonzero_streak)
+
+    # Zero missed visits with nonzero streak
+    zero_visit_nonzero_streak = pd.DataFrame(
+        [dict(base, missed_visit_count=0, longest_missed_visit_streak=1)]
+    )
+    with pytest.raises(
+        ValueError, match=r"longest_missed_visit_streak must be 0 when missed_visit_count is 0"
+    ):
+        validate_streak_features(zero_visit_nonzero_streak)
+
+
+def test_event_derived_streaks_handle_missing_history_and_zero_misses(tmp_path: Path) -> None:
+    # 1. Missing dose event history with positive missed doses fails
+    landmarks = pd.DataFrame(
+        [
+            {
+                "research_enrollment_id": "enrollment-01",
+                "scheduled_dose_count": 10,
+                "missed_dose_count": 3,
+                "scheduled_visit_count": 4,
+                "missed_visit_count": 0,
+                "longest_missed_visit_streak": 0,
+            }
+        ]
+    )
+    # Empty dose events table (enrollment-01 is missing)
+    empty_doses = pd.DataFrame(columns=["research_enrollment_id", "event_day", "missed_count"])
+    empty_doses.to_parquet(tmp_path / "research_dose_events.parquet")
+    with pytest.raises(ValueError, match="Cannot derive longest_missed_dose_streak"):
+        compute_streaks_if_needed(tmp_path, landmarks)
+
+    # 2. Missing visit event history with positive missed visits fails
+    landmarks_visit = pd.DataFrame(
+        [
+            {
+                "research_enrollment_id": "enrollment-01",
+                "scheduled_dose_count": 10,
+                "missed_dose_count": 0,
+                "longest_missed_dose_streak": 0,
+                "scheduled_visit_count": 4,
+                "missed_visit_count": 2,
+            }
+        ]
+    )
+    empty_visits = pd.DataFrame(columns=["research_enrollment_id", "event_day", "visit_status"])
+    empty_visits.to_parquet(tmp_path / "research_visit_events.parquet")
+    with pytest.raises(ValueError, match="Cannot derive longest_missed_visit_streak"):
+        compute_streaks_if_needed(tmp_path, landmarks_visit)
+
+    # 3. Valid event-derived zero streak when there were genuinely no misses
+    landmarks_no_misses = pd.DataFrame(
+        [
+            {
+                "research_enrollment_id": "enrollment-02",
+                "scheduled_dose_count": 10,
+                "missed_dose_count": 0,
+                "scheduled_visit_count": 4,
+                "missed_visit_count": 0,
+            }
+        ]
+    )
+    derived = compute_streaks_if_needed(tmp_path, landmarks_no_misses)
+    assert derived["longest_missed_dose_streak"].iloc[0] == 0
+    assert derived["longest_missed_visit_streak"].iloc[0] == 0
+
+
 
 def test_legacy_training_script_import_is_side_effect_free() -> None:
     sys.modules.pop("research.generate_and_train_r3_v2", None)

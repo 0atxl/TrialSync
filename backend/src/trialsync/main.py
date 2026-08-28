@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from trialsync.api.auth import router as auth_router
 from trialsync.api.clinical_concepts import router as clinical_concepts_router
@@ -35,12 +34,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Academic TrialSync foundation API using synthetic data only.",
     )
     app.state.settings = resolved_settings
-    app.state.engine = create_async_engine(
-        resolved_settings.database_url.get_secret_value(), pool_pre_ping=True
-    )
-    app.state.session_factory = async_sessionmaker(
-        bind=app.state.engine, autoflush=False, expire_on_commit=False
-    )
     app.state.extractor = build_extractor(resolved_settings)
     app.state.chat_provider = build_chat_provider(resolved_settings)
     app.state.terminology_suggestions = build_terminology_suggestion_service(resolved_settings)

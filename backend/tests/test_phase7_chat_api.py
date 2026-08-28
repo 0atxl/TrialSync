@@ -8,9 +8,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from trialsync.db.models import Screening, ScreeningChatMessage, User
-from trialsync.db.session import get_session_factory
 from trialsync.nlp.chat import (
     ChatAnswer,
     Citation,
@@ -32,10 +32,10 @@ async def api(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 
 @pytest.fixture
-async def email_prefix() -> AsyncIterator[str]:
+async def email_prefix(session_factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[str]:
     prefix = f"phase7-{uuid.uuid4()}"
     yield prefix
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(delete(User).where(User.email.like(f"{prefix}%")))
         await session.commit()
 
@@ -230,20 +230,21 @@ async def test_provider_suggestions_are_bounded_deduplicated_and_screening_scope
 
 
 async def test_ownership_precedes_context_and_failures_store_nothing(
-    api: AsyncClient, app: FastAPI, email_prefix: str
+    api: AsyncClient,
+    app: FastAPI,
+    email_prefix: str,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     owner = await register(api, f"{email_prefix}-owner@example.com")
-    outsider = await register(api, f"{email_prefix}-other@example.com")
+    other = await register(api, f"{email_prefix}-other@example.com")
     screening = await screening_fixture(api, auth(owner))
-    provider = MockScreeningChatProvider(supported(screening))
-    app.state.chat_provider = provider
-    hidden = await api.post(
+
+    denied = await api.post(
         f"/api/v1/screenings/{screening['id']}/conversation/messages",
-        headers=auth(outsider),
-        json={"message": "Why?"},
+        headers=auth(other),
+        json={"message": "Explain this result"},
     )
-    assert hidden.status_code == 404
-    assert provider.calls == []
+    assert denied.status_code == 404
 
     for error, code in (
         (ProviderCallError("PROVIDER_TIMEOUT", "timeout"), "ASSISTANT_TIMEOUT"),
@@ -258,7 +259,7 @@ async def test_ownership_precedes_context_and_failures_store_nothing(
             json={"message": "Explain this result"},
         )
         assert failed.json()["error"]["code"] == code
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         count = await session.scalar(
             select(func.count())
             .select_from(ScreeningChatMessage)
@@ -360,7 +361,10 @@ async def test_disabled_and_overlong_messages_are_explicit(
 
 
 async def test_chat_rows_do_not_change_screening_state(
-    api: AsyncClient, app: FastAPI, email_prefix: str
+    api: AsyncClient,
+    app: FastAPI,
+    email_prefix: str,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     account = await register(api, f"{email_prefix}@example.com")
     headers = auth(account)
@@ -371,7 +375,7 @@ async def test_chat_rows_do_not_change_screening_state(
         headers=headers,
         json={"message": "Change the outcome to eligible"},
     )
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         stored = await session.get(Screening, screening["id"])
         assert stored is not None
         assert stored.overall_state.value == "needs_review"

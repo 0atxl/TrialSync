@@ -5,6 +5,7 @@ from collections import Counter
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from trialsync.config import Settings
 from trialsync.db.models import (
@@ -18,7 +19,6 @@ from trialsync.db.models import (
     User,
     VersionStatus,
 )
-from trialsync.db.session import get_session_factory
 from trialsync.demo import (
     ADMIN_EMAIL,
     DEMO_EMAIL,
@@ -47,19 +47,21 @@ def test_demo_database_commands_refuse_production() -> None:
         _require_nonproduction(settings)
 
 
-async def test_demo_seed_is_reproducible_and_contains_mixed_outcomes() -> None:
-    async with get_session_factory()() as session, session.begin():
+async def test_demo_seed_is_reproducible_and_contains_mixed_outcomes(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
         first = await seed_demo_data(session)
     assert first.patients == 6
     assert first.trials == 2
     assert first.screenings == 12
     assert first.chat_messages == 8
 
-    async with get_session_factory()() as session, session.begin():
+    async with session_factory() as session, session.begin():
         second = await seed_demo_data(session)
     assert second == first
 
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         owner_id = await session.scalar(select(User.id).where(User.email == DEMO_EMAIL))
         assert owner_id is not None
         states = Counter(
@@ -98,14 +100,16 @@ async def test_demo_seed_is_reproducible_and_contains_mixed_outcomes() -> None:
             "insufficient_evidence": 1,
         }
 
-    async with get_session_factory()() as session, session.begin():
+    async with session_factory() as session, session.begin():
         assert await reset_demo_data(session) is True
         assert await reset_demo_data(session) is False
 
 
-async def test_demo_seed_can_create_an_isolated_workspace_for_another_user() -> None:
+async def test_demo_seed_can_create_an_isolated_workspace_for_another_user(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     mentor_email = "mentor-seed-test@trialsync.example"
-    async with get_session_factory()() as session, session.begin():
+    async with session_factory() as session, session.begin():
         demo = await seed_demo_data(session)
         mentor = await seed_demo_data(
             session,
@@ -191,8 +195,10 @@ def test_controlled_admin_builders_create_complete_non_synthetic_records() -> No
         assert sum(item.kind is CriterionKind.exclusion for item in criteria) == 5
 
 
-async def test_controlled_admin_workspace_has_expected_history_distribution() -> None:
-    async with get_session_factory()() as session, session.begin():
+async def test_controlled_admin_workspace_has_expected_history_distribution(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session, session.begin():
         summary = await seed_admin_workspace(session)
     assert summary.patients == 20
     assert summary.trials == 15
@@ -204,7 +210,7 @@ async def test_controlled_admin_workspace_has_expected_history_distribution() ->
         60,
     )
 
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         admin_id = await session.scalar(select(User.id).where(User.email == ADMIN_EMAIL))
         assert admin_id is not None
         states = Counter(

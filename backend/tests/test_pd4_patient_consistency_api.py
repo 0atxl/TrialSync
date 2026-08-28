@@ -8,9 +8,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from trialsync.db.models import Assertion, FactType, PatientFact, User
-from trialsync.db.session import get_session_factory
 from trialsync.patient_data import PatientDataErrorCode, PatientDataWarningCode
 
 pytestmark = pytest.mark.anyio
@@ -26,10 +26,10 @@ async def api(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 
 @pytest.fixture
-async def email_prefix() -> AsyncIterator[str]:
+async def email_prefix(session_factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[str]:
     prefix = f"pd4-{uuid.uuid4()}"
     yield prefix
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(delete(User).where(User.email.like(f"{prefix}%")))
         await session.commit()
 
@@ -249,12 +249,13 @@ async def test_sex_change_to_male_succeeds_after_pregnancy_is_reconciled(
 async def test_legacy_conflict_is_visible_and_can_be_reconciled_without_inference(
     api: AsyncClient,
     email_prefix: str,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     account = await register(api, f"{email_prefix}@example.com")
     headers = auth(account)
     patient = await create_patient(api, headers, suffix="LEGACY", sex="male")
     fact_id = uuid.uuid4()
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         session.add(
             PatientFact(
                 id=fact_id,

@@ -13,9 +13,8 @@ import pytest
 import sqlalchemy as sa
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from trialsync.db.session import get_engine
 from trialsync.research.risk.features import FEATURE_NAMES
 
 pytestmark = pytest.mark.anyio
@@ -177,7 +176,9 @@ async def _run_upgrade(connection: AsyncConnection, migration: ModuleType) -> No
     await connection.run_sync(run)
 
 
-async def test_0015_preserves_v1_history_and_repairs_only_v2_provenance() -> None:
+async def test_0015_preserves_v1_history_and_repairs_only_v2_provenance(
+    engine: AsyncEngine,
+) -> None:
     schema = f"test_risk_migration_{uuid.uuid4().hex}"
     metadata, tables = _tables()
     owner_id = uuid.uuid4()
@@ -192,7 +193,7 @@ async def test_0015_preserves_v1_history_and_repairs_only_v2_provenance() -> Non
     v1_sources = {name: "historical-v1" for name in V1_FEATURE_NAMES}
     v2_sources = {name: "reviewed-v2" for name in FEATURE_NAMES}
 
-    async with get_engine().connect() as connection:
+    async with engine.connect() as connection:
         transaction = await connection.begin()
         try:
             await connection.execute(sa.text(f'CREATE SCHEMA "{schema}"'))
@@ -465,7 +466,7 @@ async def test_0015_preserves_v1_history_and_repairs_only_v2_provenance() -> Non
 )
 @pytest.mark.parametrize("invalid_payload_kind", ["mixed", "malformed_v2"])
 async def test_risk_migration_rejects_unknown_prediction_without_partial_changes(
-    migration_path: Path, module_name: str, invalid_payload_kind: str
+    migration_path: Path, module_name: str, invalid_payload_kind: str, engine: AsyncEngine
 ) -> None:
     schema = f"test_risk_migration_invalid_{uuid.uuid4().hex}"
     metadata, tables = _tables()
@@ -490,7 +491,7 @@ async def test_risk_migration_rejects_unknown_prediction_without_partial_changes
         }
         invalid_sources = {name: "malformed-v2" for name in FEATURE_NAMES}
 
-    async with get_engine().connect() as connection:
+    async with engine.connect() as connection:
         transaction = await connection.begin()
         try:
             await connection.execute(sa.text(f'CREATE SCHEMA "{schema}"'))

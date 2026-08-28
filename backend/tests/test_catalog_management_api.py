@@ -7,9 +7,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from trialsync.db.models import ClinicalConcept, User
-from trialsync.db.session import get_session_factory
 from trialsync.schemas import TerminologySuggestionRead
 from trialsync.terminology.suggestions import TerminologySuggestionResult
 
@@ -123,6 +123,7 @@ async def test_authenticated_user_can_search_catalog_with_advisory_suggestions(
 
 async def test_catalog_management_is_admin_only_and_retirement_is_safe(
     api: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     suffix = uuid.uuid4().hex
     email = f"catalog-{suffix}@example.com"
@@ -132,7 +133,7 @@ async def test_catalog_management_is_admin_only_and_retirement_is_safe(
     assert denied.status_code == 403
     assert denied.json()["error"]["code"] == "CATALOG_ADMIN_REQUIRED"
 
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(
             update(User).where(User.email == email).values(is_catalog_admin=True)
         )
@@ -200,7 +201,7 @@ async def test_catalog_management_is_admin_only_and_retirement_is_safe(
         assert detail.status_code == 200
         assert detail.json()["facts"][0]["concept"] == "c_reactive_protein"
     finally:
-        async with get_session_factory()() as session:
+        async with session_factory() as session:
             if concept_id is not None:
                 await session.execute(
                     delete(ClinicalConcept).where(ClinicalConcept.id == concept_id)
@@ -212,11 +213,12 @@ async def test_catalog_management_is_admin_only_and_retirement_is_safe(
 async def test_catalog_admin_can_review_a_suggestion_before_saving_it(
     api: AsyncClient,
     app: FastAPI,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     suffix = uuid.uuid4().hex
     email = f"catalog-suggestion-{suffix}@example.com"
     headers = await register(api, email)
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(
             update(User).where(User.email == email).values(is_catalog_admin=True)
         )
@@ -262,7 +264,7 @@ async def test_catalog_admin_can_review_a_suggestion_before_saving_it(
         assert created.json()["terminology_system"] == "rxnorm"
         assert created.json()["terminology_code"] == "6809"
     finally:
-        async with get_session_factory()() as session:
+        async with session_factory() as session:
             if concept_id is not None:
                 await session.execute(
                     delete(ClinicalConcept).where(ClinicalConcept.id == concept_id)

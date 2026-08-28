@@ -7,9 +7,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from trialsync.db.models import User
-from trialsync.db.session import get_session_factory
 
 pytestmark = pytest.mark.anyio
 
@@ -34,10 +34,10 @@ def auth(response: Response) -> dict[str, str]:
 
 
 @pytest.fixture
-async def email_prefix() -> AsyncIterator[str]:
+async def email_prefix(session_factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[str]:
     prefix = f"phase2-{uuid.uuid4()}"
     yield prefix
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(delete(User).where(User.email.like(f"{prefix}%")))
         await session.commit()
 

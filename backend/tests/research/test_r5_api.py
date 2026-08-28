@@ -8,6 +8,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from trialsync.db.models import (
     ResearchEnrollmentBaselineRevision,
@@ -15,7 +16,6 @@ from trialsync.db.models import (
     ResearchPrediction,
     User,
 )
-from trialsync.db.session import get_session_factory
 from trialsync.research.risk.artifacts import (
     RiskContribution,
     RiskModelDescriptor,
@@ -73,10 +73,10 @@ async def api(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 
 @pytest.fixture
-async def email_prefix() -> AsyncIterator[str]:
+async def email_prefix(session_factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[str]:
     prefix = f"r5-{uuid.uuid4()}"
     yield prefix
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(delete(User).where(User.email.like(f"{prefix}%")))
         await session.commit()
 
@@ -357,7 +357,7 @@ async def test_day30_summary_rejects_implicit_or_impossible_counts(
 
 
 async def test_enrollment_correction_is_append_only_and_requires_a_new_prediction(
-    api: AsyncClient, email_prefix: str
+    api: AsyncClient, email_prefix: str, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     registered = await _register(api, f"{email_prefix}-correction@example.com")
     headers = _auth(registered)
@@ -425,7 +425,7 @@ async def test_enrollment_correction_is_append_only_and_requires_a_new_predictio
     legacy_summary = dict(summary)
     legacy_summary.pop("longest_missed_dose_streak")
     legacy_summary.pop("longest_missed_visit_streak")
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(
             update(ResearchFollowUpSnapshot)
             .where(ResearchFollowUpSnapshot.id == uuid.UUID(first_follow_up.json()["id"]))
@@ -508,7 +508,7 @@ async def test_enrollment_correction_is_append_only_and_requires_a_new_predictio
     assert eligibility_after.json()["counts"] == eligibility_before.json()["counts"]
     assert eligibility_after.json()["evaluations"] == eligibility_before.json()["evaluations"]
 
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         revisions = list(
             await session.scalars(
                 select(ResearchEnrollmentBaselineRevision)

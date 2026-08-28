@@ -10,11 +10,11 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient, Response
 from pypdf import PdfReader
 from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 import trialsync.api.screenings as screening_api
 from trialsync.db.models import PatientSnapshot, Screening, ScreeningBatch, User
-from trialsync.db.session import get_session_factory
 from trialsync.reports import (
     ScreeningReportCounts,
     ScreeningReportCriterion,
@@ -39,10 +39,10 @@ async def api(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 
 @pytest.fixture
-async def email_prefix() -> AsyncIterator[str]:
+async def email_prefix(session_factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[str]:
     prefix = f"phase4-{uuid.uuid4()}"
     yield prefix
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         await session.execute(delete(User).where(User.email.like(f"{prefix}%")))
         await session.commit()
 
@@ -438,7 +438,10 @@ async def test_batch_accepts_unscreened_patients_and_creates_snapshots(
 
 
 async def test_single_unexpected_failure_rolls_back_snapshot_and_screening(
-    api: AsyncClient, email_prefix: str, monkeypatch: pytest.MonkeyPatch
+    api: AsyncClient,
+    email_prefix: str,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     account = await register(api, f"{email_prefix}@example.com")
     headers = auth(account)
@@ -459,7 +462,7 @@ async def test_single_unexpected_failure_rolls_back_snapshot_and_screening(
             json={"patient_id": patient_id, "trial_version_id": version_id},
         )
     assert failed.status_code == 500
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         owner_id = uuid.UUID(account.json()["user"]["id"])
         assert await session.scalar(
             select(func.count()).select_from(Screening).where(Screening.owner_id == owner_id)
@@ -472,7 +475,7 @@ async def test_single_unexpected_failure_rolls_back_snapshot_and_screening(
 
 
 async def test_batch_rejects_other_user_snapshot_before_writing(
-    api: AsyncClient, email_prefix: str
+    api: AsyncClient, email_prefix: str, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     first = await register(api, f"{email_prefix}-a@example.com")
     second = await register(api, f"{email_prefix}-b@example.com")
@@ -488,7 +491,7 @@ async def test_batch_rejects_other_user_snapshot_before_writing(
     assert rejected.status_code == 404
     second_user_id = uuid.UUID(second.json()["user"]["id"])
     first_user_id = uuid.UUID(first.json()["user"]["id"])
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         assert await session.scalar(
             select(func.count())
             .select_from(ScreeningBatch)
@@ -502,7 +505,10 @@ async def test_batch_rejects_other_user_snapshot_before_writing(
 
 
 async def test_twenty_by_one_batch_and_unexpected_failure_roll_back(
-    api: AsyncClient, email_prefix: str, monkeypatch: pytest.MonkeyPatch
+    api: AsyncClient,
+    email_prefix: str,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     account = await register(api, f"{email_prefix}@example.com")
     headers = auth(account)
@@ -543,7 +549,7 @@ async def test_twenty_by_one_batch_and_unexpected_failure_roll_back(
             json={"patient_snapshot_ids": snapshot_ids[:2], "trial_version_ids": [version_id]},
         )
     assert failed.status_code == 500
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         owner_id = uuid.UUID(account.json()["user"]["id"])
         batch_count = await session.scalar(
             select(func.count())
@@ -762,7 +768,7 @@ def test_report_renderer_wraps_unicode_and_long_criteria_across_pages() -> None:
 
 
 async def test_report_assembly_is_deterministic_for_a_stored_screening(
-    api: AsyncClient, email_prefix: str
+    api: AsyncClient, email_prefix: str, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     account = await register(api, f"{email_prefix}-report-determinism@example.com")
     headers = auth(account)
@@ -770,7 +776,7 @@ async def test_report_assembly_is_deterministic_for_a_stored_screening(
     version_id = await approved_trial(api, headers)
     saved = await screen(api, headers, patient_id, version_id)
 
-    async with get_session_factory()() as session:
+    async with session_factory() as session:
         stored = await session.scalar(
             select(Screening)
             .options(

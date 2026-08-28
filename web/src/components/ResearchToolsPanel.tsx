@@ -36,7 +36,15 @@ export function ResearchToolsPanel({ screening, token }: { screening: Screening;
         const predictions = await apiRequest<RiskPrediction[]>(`/research/risk/predictions?screening_id=${screening.id}&limit=10`, {}, token)
         if (!active) return
         const prediction = predictions.find((item) => item.follow_up_snapshot_id === context.follow_up?.id)
-        setDropoutStatus(prediction ? `Estimate available · ${(prediction.probability * 100).toFixed(1)}%` : 'Ready to predict')
+        if (prediction) {
+          setDropoutStatus(`Estimate available · ${(prediction.probability * 100).toFixed(1)}%`)
+          return
+        }
+        if (context.model.artifact_status === 'degraded' || context.status === 'degraded') {
+          setDropoutStatus('Prediction unavailable')
+          return
+        }
+        setDropoutStatus('Ready to predict')
       } catch {
         if (active) setDropoutStatus('Status unavailable')
       }

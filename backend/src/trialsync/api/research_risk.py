@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -28,6 +28,7 @@ from trialsync.research.risk.service import (
     USER_BASELINE_FEATURES,
     active_model,
     build_follow_up_summary,
+    check_artifact_readiness,
     condition_category,
     create_enrollment,
     create_prediction,
@@ -136,14 +137,7 @@ def _patient_display_name(screening: Screening) -> str:
 
 
 def _model_payload(model: ResearchModelVersion, artifacts: RiskArtifactService) -> dict[str, Any]:
-    artifact_status: Literal["ready", "degraded"] = "ready"
-    artifact_message: str | None = None
-    try:
-        descriptor = artifacts.descriptor()
-        validate_descriptor(model, descriptor)
-    except (RiskArtifactError, ApplicationError) as exc:
-        artifact_status = "degraded"
-        artifact_message = str(exc)
+    artifact_ready, artifact_message = check_artifact_readiness(model, artifacts)
     return {
         "id": model.id,
         "name": model.model_name,
@@ -157,7 +151,7 @@ def _model_payload(model: ResearchModelVersion, artifacts: RiskArtifactService) 
         "validation_status": model.validation_status,
         "metrics": model.metrics_json,
         "band_policy_version": model.band_policy_version,
-        "artifact_status": artifact_status,
+        "artifact_status": "ready" if artifact_ready else "degraded",
         "artifact_message": artifact_message,
         "created_at": model.created_at,
     }
@@ -201,25 +195,42 @@ async def research_capabilities(
         follow_up = await session.scalar(
             select(ResearchFollowUpSnapshot)
             .where(ResearchFollowUpSnapshot.research_enrollment_id == enrollment.id)
-            .order_by(ResearchFollowUpSnapshot.created_at.desc())
+            .order_by(
+                ResearchFollowUpSnapshot.created_at.desc(),
+                ResearchFollowUpSnapshot.id.desc(),
+            )
         )
     cohort_state = _cohorts(request).live_query_status()
     cohort_status = cohort_state["status"]
+    model = await active_model(session)
+    artifact_ready, _ = check_artifact_readiness(model, _artifacts(request))
+    revision = await latest_baseline_revision(session, enrollment) if enrollment else None
+    follow_up_stale = bool(follow_up and revision and follow_up.baseline_revision_id != revision.id)
+    follow_up_ready = bool(follow_up and follow_up.status == "ready" and not follow_up_stale)
+
+    if category is None:
+        prediction_status = "unsupported_model_input"
+        prediction_message = unsupported_condition_message(version.trial.condition)
+    elif enrollment is None:
+        prediction_status = "needs_enrollment"
+        prediction_message = None
+    elif not follow_up_ready:
+        prediction_status = "needs_follow_up"
+        prediction_message = None
+    elif not artifact_ready:
+        prediction_status = "degraded"
+        prediction_message = "Prediction unavailable."
+    else:
+        prediction_status = "ready"
+        prediction_message = None
+
     return {
         "screening_id": screening_id,
         "dropout_prediction": {
-            "status": "unsupported_model_input"
-            if category is None
-            else "needs_enrollment"
-            if enrollment is None
-            else "ready"
-            if follow_up and follow_up.status == "ready"
-            else "needs_follow_up",
+            "status": prediction_status,
             "enrollment_id": enrollment.id if enrollment else None,
             "follow_up_snapshot_id": follow_up.id if follow_up else None,
-            "message": unsupported_condition_message(version.trial.condition)
-            if category is None
-            else None,
+            "message": prediction_message,
         },
         "cohort_context": {
             "status": cohort_status,
@@ -365,21 +376,32 @@ async def get_risk_context(
         follow_up = await session.scalar(
             select(ResearchFollowUpSnapshot)
             .where(ResearchFollowUpSnapshot.research_enrollment_id == enrollment.id)
-            .order_by(ResearchFollowUpSnapshot.created_at.desc())
+            .order_by(
+                ResearchFollowUpSnapshot.created_at.desc(),
+                ResearchFollowUpSnapshot.id.desc(),
+            )
         )
     model = await active_model(session)
     revision = await latest_baseline_revision(session, enrollment) if enrollment else None
     unsupported = condition_category(version.trial.condition) is None
     follow_up_stale = bool(follow_up and revision and follow_up.baseline_revision_id != revision.id)
+    follow_up_ready = bool(follow_up and follow_up.status == "ready" and not follow_up_stale)
+    artifact_ready, _ = check_artifact_readiness(model, _artifacts(request))
+
+    if unsupported:
+        context_status = "unsupported_model_input"
+    elif enrollment is None:
+        context_status = "unlinked"
+    elif not follow_up_ready:
+        context_status = "incomplete"
+    elif not artifact_ready:
+        context_status = "degraded"
+    else:
+        context_status = "ready"
+
     return {
         "screening_id": screening_id,
-        "status": "unsupported_model_input"
-        if unsupported
-        else "unlinked"
-        if enrollment is None
-        else "ready"
-        if follow_up and follow_up.status == "ready" and not follow_up_stale
-        else "incomplete",
+        "status": context_status,
         "status_message": unsupported_condition_message(version.trial.condition)
         if unsupported
         else None,
@@ -434,11 +456,18 @@ async def dropout_scenarios(
         )
     model = await active_model(session)
     artifacts = _artifacts(request)
-    validate_descriptor(model, artifacts.descriptor())
+    try:
+        descriptor = artifacts.descriptor()
+        validate_descriptor(model, descriptor)
+        points = missed_dose_scenarios(snapshot, artifacts)
+    except RiskArtifactError as exc:
+        raise ApplicationError(
+            code="RESEARCH_MODEL_DEGRADED", message=str(exc), status_code=503
+        ) from exc
     return {
         "follow_up_snapshot_id": snapshot.id,
         "scenario": "additional_consecutive_missed_doses",
-        "points": missed_dose_scenarios(snapshot, artifacts),
+        "points": points,
         "threshold": float(model.threshold),
         "horizon_day": model.horizon_day,
     }

@@ -329,7 +329,7 @@ export type ResearchModel = {
 }
 export type RiskContext = {
   screening_id: string
-  status: 'unlinked' | 'incomplete' | 'ready' | 'unsupported_model_input'
+  status: 'unlinked' | 'incomplete' | 'ready' | 'degraded' | 'unsupported_model_input'
   status_message?: string | null
   enrollment: ResearchEnrollment | null
   follow_up: ResearchFollowUp | null

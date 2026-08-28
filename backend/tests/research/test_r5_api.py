@@ -17,6 +17,7 @@ from trialsync.db.models import (
     User,
 )
 from trialsync.research.risk.artifacts import (
+    RiskArtifactError,
     RiskContribution,
     RiskModelDescriptor,
     RiskPredictionOutput,
@@ -24,6 +25,11 @@ from trialsync.research.risk.artifacts import (
 from trialsync.research.risk.features import FEATURE_NAMES
 
 pytestmark = pytest.mark.anyio
+
+
+class UnavailableResearchArtifacts:
+    def descriptor(self) -> RiskModelDescriptor:
+        raise RiskArtifactError("Configured model package is unavailable.")
 
 
 class StubArtifacts:
@@ -561,3 +567,102 @@ async def test_streaks_are_explicit_and_unsupported_conditions_do_not_change_eli
     after = await api.get(f"/api/v1/screenings/{unsupported['id']}", headers=headers)
     assert after.json()["overall_state"] == before.json()["overall_state"]
     assert after.json()["evaluations"] == before.json()["evaluations"]
+
+
+async def test_capabilities_and_context_gate_readiness_on_artifact_health(
+    app: FastAPI, api: AsyncClient, email_prefix: str
+) -> None:
+    registered = await _register(api, f"{email_prefix}-degraded@example.com")
+    headers = _auth(registered)
+    screening = await _saved_screening(api, headers)
+    screening_id = screening["id"]
+
+    enrollment = await api.post(
+        f"/api/v1/research/screenings/{screening_id}/enrollment",
+        headers=headers,
+        json={
+            "enrollment_date": "2026-08-20",
+            "baseline": {
+                "site_region": {"value": "west", "source": "Enrollment form"},
+                "treatment_arm": {"value": "active", "source": "Enrollment form"},
+                "baseline_functional_severity": {"value": 0.3, "source": "Enrollment form"},
+                "patient_reported_burden": {"value": 0.2, "source": "Enrollment form"},
+                "baseline_treatment_burden": {"value": 2, "source": "Enrollment form"},
+                "travel_access_burden": {"value": 2, "source": "Enrollment form"},
+                "support_availability": {"value": 1, "source": "Enrollment form"},
+            },
+        },
+    )
+    assert enrollment.status_code == 201
+    summary = {
+        "scheduled_doses": 10,
+        "missed_doses": 2,
+        "longest_missed_dose_streak": 1,
+        "scheduled_visits": 2,
+        "missed_visits": 1,
+        "longest_missed_visit_streak": 1,
+        "delayed_visits": 0,
+        "total_visit_delay_days": 0,
+        "expected_assessments": 10,
+        "completed_assessments": 9,
+        "latest_functional_severity": 0.35,
+        "latest_assessment_day": 30,
+        "adverse_event_count": 0,
+        "adverse_event_burden": 0,
+    }
+    follow_up = await api.post(
+        f"/api/v1/research/enrollments/{enrollment.json()['id']}/day30-summary",
+        headers=headers,
+        json=summary,
+    )
+    assert follow_up.status_code == 201
+    assert follow_up.json()["status"] == "ready"
+
+    ready_capabilities = await api.get(
+        f"/api/v1/research/screenings/{screening_id}/capabilities", headers=headers
+    )
+    assert ready_capabilities.status_code == 200
+    assert ready_capabilities.json()["dropout_prediction"]["status"] == "ready"
+
+    ready_context = await api.get(
+        f"/api/v1/research/risk/screenings/{screening_id}/context", headers=headers
+    )
+    assert ready_context.status_code == 200
+    assert ready_context.json()["status"] == "ready"
+    assert ready_context.json()["model"]["artifact_status"] == "ready"
+
+    # Degrade the artifact service
+    app.state.research_risk = UnavailableResearchArtifacts()
+
+    degraded_capabilities = await api.get(
+        f"/api/v1/research/screenings/{screening_id}/capabilities", headers=headers
+    )
+    assert degraded_capabilities.status_code == 200
+    assert degraded_capabilities.json()["dropout_prediction"]["status"] == "degraded"
+    assert (
+        degraded_capabilities.json()["dropout_prediction"]["message"]
+        == "Prediction unavailable."
+    )
+
+    degraded_context = await api.get(
+        f"/api/v1/research/risk/screenings/{screening_id}/context", headers=headers
+    )
+    assert degraded_context.status_code == 200
+    assert degraded_context.json()["status"] == "degraded"
+    assert degraded_context.json()["model"]["artifact_status"] == "degraded"
+
+    failed_prediction = await api.post(
+        "/api/v1/research/risk/predictions",
+        headers=headers,
+        json={"follow_up_snapshot_id": follow_up.json()["id"]},
+    )
+    assert failed_prediction.status_code == 503
+    assert failed_prediction.json()["error"]["code"] == "RESEARCH_MODEL_DEGRADED"
+
+    failed_scenarios = await api.post(
+        "/api/v1/research/risk/scenarios",
+        headers=headers,
+        json={"follow_up_snapshot_id": follow_up.json()["id"]},
+    )
+    assert failed_scenarios.status_code == 503
+    assert failed_scenarios.json()["error"]["code"] == "RESEARCH_MODEL_DEGRADED"

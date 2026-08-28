@@ -185,4 +185,45 @@ describe('saved-screening research tools', () => {
     expect(await screen.findByText('Dropout model not available for this condition')).toBeInTheDocument()
     expect(screen.queryByText('Complete baseline setup')).not.toBeInTheDocument()
   })
+
+  it('gates prediction readiness on artifact health in research tools panel', async () => {
+    const degradedModel = { ...model, artifact_status: 'degraded' as const, artifact_message: 'Unavailable' }
+    vi.stubGlobal('fetch', vi.fn((input: string) => {
+      if (input.includes('/risk/screenings/') && input.endsWith('/context')) {
+        return Promise.resolve(json({
+          screening_id: screening.id,
+          status: 'degraded',
+          enrollment,
+          follow_up: followUp,
+          model: degradedModel,
+        }))
+      }
+      if (input.includes('/risk/predictions?')) return Promise.resolve(json([]))
+      throw new Error(`unexpected request ${input}`)
+    }))
+    renderTools()
+    expect(await screen.findByText('Prediction unavailable')).toBeInTheDocument()
+    expect(screen.queryByText('Ready to predict')).not.toBeInTheDocument()
+  })
+
+  it('disables prediction action in day-30 form when artifact is degraded', async () => {
+    const degradedModel = { ...model, artifact_status: 'degraded' as const, artifact_message: 'Unavailable' }
+    vi.stubGlobal('fetch', vi.fn((input: string) => {
+      if (input.includes('/risk/screenings/') && input.endsWith('/context')) {
+        return Promise.resolve(json({
+          screening_id: screening.id,
+          status: 'degraded',
+          enrollment,
+          follow_up: followUp,
+          model: degradedModel,
+        }))
+      }
+      if (input.includes('/risk/predictions?')) return Promise.resolve(json([]))
+      throw new Error(`unexpected request ${input}`)
+    }))
+    renderRisk()
+    const button = await screen.findByRole('button', { name: 'Prediction unavailable' })
+    expect(button).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Calculate estimate/i })).not.toBeInTheDocument()
+  })
 })

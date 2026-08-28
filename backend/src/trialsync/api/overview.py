@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from trialsync.api.deps import CurrentUser, SessionDep
-from trialsync.api.errors import ApplicationError
 from trialsync.db.models import (
     OverallState,
     ResearchEnrollment,
@@ -20,8 +19,7 @@ from trialsync.db.models import (
     ResearchPrediction,
     Screening,
 )
-from trialsync.research.risk.artifacts import RiskArtifactError
-from trialsync.research.risk.service import ACTIVE_MODEL_DATABASE_ID, validate_descriptor
+from trialsync.research.risk.service import ACTIVE_MODEL_DATABASE_ID, check_artifact_readiness
 from trialsync.schemas import (
     OverviewActivityPoint,
     OverviewAttentionItem,
@@ -81,10 +79,8 @@ async def _research_status(
     model = await session.get(ResearchModelVersion, ACTIVE_MODEL_DATABASE_ID)
     if model is None:
         return "degraded", "Dropout workflow summary is temporarily unavailable."
-    try:
-        descriptor = request.app.state.research_risk.descriptor()
-        validate_descriptor(model, descriptor)
-    except (RiskArtifactError, ApplicationError):
+    artifact_ready, _ = check_artifact_readiness(model, request.app.state.research_risk)
+    if not artifact_ready:
         return "degraded", "Dropout workflow summary is temporarily unavailable."
     return "available", None
 

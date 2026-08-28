@@ -135,7 +135,29 @@ export function ResearchRiskPanel({ screening, token }: { screening: Screening; 
       ) : (
         <BaselineSummary enrollment={context.enrollment} onEdit={() => setEditingBaseline(true)} />
       )}
-      {!context.follow_up?.input_summary || editing ? <Day30SummaryForm summary={context.follow_up?.input_summary ?? null} busy={busy} onSubmit={saveSummary} onCancel={context.follow_up?.input_summary ? () => setEditing(false) : undefined} /> : prediction ? <PredictionStage followUp={context.follow_up} prediction={prediction} scenarios={scenarios} onEdit={() => setEditing(true)} /> : <Day30SummaryForm summary={context.follow_up.input_summary} busy={busy} onSubmit={saveSummary} />}
+      {!context.follow_up?.input_summary || editing ? (
+        <Day30SummaryForm
+          summary={context.follow_up?.input_summary ?? null}
+          busy={busy}
+          predictionUnavailable={context.model.artifact_status === 'degraded' || context.status === 'degraded'}
+          onSubmit={saveSummary}
+          onCancel={context.follow_up?.input_summary ? () => setEditing(false) : undefined}
+        />
+      ) : prediction ? (
+        <PredictionStage
+          followUp={context.follow_up}
+          prediction={prediction}
+          scenarios={scenarios}
+          onEdit={() => setEditing(true)}
+        />
+      ) : (
+        <Day30SummaryForm
+          summary={context.follow_up.input_summary}
+          busy={busy}
+          predictionUnavailable={context.model.artifact_status === 'degraded' || context.status === 'degraded'}
+          onSubmit={saveSummary}
+        />
+      )}
     </> : null}
   </div>
 }

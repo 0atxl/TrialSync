@@ -636,6 +636,17 @@ def validate_descriptor(model: ResearchModelVersion, descriptor: RiskModelDescri
         )
 
 
+def check_artifact_readiness(
+    model: ResearchModelVersion, artifacts: RiskArtifactService
+) -> tuple[bool, str | None]:
+    try:
+        descriptor = artifacts.descriptor()
+        validate_descriptor(model, descriptor)
+        return True, None
+    except (RiskArtifactError, ApplicationError) as exc:
+        return False, str(exc)
+
+
 def risk_band(probability: float, threshold: float) -> str:
     if probability < max(0.0, threshold - 0.05):
         return "lower"

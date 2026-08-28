@@ -62,11 +62,13 @@ function validate(draft: Draft) {
 export function Day30SummaryForm({
   summary,
   busy,
+  predictionUnavailable,
   onSubmit,
   onCancel,
 }: {
   summary: Day30Summary | null
   busy: boolean
+  predictionUnavailable?: boolean
   onSubmit: (summary: Day30Summary) => Promise<void>
   onCancel?: () => void
 }) {
@@ -103,7 +105,9 @@ export function Day30SummaryForm({
     {error ? <div className="form-error" role="alert">{error}</div> : null}
     <div className="day30-form-actions">
       <span>{draft.scheduled_doses && draft.missed_doses ? `${draft.missed_doses} of ${draft.scheduled_doses} doses missed` : 'Dose total not entered'}</span>
-      <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Calculating…' : summary ? 'Recalculate estimate' : 'Calculate estimate'}</button>
+      <button className="primary-button" type="submit" disabled={busy || predictionUnavailable}>
+        {busy ? 'Calculating…' : predictionUnavailable ? 'Prediction unavailable' : summary ? 'Recalculate estimate' : 'Calculate estimate'}
+      </button>
     </div>
   </form>
 }

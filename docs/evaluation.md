@@ -28,12 +28,13 @@ checks pass. These values are generated-label prevalence, not model accuracy, pr
 performance, a forced target, or a clinical estimate.
 
 R4 used the frozen 2,800/600/600 participant-level split to compare dummy, logistic-regression,
-XGBoost, and LightGBM classifiers. The original validation rule selected LightGBM; XGBoost was the
-strongest observed frozen-test comparator and the historical R5 runtime/product model (`xgboost-05`).
+XGBoost, and LightGBM classifiers. The original validation rule selected LightGBM; historical XGBoost (`xgboost-05`)
+was the strongest observed frozen-test comparator in that original comparison and the initial R5 runtime/product model.
+For historical `xgboost-05`, the observed test metrics were AUROC 0.6807, AUPRC 0.3617, Brier
+0.1331, precision 0.3418, recall 0.5094, specificity 0.7895, and F1 0.4091.
 The active research runtime is the separately reviewed `xgboost-06` package (`dropout-xgboost-06-v1`),
-which was user-selected for directional realism, not validation-selected. Research risk models do not
-alter deterministic eligibility. Its observed metrics were AUROC 0.6807, AUPRC 0.3617, Brier
-0.1331, precision 0.3418, recall 0.5094, specificity 0.7895, and F1 0.4091. Both tree models
+which was not part of the original R4 comparison and was later user-selected for directional realism, not validation-selected.
+Research risk models do not alter deterministic eligibility. In the original R4 comparison, both tree models (`xgboost-05` and `lightgbm-05`)
 received 1,000-repeat bootstrap uncertainty estimates and global/local SHAP analysis. See
 [the R4 experiment report](r4-dropout-model-experiment.md) for the full protocol, comparison, and
 limitations.

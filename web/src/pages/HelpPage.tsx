@@ -74,7 +74,7 @@ export function HelpPage() {
       <section className="help-section" id="verification">
         <p className="eyebrow">05 · Release evidence</p>
         <h2>Verification and limitations</h2>
-        <p>The current local gate covers 90 backend tests, 37 frontend tests, six browser workflows, lint, type checking, migrations, the production build, and the held-out synthetic evaluation. These are software checks, not clinical validation or trained-model performance claims.</p>
+        <p>The project is checked with automated backend and frontend tests, type checking, linting, migrations, production builds, and a held-out synthetic evaluation. These are software verification checks, not clinical validation or medical efficacy claims.</p>
         <p className="help-note">The rule DSL supports a bounded subset of eligibility language. OCR is local and best-effort. Batch screening is synchronous and bounded. See the repository documentation for the full architecture, evaluation, and limitations record.</p>
       </section>
     </div>

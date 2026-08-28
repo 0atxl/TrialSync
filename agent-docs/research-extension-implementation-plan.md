@@ -7,13 +7,14 @@ the 20-enrollment smoke, 400-enrollment demo, and 4,000-enrollment experiment ar
 declared schema, linkage, chronology, censoring, split, and leakage checks. R4's manual Kaggle
 experiment completed on 2026-08-15 with dummy, logistic-regression, XGBoost, and LightGBM
 comparisons, bootstrap uncertainty, SHAP explanations, and a local MLflow model record. The
-original frozen validation rule selected LightGBM; the user selected XGBoost (`xgboost-05`) as the
-R5 runtime/product model based on the reviewed comparison. XGBoost is not described as
-validation-selected. The committed R4 experiment report records the selection, metrics,
-uncertainty, SHAP, reproducibility metadata, and R5 handoff.
-The later verified controlled-synthetic v2 bundle supplies the active runtime model
+original frozen validation rule selected LightGBM; historical XGBoost (`xgboost-05`) was the
+initial user-selected R5 runtime/product model based on the reviewed comparison. Neither XGBoost
+version is described as validation-selected. The committed R4 experiment report records the selection,
+metrics, uncertainty, SHAP, reproducibility metadata, and R5 handoff.
+The later separately reviewed controlled-synthetic v2 bundle supplies the active runtime model
 `dropout-xgboost-06-v1` (`xgboost-06`), feature contract `r4-day30-features-v2`, threshold `0.445`,
-and day-90 horizon. Its stronger metrics remain limited to that controlled synthetic task and are
+and day-90 horizon. `xgboost-06` was not part of the original R4 comparison and was reviewed and
+user-selected for directional realism. Its metrics remain limited to that controlled synthetic task and are
 not clinical or real-world validation.
 The user approved R5A, a product-wide frontend experience redesign, on 2026-08-25. R5A follows the
 implemented R5/R6 integration and is the next implementation gate before R7.

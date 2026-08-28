@@ -4,7 +4,7 @@
 **Status:** R5A-0 through R5A-4 and the shared-CSS audit are accepted. R5A-5 is implemented and awaiting visual review.
 **Relationship to the research plan:** R5A is the frontend experience gate after the implemented
 R5/R6 research integration and before R7. It redesigns the full application experience without
-changing deterministic eligibility, the accepted `xgboost-05` runtime model, or the sealed R6 V3
+changing deterministic eligibility, the active research runtime model (`xgboost-06`/v2, `dropout-xgboost-06-v1`), or the sealed R6 V3
 cohort representations and indexes.
 
 ## 1. Purpose
@@ -122,7 +122,7 @@ R5A must preserve:
 - review-before-approval import behavior;
 - explicit missing information; missing never becomes an observed zero;
 - immutable screening-to-research-enrollment linkage;
-- the packaged `xgboost-05` day-30-to-day-90 runtime without retraining;
+- the packaged `xgboost-06`/v2 (`dropout-xgboost-06-v1`) day-30-to-day-90 runtime without retraining (with historical `xgboost-05` preserved);
 - separate probability, threshold, and explanation provenance;
 - the configured active R6 run from environment settings;
 - frozen R6 transformations, DBSCAN analysis, PCA coordinates, and exact cosine indexes;
@@ -855,7 +855,7 @@ During implementation:
 ## 12. Explicit non-goals
 
 - Changing deterministic eligibility rules or learning eligibility from data.
-- Retraining or replacing `xgboost-05`.
+- Retraining or replacing the active `xgboost-06` runtime model.
 - Rebuilding or casually replacing the configured R6 active run.
 - Adding live hospital/EHR workflows, enterprise administration, billing, or compliance claims.
 - Adding queues, microservices, or a second frontend application.

@@ -72,17 +72,17 @@ Open `http://localhost:5173` (or `http://127.0.0.1:5173`). The API documentation
 
 The current workspace is organized around an evidence-first dashboard, saved
 screening details, synchronous batch matrices, and review-first imports. These
-screenshots use only the seeded synthetic workspace:
+screenshots use only the seeded synthetic workspace (historical interface reference):
 
-![TrialSync dashboard](docs/assets/screenshots/dashboard-desktop.png)
+![TrialSync dashboard (historical)](docs/assets/screenshots/dashboard-desktop.png)
 
-![Screening evidence and grounded assistant](docs/assets/screenshots/screening-detail-chat-desktop.png)
+![Screening evidence and grounded assistant (historical)](docs/assets/screenshots/screening-detail-chat-desktop.png)
 
-![Grounded assistant at a narrow width](docs/assets/screenshots/screening-detail-chat-narrow.png)
+![Grounded assistant at a narrow width (historical)](docs/assets/screenshots/screening-detail-chat-narrow.png)
 
-![Batch screening matrix](docs/assets/screenshots/batch-matrix-desktop.png)
+![Batch screening matrix (historical)](docs/assets/screenshots/batch-matrix-desktop.png)
 
-![Reviewed import](docs/assets/screenshots/import-review-desktop.png)
+![Reviewed import (historical)](docs/assets/screenshots/import-review-desktop.png)
 
 The browser API base URL comes from `VITE_API_BASE_URL` in the root `.env`; backend settings come from `DATABASE_URL` and `TRIALSYNC_*` variables. No credentials belong in Git.
 
@@ -502,10 +502,13 @@ The backend import is intentionally side-effect free: it does not connect to Pos
 The implemented application covers owner-scoped synthetic patient and trial records, deterministic
 single and batch screening, reviewed text/PDF imports, bounded Groq-assisted candidate extraction,
 and evidence-grounded screening conversations. The R3 synthetic dataset generator is implemented
-as an offline research tool, and R4's model comparison is complete. R5 inference and R6 artifact
-serving foundations are implemented, but their platform-owned enrollment/event and live-screening
-projection bridges remain pending. The coordinated research frontend and eligibility-criteria RAG
-are not represented as current product capabilities.
+as an offline research tool, and R4's model comparison is complete. R5 dropout-risk prediction (using
+the reviewed `dropout-xgboost-06-v1` pipeline) and R6 cohort similarity/DBSCAN projection foundations
+are integrated with platform-owned enrollments, longitudinal events, and saved-screening projections.
+See [`docs/r5-risk-backend.md`](docs/r5-risk-backend.md), [`docs/r6-cohort-analysis.md`](docs/r6-cohort-analysis.md),
+and [`docs/research-integration-contract.md`](docs/research-integration-contract.md). Research risk predictions
+never alter deterministic trial eligibility. Later eligibility-criteria RAG is not represented as a current
+product capability.
 
 This is an educational prototype, not a medical device, clinical decision system, or production hospital service.
 

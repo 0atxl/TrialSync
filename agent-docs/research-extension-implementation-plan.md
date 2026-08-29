@@ -968,10 +968,13 @@ Pause for user approval of metrics, model choice, threshold, and presentation wo
 The manual Kaggle experiment completed on 2026-08-15 over the frozen 2,800/600/600
 train/validation/test split. All four required model families were evaluated. The original frozen
 validation rule selected LightGBM (`lightgbm-04`) because validation AUPRC was the primary metric
-with Brier score as the tie-breaker. XGBoost (`xgboost-05`) produced the strongest observed
-frozen-test results (AUROC 0.6807, AUPRC 0.3617, Brier 0.1331) and is the user-selected R5
+with Brier score as the tie-breaker. Historical XGBoost (`xgboost-05`) produced the strongest observed
+frozen-test results (AUROC 0.6807, AUPRC 0.3617, Brier 0.1331) and was the initial user-selected R5
 runtime/product model. That product decision does not retroactively make XGBoost
-validation-selected.
+validation-selected. The active research runtime is the separately reviewed `xgboost-06` /
+`dropout-xgboost-06-v1` package under the `r4-day30-features-v2` contract (threshold `0.445`, day-90 horizon),
+which was not part of the original R4 comparison and was later user-selected for directional realism
+(not validation-selected). Its metrics apply only to the controlled synthetic task.
 
 Both tree models received 1,000-repeat bootstrap uncertainty estimates and global/local SHAP
 analysis. The local LightGBM MLflow record retains its historical `champion` alias but is not the
@@ -1821,7 +1824,7 @@ Commits are phase checkpoints, not permission to combine several phases into one
 | R1. Canonical report PDF | Complete | User selected evidence-backed reporting, 2026-07-26 | Provider-free typed report assembler, owner-scoped PDF endpoint, complete evidence/missing-information/stale-evidence/ownership/long-text/determinism tests, frontend download states, production build, and visual review, 2026-08-02 |
 | R2. GitHub Actions CI (CD deferred) | Complete | User selected CI-only delivery for the controlled project, 2026-08-02 | Credential-free GitHub Actions verification, Python audit, and backend/frontend container builds; manual Compose deployment remains documented |
 | R3. Synthetic dropout protocol/dataset | Complete | User accepted the frozen generation contract and final 4,000-enrollment artifact before running R4 | Frozen contract; accepted smoke/demo/experiment artifacts; 702 synthetic dropouts; EDA, dataset card, feature dictionary, leakage audit, linkage manifest, checksums, and workflow diagram complete |
-| R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; original validation rule selected LightGBM, while the user selected XGBoost `xgboost-05` for R5 runtime; calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
+| R4. Dropout models/MLflow/SHAP | Complete | User completed and reviewed the manual Kaggle workflow on 2026-08-15 | Frozen-split comparison of dummy, logistic regression, XGBoost, and LightGBM; original validation rule selected LightGBM, while historical XGBoost `xgboost-05` was the initial user-selected R5 runtime (active runtime is separately reviewed `xgboost-06`/v2); calibration, threshold metrics, 1,000-repeat bootstrap intervals, SHAP, reproducibility metadata, MLflow artifacts, and committed experiment report complete |
 | R5. Research-risk API/UI | In progress | User selected the XGBoost runtime model and requested a full platform enrollment/event integration contract, 2026-08-21 | Active `xgboost-06`/v2 packaging, append-only baseline correction, explicit streak inputs, immutable day-30 snapshots, prediction APIs, saved-screening readiness/prediction/SHAP frontend, and Trial Recruitment Overview implemented; final browser-based visual review remains |
 | R6. Screening-derived DBSCAN/FAISS cohorts | In progress | User selected cohort analytics, authorized V3, and requested saved-screening integration | V3.1 passed review; saved-screening projection, external DBSCAN association, exact external-vector FAISS query, independent saved-screening cohort/similarity views, and population Cohort Atlas implemented; final browser-based visual review remains |
 | R5A. Frontend experience redesign | Awaiting review | User approved the R5A direction and accepted R5A-0 through R5A-2 plus the bounded shared-CSS audit, 2026-08-25 | R5A-3 unified patient/trial manual and import entry, inline catalog/terminology assistance, and common review steps implemented; frontend tests, lint, typecheck, build, and focused backend ingestion/catalog tests pass; desktop and narrow-laptop/tablet visual review remains |

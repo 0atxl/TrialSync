@@ -1,8 +1,11 @@
 # TrialSync R5A-0 UX Inventory and Regression Contract
 
 **Date:** 2026-08-25
-**Status:** Accepted by the user on 2026-08-25.
+**Status:** Accepted by the user on 2026-08-25 (Historical pre-redesign baseline).
 **Parent plan:** [`r5a-frontend-experience-redesign-plan.md`](r5a-frontend-experience-redesign-plan.md)
+
+> [!NOTE]
+> **Historical Baseline Document:** This document records the pre-redesign frontend inventory and regression contract as of 2026-08-25. It is maintained as historical evidence. For current active runtime guidance, see [`agent-docs/research-extension-implementation-plan.md`](research-extension-implementation-plan.md) and [`agent-docs/r5a-frontend-experience-redesign-plan.md`](r5a-frontend-experience-redesign-plan.md), where `dropout-xgboost-06-v1` (`xgboost-06`/v2) is the active runtime and `xgboost-05` is preserved for historical provenance.
 
 ## 1. Purpose
 
@@ -319,7 +322,7 @@ indexes, member order, or the configured active run.
 - no unified “wizard” persistence service;
 - no new patient/trial draft tables;
 - no duplicate dashboard persistence;
-- no `xgboost-05` retraining or replacement;
+- no research model retraining or replacement (historical `xgboost-05` preserved; active runtime is `xgboost-06`/v2);
 - no R6 feature, cluster, PCA, or FAISS regeneration for presentation;
 - no graph database or graph API;
 - no queue, cache service, or microservice;

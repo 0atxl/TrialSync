@@ -30,7 +30,6 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from xgboost import XGBClassifier
 
 CATEGORICAL_FEATURES = ["condition_category", "site_region", "treatment_arm", "sex"]
 
@@ -256,6 +255,8 @@ def train_and_evaluate(
     output_dir: Path,
     random_state: int = 42,
 ) -> dict[str, Any]:
+    from xgboost import XGBClassifier
+
     output_dir.mkdir(parents=True, exist_ok=True)
     landmarks_path = data_dir / "landmark_day30_features.parquet"
     landmarks = pd.read_parquet(landmarks_path)

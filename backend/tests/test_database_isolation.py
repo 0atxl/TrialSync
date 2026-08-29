@@ -125,6 +125,10 @@ def test_test_database_url_cannot_match_development_database(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dev_url = "postgresql+psycopg://trialsync:replace-with-local-password@localhost:5432/trialsync"
+    monkeypatch.setattr(
+        "tests.conftest.dotenv_values",
+        lambda _path: {"DATABASE_URL": dev_url, "TRIALSYNC_ENVIRONMENT": "development"},
+    )
     monkeypatch.setenv("TEST_DATABASE_URL", dev_url)
     monkeypatch.setenv("TRIALSYNC_ENVIRONMENT", "development")
 

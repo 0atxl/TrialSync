@@ -27,7 +27,6 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from xgboost import XGBClassifier
 
 
 def get_split(eid: str) -> str:
@@ -36,6 +35,8 @@ def get_split(eid: str) -> str:
 
 
 def main(output_dir: Path | None = None) -> None:
+    from xgboost import XGBClassifier
+
     output_path = output_dir or Path("/kaggle/working/trialsync_v2_bundle")
     output_path.mkdir(parents=True, exist_ok=True)
     models_dir = output_path / "models"
